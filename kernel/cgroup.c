@@ -59,9 +59,6 @@
 #include <linux/delay.h>
 #include <linux/atomic.h>
 #include <linux/cpuset.h>
-#include <linux/proc_ns.h>
-#include <linux/nsproxy.h>
-#include <linux/proc_ns.h>
 #include <net/sock.h>
 
 /*
@@ -214,15 +211,6 @@ static u64 css_serial_nr_next = 1;
 static u16 have_fork_callback __read_mostly;
 static u16 have_exit_callback __read_mostly;
 static u16 have_free_callback __read_mostly;
-
-/* cgroup namespace for init task */
-struct cgroup_namespace init_cgroup_ns = {
-	.count		= { .counter = 2, },
-	.user_ns	= &init_user_ns,
-	.ns.ops		= &cgroupns_operations,
-	.ns.inum	= PROC_CGROUP_INIT_INO,
-	.root_cset	= &init_css_set,
-};
 
 /* Ditto for the can_fork callback. */
 static u16 have_canfork_callback __read_mostly;
@@ -810,9 +798,11 @@ static void put_css_set_locked(struct css_set *cset)
 	if (!atomic_dec_and_test(&cset->refcount))
 		return;
 
-	/* This css_set is dead. unlink it and release cgroup refcounts */
-	for_each_subsys(ss, ssid)
+	/* This css_set is dead. unlink it and release cgroup and css refs */
+	for_each_subsys(ss, ssid) {
 		list_del(&cset->e_cset_node[ssid]);
+		css_put(cset->subsys[ssid]);
+	}
 	hash_del(&cset->hlist);
 	css_set_count--;
 
@@ -1112,9 +1102,13 @@ static struct css_set *find_css_set(struct css_set *old_cset,
 	key = css_set_hash(cset->subsys);
 	hash_add(css_set_table, &cset->hlist, key);
 
-	for_each_subsys(ss, ssid)
+	for_each_subsys(ss, ssid) {
+		struct cgroup_subsys_state *css = cset->subsys[ssid];
+
 		list_add_tail(&cset->e_cset_node[ssid],
-			      &cset->subsys[ssid]->cgroup->e_csets[ssid]);
+			      &css->cgroup->e_csets[ssid]);
+		css_get(css);
+	}
 
 	spin_unlock_bh(&css_set_lock);
 
@@ -1995,7 +1989,6 @@ static struct dentry *cgroup_mount(struct file_system_type *fs_type,
 {
 	bool is_v2 = fs_type == &cgroup2_fs_type;
 	struct super_block *pinned_sb = NULL;
-	struct cgroup_namespace *ns = current->nsproxy->cgroup_ns;
 	struct cgroup_subsys *ss;
 	struct cgroup_root *root;
 	struct cgroup_sb_opts opts;
@@ -2003,14 +1996,6 @@ static struct dentry *cgroup_mount(struct file_system_type *fs_type,
 	int ret;
 	int i;
 	bool new_sb;
-
-	get_cgroup_ns(ns);
-
-	/* Check if the caller has permission to mount. */
-	if (!ns_capable(ns->user_ns, CAP_SYS_ADMIN)) {
-		put_cgroup_ns(ns);
-		return ERR_PTR(-EPERM);
-	}
 
 	/*
 	 * The first time anyone tries to mount a cgroup, enable the list
@@ -2022,7 +2007,6 @@ static struct dentry *cgroup_mount(struct file_system_type *fs_type,
 	if (is_v2) {
 		if (data) {
 			pr_err("cgroup2: unknown option \"%s\"\n", (char *)data);
-			put_cgroup_ns(ns);
 			return ERR_PTR(-EINVAL);
 		}
 		cgrp_dfl_visible = true;
@@ -2128,16 +2112,6 @@ static struct dentry *cgroup_mount(struct file_system_type *fs_type,
 		goto out_unlock;
 	}
 
-	/*
-	 * We know this subsystem has not yet been bound.  Users in a non-init
-	 * user namespace may only mount hierarchies with no bound subsystems,
-	 * i.e. 'none,name=user1'
-	 */
-	if (!opts.none && !capable(CAP_SYS_ADMIN)) {
-		ret = -EPERM;
-		goto out_unlock;
-	}
-
 	root = kzalloc(sizeof(*root), GFP_KERNEL);
 	if (!root) {
 		ret = -ENOMEM;
@@ -2156,37 +2130,12 @@ out_free:
 	kfree(opts.release_agent);
 	kfree(opts.name);
 
-	if (ret) {
-		put_cgroup_ns(ns);
+	if (ret)
 		return ERR_PTR(ret);
-	}
 out_mount:
 	dentry = kernfs_mount(fs_type, flags, root->kf_root,
 			      is_v2 ? CGROUP2_SUPER_MAGIC : CGROUP_SUPER_MAGIC,
 			      &new_sb);
-
-	/*
-	 * In non-init cgroup namespace, instead of root cgroup's
-	 * dentry, we return the dentry corresponding to the
-	 * cgroupns->root_cgrp.
-	 */
-	if (!IS_ERR(dentry) && ns != &init_cgroup_ns) {
-		struct dentry *nsdentry;
-		struct cgroup *cgrp;
-
-		mutex_lock(&cgroup_mutex);
-		spin_lock_bh(&css_set_lock);
-
-		cgrp = cset_cgroup_from_root(ns->root_cset, root);
-
-		spin_unlock_bh(&css_set_lock);
-		mutex_unlock(&cgroup_mutex);
-
-		nsdentry = kernfs_node_dentry(cgrp->kn, dentry->d_sb);
-		dput(dentry);
-		dentry = nsdentry;
-	}
-
 	if (IS_ERR(dentry) || !new_sb)
 		cgroup_put(&root->cgrp);
 
@@ -2199,7 +2148,6 @@ out_mount:
 		deactivate_super(pinned_sb);
 	}
 
-	put_cgroup_ns(ns);
 	return dentry;
 }
 
@@ -2228,44 +2176,13 @@ static struct file_system_type cgroup_fs_type = {
 	.name = "cgroup",
 	.mount = cgroup_mount,
 	.kill_sb = cgroup_kill_sb,
-	.fs_flags = FS_USERNS_MOUNT,
 };
 
 static struct file_system_type cgroup2_fs_type = {
 	.name = "cgroup2",
 	.mount = cgroup_mount,
 	.kill_sb = cgroup_kill_sb,
-	.fs_flags = FS_USERNS_MOUNT,
 };
-
-static char *cgroup_path_ns_locked(struct cgroup *cgrp, char *buf, size_t buflen,
-				   struct cgroup_namespace *ns)
-{
-	struct cgroup *root = cset_cgroup_from_root(ns->root_cset, cgrp->root);
-	int ret;
-
-	ret = kernfs_path_from_node(cgrp->kn, root->kn, buf, buflen);
-	if (ret < 0 || ret >= buflen)
-		return NULL;
-	return buf;
-}
-
-char *cgroup_path_ns(struct cgroup *cgrp, char *buf, size_t buflen,
-		     struct cgroup_namespace *ns)
-{
-	char *ret;
-
-	mutex_lock(&cgroup_mutex);
-	spin_lock_bh(&css_set_lock);
-
-	ret = cgroup_path_ns_locked(cgrp, buf, buflen, ns);
-
-	spin_unlock_bh(&css_set_lock);
-	mutex_unlock(&cgroup_mutex);
-
-	return ret;
-}
-EXPORT_SYMBOL_GPL(cgroup_path_ns);
 
 /**
  * task_cgroup_path - cgroup path of a task in the first cgroup hierarchy
@@ -2294,7 +2211,7 @@ char *task_cgroup_path(struct task_struct *task, char *buf, size_t buflen)
 
 	if (root) {
 		cgrp = task_cgroup_from_root(task, root);
-		path = cgroup_path_ns_locked(cgrp, buf, buflen, &init_cgroup_ns);
+		path = cgroup_path(cgrp, buf, buflen);
 	} else {
 		/* if no hierarchy exists, everyone is in "/" */
 		if (strlcpy(buf, "/", buflen) < buflen)
@@ -2312,6 +2229,9 @@ struct cgroup_taskset {
 	/* the src and dst cset list running through cset->mg_node */
 	struct list_head	src_csets;
 	struct list_head	dst_csets;
+
+	/* the subsys currently being processed */
+	int			ssid;
 
 	/*
 	 * Fields for cgroup_taskset_*() iteration.
@@ -2375,25 +2295,29 @@ static void cgroup_taskset_add(struct task_struct *task,
 /**
  * cgroup_taskset_first - reset taskset and return the first task
  * @tset: taskset of interest
+ * @dst_cssp: output variable for the destination css
  *
  * @tset iteration is initialized and the first task is returned.
  */
-struct task_struct *cgroup_taskset_first(struct cgroup_taskset *tset)
+struct task_struct *cgroup_taskset_first(struct cgroup_taskset *tset,
+					 struct cgroup_subsys_state **dst_cssp)
 {
 	tset->cur_cset = list_first_entry(tset->csets, struct css_set, mg_node);
 	tset->cur_task = NULL;
 
-	return cgroup_taskset_next(tset);
+	return cgroup_taskset_next(tset, dst_cssp);
 }
 
 /**
  * cgroup_taskset_next - iterate to the next task in taskset
  * @tset: taskset of interest
+ * @dst_cssp: output variable for the destination css
  *
  * Return the next task in @tset.  Iteration must have been initialized
  * with cgroup_taskset_first().
  */
-struct task_struct *cgroup_taskset_next(struct cgroup_taskset *tset)
+struct task_struct *cgroup_taskset_next(struct cgroup_taskset *tset,
+					struct cgroup_subsys_state **dst_cssp)
 {
 	struct css_set *cset = tset->cur_cset;
 	struct task_struct *task = tset->cur_task;
@@ -2408,6 +2332,18 @@ struct task_struct *cgroup_taskset_next(struct cgroup_taskset *tset)
 		if (&task->cg_list != &cset->mg_tasks) {
 			tset->cur_cset = cset;
 			tset->cur_task = task;
+
+			/*
+			 * This function may be called both before and
+			 * after cgroup_taskset_migrate().  The two cases
+			 * can be distinguished by looking at whether @cset
+			 * has its ->mg_dst_cset set.
+			 */
+			if (cset->mg_dst_cset)
+				*dst_cssp = cset->mg_dst_cset->subsys[tset->ssid];
+			else
+				*dst_cssp = cset->subsys[tset->ssid];
+
 			return task;
 		}
 
@@ -2419,37 +2355,38 @@ struct task_struct *cgroup_taskset_next(struct cgroup_taskset *tset)
 }
 
 /**
- * cgroup_taskset_migrate - migrate a taskset to a cgroup
+ * cgroup_taskset_migrate - migrate a taskset
  * @tset: taget taskset
- * @dst_cgrp: destination cgroup
+ * @root: cgroup root the migration is taking place on
  *
- * Migrate tasks in @tset to @dst_cgrp.  This function fails iff one of the
- * ->can_attach callbacks fails and guarantees that either all or none of
- * the tasks in @tset are migrated.  @tset is consumed regardless of
- * success.
+ * Migrate tasks in @tset as setup by migration preparation functions.
+ * This function fails iff one of the ->can_attach callbacks fails and
+ * guarantees that either all or none of the tasks in @tset are migrated.
+ * @tset is consumed regardless of success.
  */
 static int cgroup_taskset_migrate(struct cgroup_taskset *tset,
-				  struct cgroup *dst_cgrp)
+				  struct cgroup_root *root)
 {
-	struct cgroup_subsys_state *css, *failed_css = NULL;
+	struct cgroup_subsys *ss;
 	struct task_struct *task, *tmp_task;
 	struct css_set *cset, *tmp_cset;
-	int i, ret;
+	int ssid, failed_ssid, ret;
 
 	/* methods shouldn't be called if no task is actually migrating */
 	if (list_empty(&tset->src_csets))
 		return 0;
 
 	/* check that we can legitimately attach to the cgroup */
-	for_each_e_css(css, i, dst_cgrp) {
-		if (css->ss->can_attach) {
-			ret = css->ss->can_attach(css, tset);
+	do_each_subsys_mask(ss, ssid, root->subsys_mask) {
+		if (ss->can_attach) {
+			tset->ssid = ssid;
+			ret = ss->can_attach(tset);
 			if (ret) {
-				failed_css = css;
+				failed_ssid = ssid;
 				goto out_cancel_attach;
 			}
 		}
-	}
+	} while_each_subsys_mask();
 
 	/*
 	 * Now that we're guaranteed success, proceed to move all tasks to
@@ -2476,20 +2413,25 @@ static int cgroup_taskset_migrate(struct cgroup_taskset *tset,
 	 */
 	tset->csets = &tset->dst_csets;
 
-	for_each_e_css(css, i, dst_cgrp)
-		if (css->ss->attach)
-			css->ss->attach(css, tset);
+	do_each_subsys_mask(ss, ssid, root->subsys_mask) {
+		if (ss->attach) {
+			tset->ssid = ssid;
+			ss->attach(tset);
+		}
+	} while_each_subsys_mask();
 
 	ret = 0;
 	goto out_release_tset;
 
 out_cancel_attach:
-	for_each_e_css(css, i, dst_cgrp) {
-		if (css == failed_css)
+	do_each_subsys_mask(ss, ssid, root->subsys_mask) {
+		if (ssid == failed_ssid)
 			break;
-		if (css->ss->cancel_attach)
-			css->ss->cancel_attach(css, tset);
-	}
+		if (ss->cancel_attach) {
+			tset->ssid = ssid;
+			ss->cancel_attach(tset);
+		}
+	} while_each_subsys_mask();
 out_release_tset:
 	spin_lock_bh(&css_set_lock);
 	list_splice_init(&tset->dst_csets, &tset->src_csets);
@@ -2644,11 +2586,11 @@ err:
  * cgroup_migrate - migrate a process or task to a cgroup
  * @leader: the leader of the process or the task to migrate
  * @threadgroup: whether @leader points to the whole process or a single task
- * @cgrp: the destination cgroup
+ * @root: cgroup root migration is taking place on
  *
- * Migrate a process or task denoted by @leader to @cgrp.  If migrating a
- * process, the caller must be holding cgroup_threadgroup_rwsem.  The
- * caller is also responsible for invoking cgroup_migrate_add_src() and
+ * Migrate a process or task denoted by @leader.  If migrating a process,
+ * the caller must be holding cgroup_threadgroup_rwsem.  The caller is also
+ * responsible for invoking cgroup_migrate_add_src() and
  * cgroup_migrate_prepare_dst() on the targets before invoking this
  * function and following up with cgroup_migrate_finish().
  *
@@ -2659,7 +2601,7 @@ err:
  * actually starting migrating.
  */
 static int cgroup_migrate(struct task_struct *leader, bool threadgroup,
-			  struct cgroup *cgrp)
+			  struct cgroup_root *root)
 {
 	struct cgroup_taskset tset = CGROUP_TASKSET_INIT(tset);
 	struct task_struct *task;
@@ -2680,7 +2622,7 @@ static int cgroup_migrate(struct task_struct *leader, bool threadgroup,
 	rcu_read_unlock();
 	spin_unlock_bh(&css_set_lock);
 
-	return cgroup_taskset_migrate(&tset, cgrp);
+	return cgroup_taskset_migrate(&tset, root);
 }
 
 /**
@@ -2717,7 +2659,7 @@ static int cgroup_attach_task(struct cgroup *dst_cgrp,
 	/* prepare dst csets and commit */
 	ret = cgroup_migrate_prepare_dst(dst_cgrp, &preloaded_csets);
 	if (!ret)
-		ret = cgroup_migrate(leader, threadgroup, dst_cgrp);
+		ret = cgroup_migrate(leader, threadgroup, dst_cgrp->root);
 
 	cgroup_migrate_finish(&preloaded_csets);
 	return ret;
@@ -2992,7 +2934,7 @@ static int cgroup_update_dfl_csses(struct cgroup *cgrp)
 	}
 	spin_unlock_bh(&css_set_lock);
 
-	ret = cgroup_taskset_migrate(&tset, cgrp);
+	ret = cgroup_taskset_migrate(&tset, cgrp->root);
 out_finish:
 	cgroup_migrate_finish(&preloaded_csets);
 	percpu_up_write(&cgroup_threadgroup_rwsem);
@@ -4230,7 +4172,7 @@ int cgroup_transfer_tasks(struct cgroup *to, struct cgroup *from)
 		css_task_iter_end(&it);
 
 		if (task) {
-			ret = cgroup_migrate(task, false, to);
+			ret = cgroup_migrate(task, false, to->root);
 			put_task_struct(task);
 		}
 	} while (task && !ret);
@@ -5467,8 +5409,6 @@ int __init cgroup_init(void)
 	BUG_ON(cgroup_init_cftypes(NULL, cgroup_dfl_base_files));
 	BUG_ON(cgroup_init_cftypes(NULL, cgroup_legacy_base_files));
 
-	get_user_ns(init_cgroup_ns.user_ns);
-
 	mutex_lock(&cgroup_mutex);
 
 	/*
@@ -5618,8 +5558,7 @@ int proc_cgroup_show(struct seq_file *m, struct pid_namespace *ns,
 		 * " (deleted)" is appended to the cgroup path.
 		 */
 		if (cgroup_on_dfl(cgrp) || !(tsk->flags & PF_EXITING)) {
-			path = cgroup_path_ns_locked(cgrp, buf, PATH_MAX,
-						current->nsproxy->cgroup_ns);
+			path = cgroup_path(cgrp, buf, PATH_MAX);
 			if (!path) {
 				retval = -ENAMETOOLONG;
 				goto out_unlock;
@@ -5904,9 +5843,7 @@ static void cgroup_release_agent(struct work_struct *work)
 	if (!pathbuf || !agentbuf)
 		goto out;
 
-	spin_lock_bh(&css_set_lock);
-	path = cgroup_path_ns_locked(cgrp, pathbuf, PATH_MAX, &init_cgroup_ns);
-	spin_unlock_bh(&css_set_lock);
+	path = cgroup_path(cgrp, pathbuf, PATH_MAX);
 	if (!path)
 		goto out;
 
@@ -6117,133 +6054,6 @@ void cgroup_sk_free(struct sock_cgroup_data *skcd)
 }
 
 #endif	/* CONFIG_SOCK_CGROUP_DATA */
-
-/* cgroup namespaces */
-
-static struct cgroup_namespace *alloc_cgroup_ns(void)
-{
-	struct cgroup_namespace *new_ns;
-	int ret;
-
-	new_ns = kzalloc(sizeof(struct cgroup_namespace), GFP_KERNEL);
-	if (!new_ns)
-		return ERR_PTR(-ENOMEM);
-	ret = ns_alloc_inum(&new_ns->ns);
-	if (ret) {
-		kfree(new_ns);
-		return ERR_PTR(ret);
-	}
-	atomic_set(&new_ns->count, 1);
-	new_ns->ns.ops = &cgroupns_operations;
-	return new_ns;
-}
-
-void free_cgroup_ns(struct cgroup_namespace *ns)
-{
-	put_css_set(ns->root_cset);
-	put_user_ns(ns->user_ns);
-	ns_free_inum(&ns->ns);
-	kfree(ns);
-}
-EXPORT_SYMBOL(free_cgroup_ns);
-
-struct cgroup_namespace *copy_cgroup_ns(unsigned long flags,
-					struct user_namespace *user_ns,
-					struct cgroup_namespace *old_ns)
-{
-	struct cgroup_namespace *new_ns;
-	struct css_set *cset;
-
-	BUG_ON(!old_ns);
-
-	if (!(flags & CLONE_NEWCGROUP)) {
-		get_cgroup_ns(old_ns);
-		return old_ns;
-	}
-
-	/* Allow only sysadmin to create cgroup namespace. */
-	if (!ns_capable(user_ns, CAP_SYS_ADMIN))
-		return ERR_PTR(-EPERM);
-
-	mutex_lock(&cgroup_mutex);
-	spin_lock_bh(&css_set_lock);
-
-	cset = task_css_set(current);
-	get_css_set(cset);
-
-	spin_unlock_bh(&css_set_lock);
-	mutex_unlock(&cgroup_mutex);
-
-	new_ns = alloc_cgroup_ns();
-	if (IS_ERR(new_ns)) {
-		put_css_set(cset);
-		return new_ns;
-	}
-
-	new_ns->user_ns = get_user_ns(user_ns);
-	new_ns->root_cset = cset;
-
-	return new_ns;
-}
-
-static inline struct cgroup_namespace *to_cg_ns(struct ns_common *ns)
-{
-	return container_of(ns, struct cgroup_namespace, ns);
-}
-
-static int cgroupns_install(struct nsproxy *nsproxy, struct ns_common *ns)
-{
-	struct cgroup_namespace *cgroup_ns = to_cg_ns(ns);
-
-	if (!ns_capable(current_user_ns(), CAP_SYS_ADMIN) ||
-	    !ns_capable(cgroup_ns->user_ns, CAP_SYS_ADMIN))
-		return -EPERM;
-
-	/* Don't need to do anything if we are attaching to our own cgroupns. */
-	if (cgroup_ns == nsproxy->cgroup_ns)
-		return 0;
-
-	get_cgroup_ns(cgroup_ns);
-	put_cgroup_ns(nsproxy->cgroup_ns);
-	nsproxy->cgroup_ns = cgroup_ns;
-
-	return 0;
-}
-
-static struct ns_common *cgroupns_get(struct task_struct *task)
-{
-	struct cgroup_namespace *ns = NULL;
-	struct nsproxy *nsproxy;
-
-	task_lock(task);
-	nsproxy = task->nsproxy;
-	if (nsproxy) {
-		ns = nsproxy->cgroup_ns;
-		get_cgroup_ns(ns);
-	}
-	task_unlock(task);
-
-	return ns ? &ns->ns : NULL;
-}
-
-static void cgroupns_put(struct ns_common *ns)
-{
-	put_cgroup_ns(to_cg_ns(ns));
-}
-
-const struct proc_ns_operations cgroupns_operations = {
-	.name		= "cgroup",
-	.type		= CLONE_NEWCGROUP,
-	.get		= cgroupns_get,
-	.put		= cgroupns_put,
-	.install	= cgroupns_install,
-};
-
-static __init int cgroup_namespaces_init(void)
-{
-	return 0;
-}
-subsys_initcall(cgroup_namespaces_init);
 
 #ifdef CONFIG_CGROUP_DEBUG
 static struct cgroup_subsys_state *
