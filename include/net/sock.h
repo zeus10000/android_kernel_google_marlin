@@ -490,6 +490,8 @@ struct sock {
 #define SK_CAN_REUSE	1
 #define SK_FORCE_REUSE	2
 
+int sk_set_peek_off(struct sock *sk, int val);
+
 static inline int sk_peek_offset(struct sock *sk, int flags)
 {
 	if ((flags & MSG_PEEK) && (sk->sk_peek_off >= 0))
