@@ -6963,6 +6963,7 @@ void perf_swevent_put_recursion_context(int rctx)
 
 	put_recursion_context(swhash->recursion, rctx);
 }
+EXPORT_SYMBOL_GPL(perf_swevent_put_recursion_context);
 
 void ___perf_sw_event(u32 event_id, u64 nr, struct pt_regs *regs, u64 addr)
 {
@@ -7390,6 +7391,7 @@ out:
 
 static int perf_event_set_bpf_handler(struct perf_event *event, u32 prog_fd)
 {
+	bool is_kprobe, is_tracepoint;
 	struct bpf_prog *prog;
 
 	if (event->overflow_handler_context)
@@ -7442,6 +7444,9 @@ static int perf_event_set_bpf_prog(struct perf_event *event, u32 prog_fd)
 
 	if (event->attr.type != PERF_TYPE_TRACEPOINT)
 		return -EINVAL;
+
+	if (event->tp_event->prog)
+		return -EEXIST;
 
 	is_kprobe = event->tp_event->flags & TRACE_EVENT_FL_UKPROBE;
 	is_tracepoint = event->tp_event->flags & TRACE_EVENT_FL_TRACEPOINT;
