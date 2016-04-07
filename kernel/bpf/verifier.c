@@ -692,6 +692,7 @@ static int check_ctx_access(struct bpf_verifier_env *env, int off, int size,
 	/* for analyzer ctx accesses are already validated and converted */
 	if (env->analyzer_ops)
 		return 0;
+	}
 
 	if (env->prog->aux->ops->is_valid_access &&
 	    env->prog->aux->ops->is_valid_access(off, size, t, reg_type)) {
