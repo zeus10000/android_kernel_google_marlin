@@ -2825,14 +2825,36 @@ static netdev_features_t dflt_features_check(const struct sk_buff *skb,
 	return vlan_features_check(skb, features);
 }
 
+static netdev_features_t gso_features_check(const struct sk_buff *skb,
+					    struct net_device *dev,
+					    netdev_features_t features)
+{
+	u16 gso_segs = skb_shinfo(skb)->gso_segs;
+
+	if (gso_segs > dev->gso_max_segs)
+		return features & ~NETIF_F_GSO_MASK;
+
+	/* Make sure to clear the IPv4 ID mangling feature if
+	 * the IPv4 header has the potential to be fragmented.
+	 */
+	if (skb_shinfo(skb)->gso_type & SKB_GSO_TCPV4) {
+		struct iphdr *iph = skb->encapsulation ?
+				    inner_ip_hdr(skb) : ip_hdr(skb);
+
+		if (!(iph->frag_off & htons(IP_DF)))
+			features &= ~NETIF_F_TSO_MANGLEID;
+	}
+
+	return features;
+}
+
 netdev_features_t netif_skb_features(struct sk_buff *skb)
 {
 	struct net_device *dev = skb->dev;
 	netdev_features_t features = dev->features;
-	u16 gso_segs = skb_shinfo(skb)->gso_segs;
 
-	if (gso_segs > dev->gso_max_segs || gso_segs < dev->gso_min_segs)
-		features &= ~NETIF_F_GSO_MASK;
+	if (skb_is_gso(skb))
+		features = gso_features_check(skb, dev, features);
 
 	/* If encapsulation offload request, verify we are testing
 	 * hardware encapsulation features instead of standard
@@ -4439,6 +4461,7 @@ static enum gro_result dev_gro_receive(struct napi_struct *napi, struct sk_buff 
 		NAPI_GRO_CB(skb)->flush = 0;
 		NAPI_GRO_CB(skb)->free = 0;
 		NAPI_GRO_CB(skb)->encap_mark = 0;
+		NAPI_GRO_CB(skb)->is_fou = 0;
 		NAPI_GRO_CB(skb)->gro_remcsum_start = 0;
 
 		/* Setup for GRO checksum validation */
@@ -4663,6 +4686,8 @@ static struct sk_buff *napi_frags_skb(struct napi_struct *napi)
 	if (unlikely(skb_gro_header_hard(skb, hlen))) {
 		eth = skb_gro_header_slow(skb, hlen, 0);
 		if (unlikely(!eth)) {
+			net_warn_ratelimited("%s: dropping impossible skb from %s\n",
+					     __func__, napi->dev->name);
 			napi_reuse_skb(napi, skb);
 			return NULL;
 		}
@@ -6445,6 +6470,7 @@ EXPORT_SYMBOL(dev_get_phys_port_id);
  *	dev_get_phys_port_name - Get device physical port name
  *	@dev: device
  *	@name: port name
+ *	@len: limit of bytes to copy to name
  *
  *	Get device physical port name
  */
@@ -6972,9 +6998,11 @@ int register_netdevice(struct net_device *dev)
 	dev->features |= NETIF_F_SOFT_FEATURES;
 	dev->wanted_features = dev->features & dev->hw_features;
 
-	if (!(dev->flags & IFF_LOOPBACK)) {
+	if (!(dev->flags & IFF_LOOPBACK))
 		dev->hw_features |= NETIF_F_NOCACHE_COPY;
-	}
+
+	if (dev->hw_features & NETIF_F_TSO)
+		dev->hw_features |= NETIF_F_TSO_MANGLEID;
 
 	/* Make NETIF_F_HIGHDMA inheritable to VLAN devices.
 	 */
@@ -7425,7 +7453,6 @@ struct net_device *alloc_netdev_mqs(int sizeof_priv, const char *name,
 
 	dev->gso_max_size = GSO_MAX_SIZE;
 	dev->gso_max_segs = GSO_MAX_SEGS;
-	dev->gso_min_segs = 0;
 
 	INIT_LIST_HEAD(&dev->napi_list);
 	INIT_LIST_HEAD(&dev->unreg_list);
