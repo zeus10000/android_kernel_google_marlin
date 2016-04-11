@@ -87,6 +87,12 @@ struct sk_buff *tcp_gso_segment(struct sk_buff *skb,
 		goto out;
 	}
 
+	/* GSO partial only requires splitting the frame into an MSS
+	 * multiple and possibly a remainder.  So update the mss now.
+	 */
+	if (features & NETIF_F_GSO_PARTIAL)
+		mss = skb->len - (skb->len % mss);
+
 	copy_destructor = gso_skb->destructor == tcp_wfree;
 	ooo_okay = gso_skb->ooo_okay;
 	/* All segments but the first should have ooo_okay cleared */

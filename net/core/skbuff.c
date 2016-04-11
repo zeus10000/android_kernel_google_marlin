@@ -3134,6 +3134,15 @@ struct sk_buff *skb_segment(struct sk_buff *head_skb,
 		mss *= partial_segs;
 	}
 
+	/* GSO partial only requires that we trim off any excess that
+	 * doesn't fit into an MSS sized block, so take care of that
+	 * now.
+	 */
+	if (features & NETIF_F_GSO_PARTIAL) {
+		partial_segs = len / mss;
+		mss *= partial_segs;
+	}
+
 	headroom = skb_headroom(head_skb);
 	pos = skb_headlen(head_skb);
 
