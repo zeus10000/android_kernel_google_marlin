@@ -1270,6 +1270,15 @@ static int check_call(struct bpf_verifier_env *env, int func_id, int insn_idx)
 		return err;
 	}
 
+	/* We only support one arg being in raw mode at the moment, which
+	 * is sufficient for the helper functions we have right now.
+	 */
+	err = check_raw_mode(fn);
+	if (err) {
+		verbose("kernel subsystem misconfigured func %d\n", func_id);
+		return err;
+	}
+
 	/* check args */
 	err = check_func_arg(env, BPF_REG_1, fn->arg1_type, &meta);
 	if (err)
