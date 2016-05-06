@@ -2799,6 +2799,10 @@ static bool states_equal(struct bpf_verifier_env *env,
 		    compare_ptrs_to_packet(rold, rcur))
 			continue;
 
+		if (rold->type == PTR_TO_PACKET && rcur->type == PTR_TO_PACKET &&
+		    compare_ptrs_to_packet(rold, rcur))
+			continue;
+
 		return false;
 	}
 
