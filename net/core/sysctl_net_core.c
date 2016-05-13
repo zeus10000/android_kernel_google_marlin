@@ -370,6 +370,15 @@ static struct ctl_table net_core_table[] = {
 		.extra1		= &long_one,
 		.extra2		= &bpf_jit_limit_max,
 	},
+# ifdef CONFIG_HAVE_EBPF_JIT
+	{
+		.procname	= "bpf_jit_harden",
+		.data		= &bpf_jit_harden,
+		.maxlen		= sizeof(int),
+		.mode		= 0600,
+		.proc_handler	= proc_dointvec,
+	},
+# endif
 #endif
 	{
 		.procname	= "netdev_tstamp_prequeue",
