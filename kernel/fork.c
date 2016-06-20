@@ -413,7 +413,8 @@ free_tsk:
 }
 
 #ifdef CONFIG_MMU
-static int dup_mmap(struct mm_struct *mm, struct mm_struct *oldmm)
+static __latent_entropy int dup_mmap(struct mm_struct *mm,
+					struct mm_struct *oldmm)
 {
 	struct vm_area_struct *mpnt, *tmp, *prev, **pprev;
 	struct rb_node **rb_link, *rb_parent;
@@ -1391,7 +1392,8 @@ static int pidfd_create(struct pid *pid)
  * parts of the process environment (as per the clone
  * flags). The actual kick-off is left to the caller.
  */
-static struct task_struct *copy_process(unsigned long clone_flags,
+static __latent_entropy struct task_struct *copy_process(
+					unsigned long clone_flags,
 					unsigned long stack_start,
 					unsigned long stack_size,
 					int __user *parent_tidptr,
