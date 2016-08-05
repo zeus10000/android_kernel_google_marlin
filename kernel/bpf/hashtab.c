@@ -264,6 +264,12 @@ static struct bpf_map *htab_map_alloc(union bpf_attr *attr)
 			goto free_extra_elems;
 	}
 
+	if (!(attr->map_flags & BPF_F_NO_PREALLOC)) {
+		err = prealloc_elems_and_freelist(htab);
+		if (err)
+			goto free_extra_elems;
+	}
+
 	return &htab->map;
 
 free_extra_elems:
