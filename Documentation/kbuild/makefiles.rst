@@ -1267,6 +1267,21 @@ When kbuild executes, the following steps are followed (roughly):
 	For example, powerpc uses this to check relocation sanity of
 	the linked vmlinux file.
 
+--- 6.11 Post-link pass
+
+	If the file arch/xxx/Makefile.postlink exists, this makefile
+	will be invoked for post-link objects (vmlinux and modules.ko)
+	for architectures to run post-link passes on. Must also handle
+	the clean target.
+
+	This pass runs after kallsyms generation. If the architecture
+	needs to modify symbol locations, rather than manipulate the
+	kallsyms, it may be easier to add another postlink target for
+	.tmp_vmlinux? targets to be called from link-vmlinux.sh.
+
+	For example, powerpc uses this to check relocation sanity of
+	the linked vmlinux file.
+
 === 7 Kbuild syntax for exported headers
 
 The kernel includes a set of headers that is exported to userspace.
