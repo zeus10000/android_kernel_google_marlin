@@ -7442,6 +7442,10 @@ static int perf_event_set_bpf_prog(struct perf_event *event, u32 prog_fd)
 	    event->attr.type == PERF_TYPE_SOFTWARE)
 		return perf_event_set_bpf_handler(event, prog_fd);
 
+	if (event->attr.type == PERF_TYPE_HARDWARE ||
+	    event->attr.type == PERF_TYPE_SOFTWARE)
+		return perf_event_set_bpf_handler(event, prog_fd);
+
 	if (event->attr.type != PERF_TYPE_TRACEPOINT)
 		return -EINVAL;
 
