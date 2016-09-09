@@ -2598,10 +2598,7 @@ static unsigned long bpf_xdp_copy(void *dst_buff, const void *src_buff,
 static u64 bpf_xdp_event_output(u64 r1, u64 r2, u64 flags, u64 r4,
 				u64 meta_size)
 {
-	struct xdp_buff *xdp = (struct xdp_buff *)(long) r1;
-	struct bpf_map *map = (struct bpf_map *)(long) r2;
 	u64 xdp_size = (flags & BPF_F_CTXLEN_MASK) >> 32;
-	void *meta = (void *)(long) r4;
 
 	if (unlikely(flags & ~(BPF_F_CTXLEN_MASK | BPF_F_INDEX_MASK)))
 		return -EINVAL;
