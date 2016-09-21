@@ -3436,7 +3436,6 @@ static int convert_ctx_accesses(struct bpf_verifier_env *env)
 			env->prog = new_prog;
 			insn      = new_prog->insnsi + i + delta;
 			continue;
-		}
 
 		if (env->insn_aux_data[i + delta].ptr_type != PTR_TO_CTX)
 			continue;
