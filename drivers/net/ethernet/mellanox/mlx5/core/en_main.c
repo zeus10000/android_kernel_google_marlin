@@ -357,6 +357,8 @@ static int mlx5e_create_rq(struct mlx5e_channel *c,
 	return 0;
 
 err_rq_wq_destroy:
+	if (rq->xdp_prog)
+		bpf_prog_put(rq->xdp_prog);
 	mlx5_wq_destroy(&rq->wq_ctrl);
 
 	return err;
