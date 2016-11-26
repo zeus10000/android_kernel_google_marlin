@@ -31,6 +31,7 @@
 #include <linux/inet.h>
 #include <linux/netdevice.h>
 #include <linux/if_packet.h>
+#include <linux/if_arp.h>
 #include <linux/gfp.h>
 #include <net/ip.h>
 #include <net/protocol.h>
@@ -1736,7 +1737,8 @@ static int __bpf_redirect(struct sk_buff *skb, struct net_device *dev,
 		return __bpf_redirect_no_mac(skb, dev, flags);
 	default:
 		return __bpf_redirect_common(skb, dev, flags);
-	}
+	else
+		return __bpf_redirect_no_mac(skb, dev, flags);
 }
 
 BPF_CALL_3(bpf_clone_redirect, struct sk_buff *, skb, u32, ifindex, u64, flags)
