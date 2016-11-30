@@ -470,6 +470,16 @@ union bpf_attr {
  *
  * int bpf_get_numa_node_id()
  *     Return: Id of current NUMA node.
+ *
+ * int bpf_skb_change_head()
+ *     Grows headroom of skb and adjusts MAC header offset accordingly.
+ *     Will extends/reallocae as required automatically.
+ *     May change skb data pointer and will thus invalidate any check
+ *     performed for direct packet access.
+ *     @skb: pointer to skb
+ *     @len: length of header to be pushed in front
+ *     @flags: Flags (unused for now)
+ *     Return: 0 on success or negative error
  */
 #define __BPF_FUNC_MAPPER(FN)		\
 	FN(unspec),			\
@@ -514,7 +524,8 @@ union bpf_attr {
 	FN(skb_pull_data),		\
 	FN(csum_update),		\
 	FN(set_hash_invalid),		\
-	FN(get_numa_node_id),
+	FN(get_numa_node_id),		\
+	FN(skb_change_head),
 
 /* integer value in 'imm' field of BPF_CALL instruction selects which helper
  * function eBPF program intends to call
