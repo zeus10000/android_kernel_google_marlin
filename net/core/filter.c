@@ -2857,6 +2857,32 @@ static bool sock_filter_is_valid_access(int off, int size,
 	return true;
 }
 
+static bool sock_filter_is_valid_access(int off, int size,
+					enum bpf_access_type type,
+					enum bpf_reg_type *reg_type)
+{
+	if (type == BPF_WRITE) {
+		switch (off) {
+		case offsetof(struct bpf_sock, bound_dev_if):
+			break;
+		default:
+			return false;
+		}
+	}
+
+	if (off < 0 || off + size > sizeof(struct bpf_sock))
+		return false;
+
+	/* The verifier guarantees that size > 0. */
+	if (off % size != 0)
+		return false;
+
+	if (size != sizeof(__u32))
+		return false;
+
+	return true;
+}
+
 static int tc_cls_act_prologue(struct bpf_insn *insn_buf, bool direct_write,
 			       const struct bpf_prog *prog)
 {
@@ -3224,6 +3250,12 @@ static const struct bpf_verifier_ops xdp_ops = {
 	.convert_ctx_access	= xdp_convert_ctx_access,
 };
 
+static const struct bpf_verifier_ops cg_sock_ops = {
+	.get_func_proto		= sk_filter_func_proto,
+	.is_valid_access	= sock_filter_is_valid_access,
+	.convert_ctx_access	= sock_filter_convert_ctx_access,
+};
+
 static struct bpf_prog_type_list sk_filter_type __read_mostly = {
 	.ops	= &sk_filter_ops,
 	.type	= BPF_PROG_TYPE_SOCKET_FILTER,
@@ -3247,6 +3279,11 @@ static struct bpf_prog_type_list xdp_type __read_mostly = {
 static struct bpf_prog_type_list cg_skb_type __read_mostly = {
 	.ops	= &cg_skb_ops,
 	.type	= BPF_PROG_TYPE_CGROUP_SKB,
+};
+
+static struct bpf_prog_type_list cg_sock_type __read_mostly = {
+	.ops	= &cg_sock_ops,
+	.type	= BPF_PROG_TYPE_CGROUP_SOCK
 };
 
 static struct bpf_prog_type_list cg_sock_type __read_mostly = {
