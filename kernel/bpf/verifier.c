@@ -1639,6 +1639,11 @@ static int evaluate_reg_imm_alu(struct bpf_verifier_env *env,
 	else if (opcode == BPF_ADD && BPF_SRC(insn->code) == BPF_X &&
 		 src_reg->type == CONST_IMM)
 		dst_reg->imm += src_reg->imm;
+	else if (opcode == BPF_OR && BPF_SRC(insn->code) == BPF_K)
+		dst_reg->imm |= insn->imm;
+	else if (opcode == BPF_OR && BPF_SRC(insn->code) == BPF_X &&
+		 src_reg->type == CONST_IMM)
+		dst_reg->imm |= src_reg->imm;
 	else
 		mark_reg_unknown_value(regs, insn->dst_reg);
 	return 0;
