@@ -2390,7 +2390,7 @@ static void mark_map_reg(struct bpf_reg_state *regs, u32 regno, u32 id,
 		 */
 		reg->id = 0;
 		if (type == UNKNOWN_VALUE)
-			mark_reg_unknown_value(regs, regno);
+			__mark_reg_unknown_value(regs, regno);
 	}
 }
 
