@@ -18,7 +18,7 @@
 #include <linux/compat.h>
 #include "internal.h"
 
-#include <asm/uaccess.h>
+#include <linux/uaccess.h>
 #include <asm/unistd.h>
 
 const struct file_operations generic_ro_fops = {
