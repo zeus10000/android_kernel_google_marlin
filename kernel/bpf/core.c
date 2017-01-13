@@ -148,23 +148,26 @@ void __bpf_prog_free(struct bpf_prog *fp)
 	vfree(fp);
 }
 
-#define SHA_BPF_RAW_SIZE						\
-	round_up(MAX_BPF_SIZE + sizeof(__be64) + 1, SHA_MESSAGE_BYTES)
-
-/* Called under verifier mutex. */
-void bpf_prog_calc_digest(struct bpf_prog *fp)
+int bpf_prog_calc_tag(struct bpf_prog *fp)
 {
 	const u32 bits_offset = SHA_MESSAGE_BYTES - sizeof(__be64);
-	static u32 ws[SHA_WORKSPACE_WORDS];
-	static u8 raw[SHA_BPF_RAW_SIZE];
-	struct bpf_insn *dst = (void *)raw;
+	u32 raw_size = bpf_prog_tag_scratch_size(fp);
+	u32 digest[SHA_DIGEST_WORDS];
+	u32 ws[SHA_WORKSPACE_WORDS];
 	u32 i, bsize, psize, blocks;
+	struct bpf_insn *dst;
 	bool was_ld_map;
-	u8 *todo = raw;
 	__be32 *result;
 	__be64 *bits;
+	u8 *todo, *raw;
 
-	sha_init(fp->digest);
+	raw = vmalloc(raw_size);
+	if (!raw)
+		return -ENOMEM;
+
+	dst = (void *)raw;
+	todo = raw;
+	sha_init(digest);
 	memset(ws, 0, sizeof(ws));
 
 	/* We need to take out the map fd for the digest calculation
@@ -190,7 +193,7 @@ void bpf_prog_calc_digest(struct bpf_prog *fp)
 	}
 
 	psize = fp->len * sizeof(struct bpf_insn);
-	memset(&raw[psize], 0, sizeof(raw) - psize);
+	memset(raw + psize, 0, raw_size - psize);
 	raw[psize++] = 0x80;
 
 	bsize  = round_up(psize, SHA_MESSAGE_BYTES);
@@ -204,13 +207,17 @@ void bpf_prog_calc_digest(struct bpf_prog *fp)
 	*bits = cpu_to_be64((psize - 1) << 3);
 
 	while (blocks--) {
-		sha_transform(fp->digest, todo, ws);
+		sha_transform(digest, todo, ws);
 		todo += SHA_MESSAGE_BYTES;
 	}
 
-	result = (__force __be32 *)fp->digest;
+	result = (__force __be32 *)digest;
 	for (i = 0; i < SHA_DIGEST_WORDS; i++)
-		result[i] = cpu_to_be32(fp->digest[i]);
+		result[i] = cpu_to_be32(digest[i]);
+	memcpy(fp->tag, result, sizeof(fp->tag));
+
+	vfree(raw);
+	return 0;
 }
 
 static bool bpf_is_jmp_and_has_target(const struct bpf_insn *insn)
