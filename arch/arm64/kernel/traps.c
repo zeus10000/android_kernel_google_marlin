@@ -19,6 +19,7 @@
 #include <linux/delay.h>
 #include <linux/init.h>
 #include <linux/sched/signal.h>
+#include <linux/sched/debug.h>
 #include <linux/syscalls.h>
 
 #include <asm/atomic.h>
