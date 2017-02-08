@@ -29,6 +29,7 @@
 #include <linux/list.h>
 #include <linux/ioport.h>
 #include <linux/memory.h>
+#include <linux/sched/task.h>
 #include <asm/sections.h>
 #include "internal.h"
 

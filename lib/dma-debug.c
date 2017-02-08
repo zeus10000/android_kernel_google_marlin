@@ -20,6 +20,7 @@
 #include <linux/sched/task_stack.h>
 #include <linux/scatterlist.h>
 #include <linux/dma-mapping.h>
+#include <linux/sched/task.h>
 #include <linux/stacktrace.h>
 #include <linux/dma-debug.h>
 #include <linux/spinlock.h>

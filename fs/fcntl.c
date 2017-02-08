@@ -8,6 +8,7 @@
 #include <linux/syscalls.h>
 #include <linux/init.h>
 #include <linux/mm.h>
+#include <linux/sched/task.h>
 #include <linux/fs.h>
 #include <linux/file.h>
 #include <linux/fdtable.h>

@@ -8,6 +8,7 @@
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/sched.h>
+#include <linux/sched/task.h>
 #include <linux/slab.h>
 #include <linux/syscalls.h>
 #include <linux/key.h>

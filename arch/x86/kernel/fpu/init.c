@@ -8,6 +8,7 @@
 #include <asm/cmdline.h>
 
 #include <linux/sched.h>
+#include <linux/sched/task.h>
 #include <linux/init.h>
 
 /*

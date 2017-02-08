@@ -13,6 +13,7 @@
 #include <linux/mqueue.h>
 #include <linux/syscalls.h>
 #include <linux/reboot.h>
+#include <linux/sched/task.h>
 
 #include <asm/syscalls.h>
 

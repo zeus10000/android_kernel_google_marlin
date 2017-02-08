@@ -11,6 +11,7 @@
 #include <linux/bootmem.h>
 #include <linux/mman.h>
 #include <linux/sched/signal.h>
+#include <linux/sched/task.h>
 #include <linux/export.h>
 #include <linux/nodemask.h>
 #include <linux/initrd.h>

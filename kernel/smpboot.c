@@ -10,6 +10,7 @@
 #include <linux/list.h>
 #include <linux/slab.h>
 #include <linux/sched.h>
+#include <linux/sched/task.h>
 #include <linux/export.h>
 #include <linux/percpu.h>
 #include <linux/kthread.h>
