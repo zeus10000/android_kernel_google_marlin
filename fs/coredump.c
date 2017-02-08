@@ -33,7 +33,6 @@
 #include <linux/pipe_fs_i.h>
 #include <linux/oom.h>
 #include <linux/compat.h>
-#include <linux/sched.h>
 #include <linux/fs.h>
 #include <linux/path.h>
 
