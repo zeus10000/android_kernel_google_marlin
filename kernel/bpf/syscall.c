@@ -968,6 +968,7 @@ static int bpf_obj_get(const union bpf_attr *attr)
 
 static int bpf_prog_attach(const union bpf_attr *attr)
 {
+	enum bpf_prog_type ptype;
 	struct bpf_prog *prog;
 	struct cgroup *cgrp;
 	int ret;
