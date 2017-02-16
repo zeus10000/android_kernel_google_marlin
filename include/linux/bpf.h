@@ -8,11 +8,13 @@
 #define _LINUX_BPF_H 1
 
 #include <uapi/linux/bpf.h>
+
 #include <linux/workqueue.h>
 #include <linux/file.h>
 #include <linux/percpu.h>
 #include <linux/err.h>
 #include <linux/idr.h>
+#include <linux/rbtree_latch.h>
 
 struct perf_event;
 struct bpf_map;
@@ -192,6 +194,8 @@ struct bpf_prog_aux {
 	u32 used_map_cnt;
 	u32 max_ctx_offset;
 	u32 id;
+	struct latch_tree_node ksym_tnode;
+	struct list_head ksym_lnode;
 	const struct bpf_verifier_ops *ops;
 	struct bpf_map **used_maps;
 	struct bpf_prog *prog;
