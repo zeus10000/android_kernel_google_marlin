@@ -28,6 +28,9 @@
 #include <linux/moduleloader.h>
 #include <linux/bpf.h>
 #include <linux/frame.h>
+#include <linux/rbtree_latch.h>
+#include <linux/kallsyms.h>
+#include <linux/rcupdate.h>
 
 #include <asm/unaligned.h>
 
@@ -96,6 +99,8 @@ struct bpf_prog *bpf_prog_alloc(unsigned int size, gfp_t gfp_extra_flags)
 	fp->pages = size / PAGE_SIZE;
 	fp->aux = aux;
 	fp->aux->prog = fp;
+
+	INIT_LIST_HEAD_RCU(&fp->aux->ksym_lnode);
 
 	return fp;
 }
@@ -641,6 +646,24 @@ struct bpf_prog *bpf_jit_blind_constants(struct bpf_prog *prog)
 	}
 
 	return clone;
+}
+
+/* This symbol is only overridden by archs that have different
+ * requirements than the usual eBPF JITs, f.e. when they only
+ * implement cBPF JIT, do not set images read-only, etc.
+ */
+void __weak bpf_jit_free(struct bpf_prog *fp)
+{
+	if (fp->jited) {
+		struct bpf_binary_header *hdr = bpf_jit_binary_hdr(fp);
+
+		bpf_jit_binary_unlock_ro(hdr);
+		bpf_jit_binary_free(hdr);
+
+		WARN_ON_ONCE(!bpf_prog_kallsyms_verify_off(fp));
+	}
+
+	bpf_prog_unlock_free(fp);
 }
 
 int bpf_jit_harden __read_mostly;
