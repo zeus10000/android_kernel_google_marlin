@@ -407,7 +407,7 @@ int do_select(int n, fd_set_bits *fds, struct timespec *end_time)
 	int retval, i, timed_out = 0;
 	u64 slack = 0;
 	unsigned int busy_flag = net_busy_loop_on() ? POLL_BUSY_LOOP : 0;
-	unsigned long busy_end = 0;
+	unsigned long busy_start = 0;
 
 	rcu_read_lock();
 	retval = max_select_fd(n, fds);
@@ -510,11 +510,11 @@ int do_select(int n, fd_set_bits *fds, struct timespec *end_time)
 
 		/* only if found POLL_BUSY_LOOP sockets && not out of time */
 		if (can_busy_loop && !need_resched()) {
-			if (!busy_end) {
-				busy_end = busy_loop_end_time();
+			if (!busy_start) {
+				busy_start = busy_loop_current_time();
 				continue;
 			}
-			if (!busy_loop_timeout(busy_end))
+			if (!busy_loop_timeout(busy_start))
 				continue;
 		}
 		busy_flag = 0;
@@ -796,7 +796,7 @@ static int do_poll(unsigned int nfds,  struct poll_list *list,
 	int timed_out = 0, count = 0;
 	u64 slack = 0;
 	unsigned int busy_flag = net_busy_loop_on() ? POLL_BUSY_LOOP : 0;
-	unsigned long busy_end = 0;
+	unsigned long busy_start = 0;
 
 	/* Optimise the no-wait case */
 	if (end_time && !end_time->tv_sec && !end_time->tv_nsec) {
@@ -849,11 +849,11 @@ static int do_poll(unsigned int nfds,  struct poll_list *list,
 
 		/* only if found POLL_BUSY_LOOP sockets && not out of time */
 		if (can_busy_loop && !need_resched()) {
-			if (!busy_end) {
-				busy_end = busy_loop_end_time();
+			if (!busy_start) {
+				busy_start = busy_loop_current_time();
 				continue;
 			}
-			if (!busy_loop_timeout(busy_end))
+			if (!busy_loop_timeout(busy_start))
 				continue;
 		}
 		busy_flag = 0;
