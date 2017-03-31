@@ -86,6 +86,7 @@ enum bpf_cmd {
 	BPF_OBJ_GET,
 	BPF_PROG_ATTACH,
 	BPF_PROG_DETACH,
+	BPF_PROG_TEST_RUN,
 	BPF_PROG_GET_NEXT_ID,
 	BPF_MAP_GET_NEXT_ID,
 	BPF_PROG_GET_FD_BY_ID,
@@ -270,6 +271,16 @@ union bpf_attr {
 		__u32		btf_log_size;
 		__u32		btf_log_level;
 	};
+		struct { /* anonymous struct used by BPF_PROG_TEST_RUN/BPF_PROG_RUN command */
+			__u32		prog_fd;
+			__u32		retval;
+			__u32		data_size_in;
+			__u32		data_size_out;
+			__aligned_u64	data_in;
+			__aligned_u64	data_out;
+			__u32		repeat;
+			__u32		duration;
+		} test;
 } __attribute__((aligned(8)));
 
 /* integer value in 'imm' field of BPF_CALL instruction selects which helper
