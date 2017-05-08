@@ -1473,7 +1473,6 @@ static void tun_free_netdev(struct net_device *dev)
 	BUG_ON(!(list_empty(&tun->disabled)));
 	tun_flow_uninit(tun);
 	security_tun_dev_free_security(tun->security);
-	free_netdev(dev);
 }
 
 static void tun_setup(struct net_device *dev)
@@ -1484,7 +1483,8 @@ static void tun_setup(struct net_device *dev)
 	tun->group = INVALID_GID;
 
 	dev->ethtool_ops = &tun_ethtool_ops;
-	dev->destructor = tun_free_netdev;
+	dev->needs_free_netdev = true;
+	dev->priv_destructor = tun_free_netdev;
 	/* We prefer our own queue length */
 	dev->tx_queue_len = TUN_READQ_SIZE;
 }
