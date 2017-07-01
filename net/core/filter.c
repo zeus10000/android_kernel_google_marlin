@@ -54,6 +54,7 @@
 #include <net/dst.h>
 #include <net/sock_reuseport.h>
 #include <net/busy_poll.h>
+#include <net/tcp.h>
 
 /**
  *	sk_filter_trim_cap - run a packet through a socket filter
