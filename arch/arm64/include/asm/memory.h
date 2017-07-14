@@ -99,6 +99,8 @@
 
 #define IRQ_STACK_SIZE		THREAD_SIZE
 
+#define OVERFLOW_STACK_SIZE	SZ_4K
+
 /*
  * Memory types available.
  */
