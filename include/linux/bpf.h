@@ -1851,5 +1851,7 @@ int bpf_arch_text_poke(void *ip, enum bpf_text_poke_type t,
 
 /* Map specifics */
 struct net_device  *__dev_map_lookup_elem(struct bpf_map *map, u32 key);
+void __dev_map_insert_ctx(struct bpf_map *map, u32 index);
+void __dev_map_flush(struct bpf_map *map);
 
 #endif /* _LINUX_BPF_H */
