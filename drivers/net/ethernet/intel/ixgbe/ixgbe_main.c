@@ -5217,6 +5217,9 @@ void ixgbe_down(struct ixgbe_adapter *adapter)
 
 	usleep_range(10000, 20000);
 
+	/* synchronize_sched() needed for pending XDP buffers to drain */
+	if (adapter->xdp_ring[0])
+		synchronize_sched();
 	netif_tx_stop_all_queues(netdev);
 
 	/* call carrier off first to avoid false dev_watchdog timeouts */
