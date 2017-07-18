@@ -432,6 +432,20 @@ static inline int __bpf_prog_charge(struct user_struct *user, u32 pages)
 static inline void __bpf_prog_uncharge(struct user_struct *user, u32 pages)
 {
 }
+
+static inline struct net_device  *__dev_map_lookup_elem(struct bpf_map *map,
+						       u32 key)
+{
+	return NULL;
+}
+
+static inline void __dev_map_insert_ctx(struct bpf_map *map, u32 index)
+{
+}
+
+static inline void __dev_map_flush(struct bpf_map *map)
+{
+}
 #endif /* CONFIG_BPF_SYSCALL */
 
 /* verifier prototypes for helper functions called from eBPF programs */
@@ -454,10 +468,5 @@ extern const struct bpf_func_proto bpf_get_stackid_proto;
 /* Shared helpers among cBPF and eBPF. */
 void bpf_user_rnd_init_once(void);
 u64 bpf_user_rnd_u32(u64 r1, u64 r2, u64 r3, u64 r4, u64 r5);
-
-/* Map specifics */
-struct net_device  *__dev_map_lookup_elem(struct bpf_map *map, u32 key);
-void __dev_map_insert_ctx(struct bpf_map *map, u32 index);
-void __dev_map_flush(struct bpf_map *map);
 
 #endif /* _LINUX_BPF_H */
