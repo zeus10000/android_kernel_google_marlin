@@ -505,6 +505,7 @@ static void reset_reg_range_values(struct bpf_reg_state *regs, u32 regno)
 {
 	regs[regno].min_value = BPF_REGISTER_MIN_RANGE;
 	regs[regno].max_value = BPF_REGISTER_MAX_RANGE;
+	regs[regno].value_from_signed = false;
 	regs[regno].min_align = 0;
 }
 
@@ -2515,34 +2516,54 @@ static void reg_set_min_max(struct bpf_reg_state *true_reg,
 		 * true then we know for sure.
 		 */
 		true_reg->max_value = true_reg->min_value = val;
+		is_range = false;
 		break;
 	case BPF_JNE:
 		/* If this is true we know nothing Jon Snow, but if it is false
 		 * we know the value for sure;
 		 */
 		false_reg->max_value = false_reg->min_value = val;
+		is_range = false;
 		break;
 	case BPF_JGT:
-		/* Unsigned comparison, the minimum value is 0. */
-		false_reg->min_value = 0;
+		value_from_signed = false;
 		/* fallthrough */
 	case BPF_JSGT:
+		if (true_reg->value_from_signed != value_from_signed)
+			reset_reg_range_values(true_reg, 0);
+		if (false_reg->value_from_signed != value_from_signed)
+			reset_reg_range_values(false_reg, 0);
+		if (opcode == BPF_JGT) {
+			/* Unsigned comparison, the minimum value is 0. */
+			false_reg->min_value = 0;
+		}
 		/* If this is false then we know the maximum val is val,
 		 * otherwise we know the min val is val+1.
 		 */
 		false_reg->max_value = val;
+		false_reg->value_from_signed = value_from_signed;
 		true_reg->min_value = val + 1;
+		true_reg->value_from_signed = value_from_signed;
 		break;
 	case BPF_JGE:
-		/* Unsigned comparison, the minimum value is 0. */
-		false_reg->min_value = 0;
+		value_from_signed = false;
 		/* fallthrough */
 	case BPF_JSGE:
+		if (true_reg->value_from_signed != value_from_signed)
+			reset_reg_range_values(true_reg, 0);
+		if (false_reg->value_from_signed != value_from_signed)
+			reset_reg_range_values(false_reg, 0);
+		if (opcode == BPF_JGE) {
+			/* Unsigned comparison, the minimum value is 0. */
+			false_reg->min_value = 0;
+		}
 		/* If this is false then we know the maximum value is val - 1,
 		 * otherwise we know the mimimum value is val.
 		 */
 		false_reg->max_value = val - 1;
+		false_reg->value_from_signed = value_from_signed;
 		true_reg->min_value = val;
+		true_reg->value_from_signed = value_from_signed;
 		break;
 	default:
 		break;
@@ -2550,6 +2571,12 @@ static void reg_set_min_max(struct bpf_reg_state *true_reg,
 
 	check_reg_overflow(false_reg);
 	check_reg_overflow(true_reg);
+	if (is_range) {
+		if (__is_pointer_value(false, false_reg))
+			reset_reg_range_values(false_reg, 0);
+		if (__is_pointer_value(false, true_reg))
+			reset_reg_range_values(true_reg, 0);
+	}
 }
 
 /* Same as above, but for the case that dst_reg is a CONST_IMM reg and src_reg
@@ -2559,41 +2586,64 @@ static void reg_set_min_max_inv(struct bpf_reg_state *true_reg,
 				struct bpf_reg_state *false_reg, u64 val,
 				u8 opcode)
 {
+	bool value_from_signed = true;
+	bool is_range = true;
+
 	switch (opcode) {
 	case BPF_JEQ:
 		/* If this is false then we know nothing Jon Snow, but if it is
 		 * true then we know for sure.
 		 */
 		true_reg->max_value = true_reg->min_value = val;
+		is_range = false;
 		break;
 	case BPF_JNE:
 		/* If this is true we know nothing Jon Snow, but if it is false
 		 * we know the value for sure;
 		 */
 		false_reg->max_value = false_reg->min_value = val;
+		is_range = false;
 		break;
 	case BPF_JGT:
-		/* Unsigned comparison, the minimum value is 0. */
-		true_reg->min_value = 0;
+		value_from_signed = false;
 		/* fallthrough */
 	case BPF_JSGT:
+		if (true_reg->value_from_signed != value_from_signed)
+			reset_reg_range_values(true_reg, 0);
+		if (false_reg->value_from_signed != value_from_signed)
+			reset_reg_range_values(false_reg, 0);
+		if (opcode == BPF_JGT) {
+			/* Unsigned comparison, the minimum value is 0. */
+			true_reg->min_value = 0;
+		}
 		/*
 		 * If this is false, then the val is <= the register, if it is
 		 * true the register <= to the val.
 		 */
 		false_reg->min_value = val;
+		false_reg->value_from_signed = value_from_signed;
 		true_reg->max_value = val - 1;
+		true_reg->value_from_signed = value_from_signed;
 		break;
 	case BPF_JGE:
-		/* Unsigned comparison, the minimum value is 0. */
-		true_reg->min_value = 0;
+		value_from_signed = false;
 		/* fallthrough */
 	case BPF_JSGE:
+		if (true_reg->value_from_signed != value_from_signed)
+			reset_reg_range_values(true_reg, 0);
+		if (false_reg->value_from_signed != value_from_signed)
+			reset_reg_range_values(false_reg, 0);
+		if (opcode == BPF_JGE) {
+			/* Unsigned comparison, the minimum value is 0. */
+			true_reg->min_value = 0;
+		}
 		/* If this is false then constant < register, if it is true then
 		 * the register < constant.
 		 */
 		false_reg->min_value = val + 1;
+		false_reg->value_from_signed = value_from_signed;
 		true_reg->max_value = val;
+		true_reg->value_from_signed = value_from_signed;
 		break;
 	default:
 		break;
@@ -2601,6 +2651,12 @@ static void reg_set_min_max_inv(struct bpf_reg_state *true_reg,
 
 	check_reg_overflow(false_reg);
 	check_reg_overflow(true_reg);
+	if (is_range) {
+		if (__is_pointer_value(false, false_reg))
+			reset_reg_range_values(false_reg, 0);
+		if (__is_pointer_value(false, true_reg))
+			reset_reg_range_values(true_reg, 0);
+	}
 }
 
 static void mark_map_reg(struct bpf_reg_state *regs, u32 regno, u32 id,
