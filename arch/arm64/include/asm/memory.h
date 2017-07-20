@@ -97,6 +97,8 @@
 #define page_to_phys(page)	(__pfn_to_phys(page_to_pfn(page)))
 #define phys_to_page(phys)	(pfn_to_page(__phys_to_pfn(phys)))
 
+#define IRQ_STACK_SIZE		THREAD_SIZE
+
 /*
  * Memory types available.
  */
