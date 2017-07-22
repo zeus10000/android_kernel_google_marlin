@@ -456,6 +456,9 @@ __primary_switched:
 						// to __enable_mmu()
 0:
 #endif
+	add	sp, sp, #16
+	mov	x29, #0
+	mov	x30, #0
 	b	start_kernel
 ENDPROC(__primary_switched)
 
@@ -667,6 +670,7 @@ __secondary_switched:
 	msr	sp_el0, x0			// save thread_info
 #endif
 	mov	x29, #0
+	mov	x30, #0
 	b	secondary_start_kernel
 ENDPROC(__secondary_switched)
 
