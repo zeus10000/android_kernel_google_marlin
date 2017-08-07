@@ -37,6 +37,32 @@ int sysctl_unprivileged_bpf_disabled __read_mostly =
 
 static LIST_HEAD(bpf_map_types);
 
+static int check_uarg_tail_zero(void __user *uaddr,
+				size_t expected_size,
+				size_t actual_size)
+{
+	unsigned char __user *addr;
+	unsigned char __user *end;
+	unsigned char val;
+	int err;
+
+	if (actual_size <= expected_size)
+		return 0;
+
+	addr = uaddr + expected_size;
+	end  = uaddr + actual_size;
+
+	for (; addr < end; addr++) {
+		err = get_user(val, addr);
+		if (err)
+			return err;
+		if (val)
+			return -E2BIG;
+	}
+
+	return 0;
+}
+
 static struct bpf_map *find_and_alloc_map(union bpf_attr *attr)
 {
 	struct bpf_map_type_list *tl;
@@ -1353,32 +1379,6 @@ static int bpf_map_get_fd_by_id(const union bpf_attr *attr)
 		bpf_map_put(map);
 
 	return fd;
-}
-
-static int check_uarg_tail_zero(void __user *uaddr,
-				size_t expected_size,
-				size_t actual_size)
-{
-	unsigned char __user *addr;
-	unsigned char __user *end;
-	unsigned char val;
-	int err;
-
-	if (actual_size <= expected_size)
-		return 0;
-
-	addr = uaddr + expected_size;
-	end  = uaddr + actual_size;
-
-	for (; addr < end; addr++) {
-		err = get_user(val, addr);
-		if (err)
-			return err;
-		if (val)
-			return -E2BIG;
-	}
-
-	return 0;
 }
 
 static int bpf_prog_get_info_by_fd(struct bpf_prog *prog,
