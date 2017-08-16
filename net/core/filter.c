@@ -3410,6 +3410,22 @@ static bool sock_ops_is_valid_access(int off, int size,
 	return __is_valid_sock_ops_access(off, size);
 }
 
+static bool sk_skb_is_valid_access(int off, int size,
+				   enum bpf_access_type type,
+				   struct bpf_insn_access_aux *info)
+{
+	switch (off) {
+	case bpf_ctx_range(struct __sk_buff, data):
+		info->reg_type = PTR_TO_PACKET;
+		break;
+	case bpf_ctx_range(struct __sk_buff, data_end):
+		info->reg_type = PTR_TO_PACKET_END;
+		break;
+	}
+
+	return bpf_skb_is_valid_access(off, size, type, info);
+}
+
 static u32 bpf_convert_ctx_access(enum bpf_access_type type,
 				  const struct bpf_insn *si,
 				  struct bpf_insn *insn_buf,
