@@ -61,6 +61,7 @@ struct bpf_map {
 #ifdef CONFIG_SECURITY
 	void *security;
 #endif
+	u8 name[BPF_OBJ_NAME_LEN];
 };
 
 struct bpf_map_type_list {
