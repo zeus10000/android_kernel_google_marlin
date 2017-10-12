@@ -856,6 +856,36 @@ static int check_packet_access(struct bpf_verifier_env *env, u32 regno, int off,
 	return err;
 }
 
+static bool analyzer_is_valid_access(struct bpf_verifier_env *env, int off,
+				     struct bpf_insn_access_aux *info)
+{
+	switch (env->prog->type) {
+	case BPF_PROG_TYPE_XDP:
+		switch (off) {
+		case offsetof(struct xdp_buff, data):
+			info->reg_type = PTR_TO_PACKET;
+			return true;
+		case offsetof(struct xdp_buff, data_end):
+			info->reg_type = PTR_TO_PACKET_END;
+			return true;
+		}
+		return false;
+	case BPF_PROG_TYPE_SCHED_CLS:
+		switch (off) {
+		case offsetof(struct sk_buff, data):
+			info->reg_type = PTR_TO_PACKET;
+			return true;
+		case offsetof(struct sk_buff, cb) +
+		     offsetof(struct bpf_skb_data_end, data_end):
+			info->reg_type = PTR_TO_PACKET_END;
+			return true;
+		}
+		return false;
+	default:
+		return false;
+	}
+}
+
 /* check access to 'struct bpf_context' fields.  Supports fixed offsets only */
 static int check_ctx_access(struct bpf_verifier_env *env, int insn_idx, int off, int size,
 			    enum bpf_access_type t, enum bpf_reg_type *reg_type)
