@@ -1,6 +1,10 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  *      NET3    Protocol independent device support routines.
+ *
+ *		This program is free software; you can redistribute it and/or
+ *		modify it under the terms of the GNU General Public License
+ *		as published by the Free Software Foundation; either version
+ *		2 of the License, or (at your option) any later version.
  *
  *	Derived from the non IP parts of dev.c 1.0.19
  *              Authors:	Ross Biro
@@ -79,7 +83,6 @@
 #include <linux/sched.h>
 #include <linux/sched/mm.h>
 #include <linux/mutex.h>
-#include <linux/rwsem.h>
 #include <linux/string.h>
 #include <linux/mm.h>
 #include <linux/socket.h>
@@ -90,6 +93,7 @@
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
 #include <linux/ethtool.h>
+#include <linux/notifier.h>
 #include <linux/skbuff.h>
 #include <linux/bpf.h>
 #include <linux/bpf_trace.h>
@@ -98,7 +102,6 @@
 #include <net/busy_poll.h>
 #include <linux/rtnetlink.h>
 #include <linux/stat.h>
-#include <net/dsa.h>
 #include <net/dst.h>
 #include <net/dst_metadata.h>
 #include <net/pkt_sched.h>
@@ -129,6 +132,7 @@
 #include <trace/events/napi.h>
 #include <trace/events/net.h>
 #include <trace/events/skb.h>
+#include <linux/pci.h>
 #include <linux/inetdevice.h>
 #include <linux/cpu_rmap.h>
 #include <linux/static_key.h>
@@ -142,13 +146,10 @@
 #include <linux/sctp.h>
 #include <net/udp_tunnel.h>
 #include <linux/net_namespace.h>
-#include <linux/indirect_call_wrapper.h>
-#include <net/devlink.h>
-#include <linux/pm_runtime.h>
-#include <linux/prandom.h>
 
 #include "net-sysfs.h"
 
+/* Instead of increasing this, you should create a hash table. */
 #define MAX_GRO_SKBS 8
 
 /* This should be increased if a protocol with a bigger head is added. */
@@ -163,9 +164,6 @@ static struct list_head offload_base __read_mostly;
 static int netif_rx_internal(struct sk_buff *skb);
 static int call_netdevice_notifiers_info(unsigned long val,
 					 struct netdev_notifier_info *info);
-static int call_netdevice_notifiers_extack(unsigned long val,
-					   struct net_device *dev,
-					   struct netlink_ext_ack *extack);
 static struct napi_struct *napi_by_id(unsigned int napi_id);
 
 /*
@@ -198,7 +196,7 @@ static DEFINE_SPINLOCK(napi_hash_lock);
 static unsigned int napi_gen_id = NR_CPUS;
 static DEFINE_READ_MOSTLY_HASHTABLE(napi_hash, 8);
 
-static DECLARE_RWSEM(devnet_rename_sem);
+static seqcount_t devnet_rename_seq;
 
 static inline void dev_base_seq_inc(struct net *net)
 {
@@ -232,128 +230,6 @@ static inline void rps_unlock(struct softnet_data *sd)
 #endif
 }
 
-static struct netdev_name_node *netdev_name_node_alloc(struct net_device *dev,
-						       const char *name)
-{
-	struct netdev_name_node *name_node;
-
-	name_node = kmalloc(sizeof(*name_node), GFP_KERNEL);
-	if (!name_node)
-		return NULL;
-	INIT_HLIST_NODE(&name_node->hlist);
-	name_node->dev = dev;
-	name_node->name = name;
-	return name_node;
-}
-
-static struct netdev_name_node *
-netdev_name_node_head_alloc(struct net_device *dev)
-{
-	struct netdev_name_node *name_node;
-
-	name_node = netdev_name_node_alloc(dev, dev->name);
-	if (!name_node)
-		return NULL;
-	INIT_LIST_HEAD(&name_node->list);
-	return name_node;
-}
-
-static void netdev_name_node_free(struct netdev_name_node *name_node)
-{
-	kfree(name_node);
-}
-
-static void netdev_name_node_add(struct net *net,
-				 struct netdev_name_node *name_node)
-{
-	hlist_add_head_rcu(&name_node->hlist,
-			   dev_name_hash(net, name_node->name));
-}
-
-static void netdev_name_node_del(struct netdev_name_node *name_node)
-{
-	hlist_del_rcu(&name_node->hlist);
-}
-
-static struct netdev_name_node *netdev_name_node_lookup(struct net *net,
-							const char *name)
-{
-	struct hlist_head *head = dev_name_hash(net, name);
-	struct netdev_name_node *name_node;
-
-	hlist_for_each_entry(name_node, head, hlist)
-		if (!strcmp(name_node->name, name))
-			return name_node;
-	return NULL;
-}
-
-static struct netdev_name_node *netdev_name_node_lookup_rcu(struct net *net,
-							    const char *name)
-{
-	struct hlist_head *head = dev_name_hash(net, name);
-	struct netdev_name_node *name_node;
-
-	hlist_for_each_entry_rcu(name_node, head, hlist)
-		if (!strcmp(name_node->name, name))
-			return name_node;
-	return NULL;
-}
-
-int netdev_name_node_alt_create(struct net_device *dev, const char *name)
-{
-	struct netdev_name_node *name_node;
-	struct net *net = dev_net(dev);
-
-	name_node = netdev_name_node_lookup(net, name);
-	if (name_node)
-		return -EEXIST;
-	name_node = netdev_name_node_alloc(dev, name);
-	if (!name_node)
-		return -ENOMEM;
-	netdev_name_node_add(net, name_node);
-	/* The node that holds dev->name acts as a head of per-device list. */
-	list_add_tail(&name_node->list, &dev->name_node->list);
-
-	return 0;
-}
-EXPORT_SYMBOL(netdev_name_node_alt_create);
-
-static void __netdev_name_node_alt_destroy(struct netdev_name_node *name_node)
-{
-	list_del(&name_node->list);
-	netdev_name_node_del(name_node);
-	kfree(name_node->name);
-	netdev_name_node_free(name_node);
-}
-
-int netdev_name_node_alt_destroy(struct net_device *dev, const char *name)
-{
-	struct netdev_name_node *name_node;
-	struct net *net = dev_net(dev);
-
-	name_node = netdev_name_node_lookup(net, name);
-	if (!name_node)
-		return -ENOENT;
-	/* lookup might have found our primary name or a name belonging
-	 * to another device.
-	 */
-	if (name_node == dev->name_node || name_node->dev != dev)
-		return -EINVAL;
-
-	__netdev_name_node_alt_destroy(name_node);
-
-	return 0;
-}
-EXPORT_SYMBOL(netdev_name_node_alt_destroy);
-
-static void netdev_name_node_alt_flush(struct net_device *dev)
-{
-	struct netdev_name_node *name_node, *tmp;
-
-	list_for_each_entry_safe(name_node, tmp, &dev->name_node->list, list)
-		__netdev_name_node_alt_destroy(name_node);
-}
-
 /* Device list insertion */
 static void list_netdevice(struct net_device *dev)
 {
@@ -363,7 +239,7 @@ static void list_netdevice(struct net_device *dev)
 
 	write_lock_bh(&dev_base_lock);
 	list_add_tail_rcu(&dev->dev_list, &net->dev_base_head);
-	netdev_name_node_add(net, dev->name_node);
+	hlist_add_head_rcu(&dev->name_hlist, dev_name_hash(net, dev->name));
 	hlist_add_head_rcu(&dev->index_hlist,
 			   dev_index_hash(net, dev->ifindex));
 	write_unlock_bh(&dev_base_lock);
@@ -381,7 +257,7 @@ static void unlist_netdevice(struct net_device *dev)
 	/* Unlink dev from the device chain */
 	write_lock_bh(&dev_base_lock);
 	list_del_rcu(&dev->dev_list);
-	netdev_name_node_del(dev->name_node);
+	hlist_del_rcu(&dev->name_hlist);
 	hlist_del_rcu(&dev->index_hlist);
 	write_unlock_bh(&dev_base_lock);
 
@@ -479,7 +355,6 @@ static inline void netdev_set_xmit_lockdep_class(spinlock_t *lock,
 						 unsigned short dev_type)
 {
 }
-
 static inline void netdev_set_addr_lockdep_class(struct net_device *dev)
 {
 }
@@ -860,10 +735,14 @@ EXPORT_SYMBOL_GPL(dev_fill_metadata_dst);
 
 struct net_device *__dev_get_by_name(struct net *net, const char *name)
 {
-	struct netdev_name_node *node_name;
+	struct net_device *dev;
+	struct hlist_head *head = dev_name_hash(net, name);
 
-	node_name = netdev_name_node_lookup(net, name);
-	return node_name ? node_name->dev : NULL;
+	hlist_for_each_entry(dev, head, name_hlist)
+		if (!strncmp(dev->name, name, IFNAMSIZ))
+			return dev;
+
+	return NULL;
 }
 EXPORT_SYMBOL(__dev_get_by_name);
 
@@ -881,10 +760,14 @@ EXPORT_SYMBOL(__dev_get_by_name);
 
 struct net_device *dev_get_by_name_rcu(struct net *net, const char *name)
 {
-	struct netdev_name_node *node_name;
+	struct net_device *dev;
+	struct hlist_head *head = dev_name_hash(net, name);
 
-	node_name = netdev_name_node_lookup_rcu(net, name);
-	return node_name ? node_name->dev : NULL;
+	hlist_for_each_entry_rcu(dev, head, name_hlist)
+		if (!strncmp(dev->name, name, IFNAMSIZ))
+			return dev;
+
+	return NULL;
 }
 EXPORT_SYMBOL(dev_get_by_name_rcu);
 
@@ -1017,28 +900,33 @@ EXPORT_SYMBOL(dev_get_by_napi_id);
  *	@net: network namespace
  *	@name: a pointer to the buffer where the name will be stored.
  *	@ifindex: the ifindex of the interface to get the name from.
+ *
+ *	The use of raw_seqcount_begin() and cond_resched() before
+ *	retrying is required as we want to give the writers a chance
+ *	to complete when CONFIG_PREEMPT is not set.
  */
 int netdev_get_name(struct net *net, char *name, int ifindex)
 {
 	struct net_device *dev;
-	int ret;
+	unsigned int seq;
 
-	down_read(&devnet_rename_sem);
+retry:
+	seq = raw_seqcount_begin(&devnet_rename_seq);
 	rcu_read_lock();
-
 	dev = dev_get_by_index_rcu(net, ifindex);
 	if (!dev) {
-		ret = -ENODEV;
-		goto out;
+		rcu_read_unlock();
+		return -ENODEV;
 	}
 
 	strcpy(name, dev->name);
-
-	ret = 0;
-out:
 	rcu_read_unlock();
-	up_read(&devnet_rename_sem);
-	return ret;
+	if (read_seqcount_retry(&devnet_rename_seq, seq)) {
+		cond_resched();
+		goto retry;
+	}
+
+	return 0;
 }
 
 /**
@@ -1132,14 +1020,14 @@ EXPORT_SYMBOL(__dev_get_by_flags);
  *	@name: name string
  *
  *	Network device names need to be valid file names to
- *	allow sysfs to work.  We also disallow any kind of
+ *	to allow sysfs to work.  We also disallow any kind of
  *	whitespace.
  */
 bool dev_valid_name(const char *name)
 {
 	if (*name == '\0')
 		return false;
-	if (strnlen(name, IFNAMSIZ) == IFNAMSIZ)
+	if (strlen(name) >= IFNAMSIZ)
 		return false;
 	if (!strcmp(name, ".") || !strcmp(name, ".."))
 		return false;
@@ -1176,10 +1064,7 @@ static int __dev_alloc_name(struct net *net, const char *name, char *buf)
 	unsigned long *inuse;
 	struct net_device *d;
 
-	if (!dev_valid_name(name))
-		return -EINVAL;
-
-	p = strchr(name, '%');
+	p = strnchr(name, IFNAMSIZ-1, '%');
 	if (p) {
 		/*
 		 * Verify the string as this thing may have come from
@@ -1210,7 +1095,8 @@ static int __dev_alloc_name(struct net *net, const char *name, char *buf)
 		free_page((unsigned long) inuse);
 	}
 
-	snprintf(buf, IFNAMSIZ, name, i);
+	if (buf != name)
+		snprintf(buf, IFNAMSIZ, name, i);
 	if (!__dev_get_by_name(net, buf))
 		return i;
 
@@ -1219,20 +1105,6 @@ static int __dev_alloc_name(struct net *net, const char *name, char *buf)
 	 * for the digits, or if all bits are used.
 	 */
 	return -ENFILE;
-}
-
-static int dev_alloc_name_ns(struct net *net,
-			     struct net_device *dev,
-			     const char *name)
-{
-	char buf[IFNAMSIZ];
-	int ret;
-
-	BUG_ON(!net);
-	ret = __dev_alloc_name(net, name, buf);
-	if (ret >= 0)
-		strlcpy(dev->name, buf, IFNAMSIZ);
-	return ret;
 }
 
 /**
@@ -1251,11 +1123,34 @@ static int dev_alloc_name_ns(struct net *net,
 
 int dev_alloc_name(struct net_device *dev, const char *name)
 {
-	return dev_alloc_name_ns(dev_net(dev), dev, name);
+	char buf[IFNAMSIZ];
+	struct net *net;
+	int ret;
+
+	BUG_ON(!dev_net(dev));
+	net = dev_net(dev);
+	ret = __dev_alloc_name(net, name, buf);
+	if (ret >= 0)
+		strlcpy(dev->name, buf, IFNAMSIZ);
+	return ret;
 }
 EXPORT_SYMBOL(dev_alloc_name);
 
-static int dev_get_valid_name(struct net *net, struct net_device *dev,
+static int dev_alloc_name_ns(struct net *net,
+			     struct net_device *dev,
+			     const char *name)
+{
+	char buf[IFNAMSIZ];
+	int ret;
+
+	ret = __dev_alloc_name(net, name, buf);
+	if (ret >= 0)
+		strlcpy(dev->name, buf, IFNAMSIZ);
+	return ret;
+}
+
+static int dev_get_valid_name(struct net *net,
+			      struct net_device *dev,
 			      const char *name)
 {
 	BUG_ON(!net);
@@ -1293,27 +1188,13 @@ int dev_change_name(struct net_device *dev, const char *newname)
 	BUG_ON(!dev_net(dev));
 
 	net = dev_net(dev);
-
-	/* Some auto-enslaved devices e.g. failover slaves are
-	 * special, as userspace might rename the device after
-	 * the interface had been brought up and running since
-	 * the point kernel initiated auto-enslavement. Allow
-	 * live name change even when these slave devices are
-	 * up and running.
-	 *
-	 * Typically, users of these auto-enslaving devices
-	 * don't actually care about slave name change, as
-	 * they are supposed to operate on master interface
-	 * directly.
-	 */
-	if (dev->flags & IFF_UP &&
-	    likely(!(dev->priv_flags & IFF_LIVE_RENAME_OK)))
+	if (dev->flags & IFF_UP)
 		return -EBUSY;
 
-	down_write(&devnet_rename_sem);
+	write_seqcount_begin(&devnet_rename_seq);
 
 	if (strncmp(newname, dev->name, IFNAMSIZ) == 0) {
-		up_write(&devnet_rename_sem);
+		write_seqcount_end(&devnet_rename_seq);
 		return 0;
 	}
 
@@ -1321,7 +1202,7 @@ int dev_change_name(struct net_device *dev, const char *newname)
 
 	err = dev_get_valid_name(net, dev, newname);
 	if (err < 0) {
-		up_write(&devnet_rename_sem);
+		write_seqcount_end(&devnet_rename_seq);
 		return err;
 	}
 
@@ -1336,22 +1217,22 @@ rollback:
 	if (ret) {
 		memcpy(dev->name, oldname, IFNAMSIZ);
 		dev->name_assign_type = old_assign_type;
-		up_write(&devnet_rename_sem);
+		write_seqcount_end(&devnet_rename_seq);
 		return ret;
 	}
 
-	up_write(&devnet_rename_sem);
+	write_seqcount_end(&devnet_rename_seq);
 
 	netdev_adjacent_rename_links(dev, oldname);
 
 	write_lock_bh(&dev_base_lock);
-	netdev_name_node_del(dev->name_node);
+	hlist_del_rcu(&dev->name_hlist);
 	write_unlock_bh(&dev_base_lock);
 
 	synchronize_rcu();
 
 	write_lock_bh(&dev_base_lock);
-	netdev_name_node_add(net, dev->name_node);
+	hlist_add_head_rcu(&dev->name_hlist, dev_name_hash(net, dev->name));
 	write_unlock_bh(&dev_base_lock);
 
 	ret = call_netdevice_notifiers(NETDEV_CHANGENAME, dev);
@@ -1361,7 +1242,7 @@ rollback:
 		/* err >= 0 after dev_alloc_name() or stores the first errno */
 		if (err >= 0) {
 			err = ret;
-			down_write(&devnet_rename_sem);
+			write_seqcount_begin(&devnet_rename_seq);
 			memcpy(dev->name, oldname, IFNAMSIZ);
 			memcpy(oldname, newname, IFNAMSIZ);
 			dev->name_assign_type = old_assign_type;
@@ -1401,8 +1282,8 @@ int dev_set_alias(struct net_device *dev, const char *alias, size_t len)
 	}
 
 	mutex_lock(&ifalias_mutex);
-	new_alias = rcu_replace_pointer(dev->ifalias, new_alias,
-					mutex_is_locked(&ifalias_mutex));
+	rcu_swap_protected(dev->ifalias, new_alias,
+			   mutex_is_locked(&ifalias_mutex));
 	mutex_unlock(&ifalias_mutex);
 
 	if (new_alias)
@@ -1410,7 +1291,6 @@ int dev_set_alias(struct net_device *dev, const char *alias, size_t len)
 
 	return len;
 }
-EXPORT_SYMBOL(dev_set_alias);
 
 /**
  *	dev_get_alias - get ifalias of a device
@@ -1488,20 +1368,15 @@ void netdev_notify_peers(struct net_device *dev)
 }
 EXPORT_SYMBOL(netdev_notify_peers);
 
-static int __dev_open(struct net_device *dev, struct netlink_ext_ack *extack)
+static int __dev_open(struct net_device *dev)
 {
 	const struct net_device_ops *ops = dev->netdev_ops;
 	int ret;
 
 	ASSERT_RTNL();
 
-	if (!netif_device_present(dev)) {
-		/* may be detached because parent is runtime-suspended */
-		if (dev->dev.parent)
-			pm_runtime_resume(dev->dev.parent);
-		if (!netif_device_present(dev))
-			return -ENODEV;
-	}
+	if (!netif_device_present(dev))
+		return -ENODEV;
 
 	/* Block netpoll from trying to do any rx path servicing.
 	 * If we don't do this there is a chance ndo_poll_controller
@@ -1509,7 +1384,7 @@ static int __dev_open(struct net_device *dev, struct netlink_ext_ack *extack)
 	 */
 	netpoll_poll_disable(dev);
 
-	ret = call_netdevice_notifiers_extack(NETDEV_PRE_UP, dev, extack);
+	ret = call_netdevice_notifiers(NETDEV_PRE_UP, dev);
 	ret = notifier_to_errno(ret);
 	if (ret)
 		return ret;
@@ -1538,8 +1413,7 @@ static int __dev_open(struct net_device *dev, struct netlink_ext_ack *extack)
 
 /**
  *	dev_open	- prepare an interface for use.
- *	@dev: device to open
- *	@extack: netlink extended ack
+ *	@dev:	device to open
  *
  *	Takes a device from down to up state. The device's private open
  *	function is invoked and then the multicast lists are loaded. Finally
@@ -1549,14 +1423,14 @@ static int __dev_open(struct net_device *dev, struct netlink_ext_ack *extack)
  *	Calling this function on an active interface is a nop. On a failure
  *	a negative errno code is returned.
  */
-int dev_open(struct net_device *dev, struct netlink_ext_ack *extack)
+int dev_open(struct net_device *dev)
 {
 	int ret;
 
 	if (dev->flags & IFF_UP)
 		return 0;
 
-	ret = __dev_open(dev, extack);
+	ret = __dev_open(dev);
 	if (ret < 0)
 		return ret;
 
@@ -1686,45 +1560,6 @@ void dev_disable_lro(struct net_device *dev)
 }
 EXPORT_SYMBOL(dev_disable_lro);
 
-/**
- *	dev_disable_gro_hw - disable HW Generic Receive Offload on a device
- *	@dev: device
- *
- *	Disable HW Generic Receive Offload (GRO_HW) on a net device.  Must be
- *	called under RTNL.  This is needed if Generic XDP is installed on
- *	the device.
- */
-static void dev_disable_gro_hw(struct net_device *dev)
-{
-	dev->wanted_features &= ~NETIF_F_GRO_HW;
-	netdev_update_features(dev);
-
-	if (unlikely(dev->features & NETIF_F_GRO_HW))
-		netdev_WARN(dev, "failed to disable GRO_HW!\n");
-}
-
-const char *netdev_cmd_to_name(enum netdev_cmd cmd)
-{
-#define N(val) 						\
-	case NETDEV_##val:				\
-		return "NETDEV_" __stringify(val);
-	switch (cmd) {
-	N(UP) N(DOWN) N(REBOOT) N(CHANGE) N(REGISTER) N(UNREGISTER)
-	N(CHANGEMTU) N(CHANGEADDR) N(GOING_DOWN) N(CHANGENAME) N(FEAT_CHANGE)
-	N(BONDING_FAILOVER) N(PRE_UP) N(PRE_TYPE_CHANGE) N(POST_TYPE_CHANGE)
-	N(POST_INIT) N(RELEASE) N(NOTIFY_PEERS) N(JOIN) N(CHANGEUPPER)
-	N(RESEND_IGMP) N(PRECHANGEMTU) N(CHANGEINFODATA) N(BONDING_INFO)
-	N(PRECHANGEUPPER) N(CHANGELOWERSTATE) N(UDP_TUNNEL_PUSH_INFO)
-	N(UDP_TUNNEL_DROP_INFO) N(CHANGE_TX_QUEUE_LEN)
-	N(CVLAN_FILTER_PUSH_INFO) N(CVLAN_FILTER_DROP_INFO)
-	N(SVLAN_FILTER_PUSH_INFO) N(SVLAN_FILTER_DROP_INFO)
-	N(PRE_CHANGEADDR)
-	}
-#undef N
-	return "UNKNOWN_NETDEV_EVENT";
-}
-EXPORT_SYMBOL_GPL(netdev_cmd_to_name);
-
 static int call_netdevice_notifier(struct notifier_block *nb, unsigned long val,
 				   struct net_device *dev)
 {
@@ -1733,62 +1568,6 @@ static int call_netdevice_notifier(struct notifier_block *nb, unsigned long val,
 	};
 
 	return nb->notifier_call(nb, val, &info);
-}
-
-static int call_netdevice_register_notifiers(struct notifier_block *nb,
-					     struct net_device *dev)
-{
-	int err;
-
-	err = call_netdevice_notifier(nb, NETDEV_REGISTER, dev);
-	err = notifier_to_errno(err);
-	if (err)
-		return err;
-
-	if (!(dev->flags & IFF_UP))
-		return 0;
-
-	call_netdevice_notifier(nb, NETDEV_UP, dev);
-	return 0;
-}
-
-static void call_netdevice_unregister_notifiers(struct notifier_block *nb,
-						struct net_device *dev)
-{
-	if (dev->flags & IFF_UP) {
-		call_netdevice_notifier(nb, NETDEV_GOING_DOWN,
-					dev);
-		call_netdevice_notifier(nb, NETDEV_DOWN, dev);
-	}
-	call_netdevice_notifier(nb, NETDEV_UNREGISTER, dev);
-}
-
-static int call_netdevice_register_net_notifiers(struct notifier_block *nb,
-						 struct net *net)
-{
-	struct net_device *dev;
-	int err;
-
-	for_each_netdev(net, dev) {
-		err = call_netdevice_register_notifiers(nb, dev);
-		if (err)
-			goto rollback;
-	}
-	return 0;
-
-rollback:
-	for_each_netdev_continue_reverse(net, dev)
-		call_netdevice_unregister_notifiers(nb, dev);
-	return err;
-}
-
-static void call_netdevice_unregister_net_notifiers(struct notifier_block *nb,
-						    struct net *net)
-{
-	struct net_device *dev;
-
-	for_each_netdev(net, dev)
-		call_netdevice_unregister_notifiers(nb, dev);
 }
 
 static int dev_boot_phase = 1;
@@ -1809,11 +1588,11 @@ static int dev_boot_phase = 1;
 
 int register_netdevice_notifier(struct notifier_block *nb)
 {
+	struct net_device *dev;
+	struct net_device *last;
 	struct net *net;
 	int err;
 
-	/* Close race with setup_net() and cleanup_net() */
-	down_write(&pernet_ops_rwsem);
 	rtnl_lock();
 	err = raw_notifier_chain_register(&netdev_chain, nb);
 	if (err)
@@ -1821,20 +1600,40 @@ int register_netdevice_notifier(struct notifier_block *nb)
 	if (dev_boot_phase)
 		goto unlock;
 	for_each_net(net) {
-		err = call_netdevice_register_net_notifiers(nb, net);
-		if (err)
-			goto rollback;
+		for_each_netdev(net, dev) {
+			err = call_netdevice_notifier(nb, NETDEV_REGISTER, dev);
+			err = notifier_to_errno(err);
+			if (err)
+				goto rollback;
+
+			if (!(dev->flags & IFF_UP))
+				continue;
+
+			call_netdevice_notifier(nb, NETDEV_UP, dev);
+		}
 	}
 
 unlock:
 	rtnl_unlock();
-	up_write(&pernet_ops_rwsem);
 	return err;
 
 rollback:
-	for_each_net_continue_reverse(net)
-		call_netdevice_unregister_net_notifiers(nb, net);
+	last = dev;
+	for_each_net(net) {
+		for_each_netdev(net, dev) {
+			if (dev == last)
+				goto outroll;
 
+			if (dev->flags & IFF_UP) {
+				call_netdevice_notifier(nb, NETDEV_GOING_DOWN,
+							dev);
+				call_netdevice_notifier(nb, NETDEV_DOWN, dev);
+			}
+			call_netdevice_notifier(nb, NETDEV_UNREGISTER, dev);
+		}
+	}
+
+outroll:
 	raw_notifier_chain_unregister(&netdev_chain, nb);
 	goto unlock;
 }
@@ -1856,161 +1655,35 @@ EXPORT_SYMBOL(register_netdevice_notifier);
 
 int unregister_netdevice_notifier(struct notifier_block *nb)
 {
+	struct net_device *dev;
 	struct net *net;
 	int err;
 
-	/* Close race with setup_net() and cleanup_net() */
-	down_write(&pernet_ops_rwsem);
 	rtnl_lock();
 	err = raw_notifier_chain_unregister(&netdev_chain, nb);
 	if (err)
 		goto unlock;
 
-	for_each_net(net)
-		call_netdevice_unregister_net_notifiers(nb, net);
-
+	for_each_net(net) {
+		for_each_netdev(net, dev) {
+			if (dev->flags & IFF_UP) {
+				call_netdevice_notifier(nb, NETDEV_GOING_DOWN,
+							dev);
+				call_netdevice_notifier(nb, NETDEV_DOWN, dev);
+			}
+			call_netdevice_notifier(nb, NETDEV_UNREGISTER, dev);
+		}
+	}
 unlock:
 	rtnl_unlock();
-	up_write(&pernet_ops_rwsem);
 	return err;
 }
 EXPORT_SYMBOL(unregister_netdevice_notifier);
 
-static int __register_netdevice_notifier_net(struct net *net,
-					     struct notifier_block *nb,
-					     bool ignore_call_fail)
-{
-	int err;
-
-	err = raw_notifier_chain_register(&net->netdev_chain, nb);
-	if (err)
-		return err;
-	if (dev_boot_phase)
-		return 0;
-
-	err = call_netdevice_register_net_notifiers(nb, net);
-	if (err && !ignore_call_fail)
-		goto chain_unregister;
-
-	return 0;
-
-chain_unregister:
-	raw_notifier_chain_unregister(&net->netdev_chain, nb);
-	return err;
-}
-
-static int __unregister_netdevice_notifier_net(struct net *net,
-					       struct notifier_block *nb)
-{
-	int err;
-
-	err = raw_notifier_chain_unregister(&net->netdev_chain, nb);
-	if (err)
-		return err;
-
-	call_netdevice_unregister_net_notifiers(nb, net);
-	return 0;
-}
-
-/**
- * register_netdevice_notifier_net - register a per-netns network notifier block
- * @net: network namespace
- * @nb: notifier
- *
- * Register a notifier to be called when network device events occur.
- * The notifier passed is linked into the kernel structures and must
- * not be reused until it has been unregistered. A negative errno code
- * is returned on a failure.
- *
- * When registered all registration and up events are replayed
- * to the new notifier to allow device to have a race free
- * view of the network device list.
- */
-
-int register_netdevice_notifier_net(struct net *net, struct notifier_block *nb)
-{
-	int err;
-
-	rtnl_lock();
-	err = __register_netdevice_notifier_net(net, nb, false);
-	rtnl_unlock();
-	return err;
-}
-EXPORT_SYMBOL(register_netdevice_notifier_net);
-
-/**
- * unregister_netdevice_notifier_net - unregister a per-netns
- *                                     network notifier block
- * @net: network namespace
- * @nb: notifier
- *
- * Unregister a notifier previously registered by
- * register_netdevice_notifier(). The notifier is unlinked into the
- * kernel structures and may then be reused. A negative errno code
- * is returned on a failure.
- *
- * After unregistering unregister and down device events are synthesized
- * for all devices on the device list to the removed notifier to remove
- * the need for special case cleanup code.
- */
-
-int unregister_netdevice_notifier_net(struct net *net,
-				      struct notifier_block *nb)
-{
-	int err;
-
-	rtnl_lock();
-	err = __unregister_netdevice_notifier_net(net, nb);
-	rtnl_unlock();
-	return err;
-}
-EXPORT_SYMBOL(unregister_netdevice_notifier_net);
-
-int register_netdevice_notifier_dev_net(struct net_device *dev,
-					struct notifier_block *nb,
-					struct netdev_net_notifier *nn)
-{
-	int err;
-
-	rtnl_lock();
-	err = __register_netdevice_notifier_net(dev_net(dev), nb, false);
-	if (!err) {
-		nn->nb = nb;
-		list_add(&nn->list, &dev->net_notifier_list);
-	}
-	rtnl_unlock();
-	return err;
-}
-EXPORT_SYMBOL(register_netdevice_notifier_dev_net);
-
-int unregister_netdevice_notifier_dev_net(struct net_device *dev,
-					  struct notifier_block *nb,
-					  struct netdev_net_notifier *nn)
-{
-	int err;
-
-	rtnl_lock();
-	list_del(&nn->list);
-	err = __unregister_netdevice_notifier_net(dev_net(dev), nb);
-	rtnl_unlock();
-	return err;
-}
-EXPORT_SYMBOL(unregister_netdevice_notifier_dev_net);
-
-static void move_netdevice_notifiers_dev_net(struct net_device *dev,
-					     struct net *net)
-{
-	struct netdev_net_notifier *nn;
-
-	list_for_each_entry(nn, &dev->net_notifier_list, list) {
-		__unregister_netdevice_notifier_net(dev_net(dev), nn->nb);
-		__register_netdevice_notifier_net(net, nn->nb, true);
-	}
-}
-
 /**
  *	call_netdevice_notifiers_info - call all network notifier blocks
  *	@val: value passed unmodified to notifier function
+ *	@dev: net_device pointer passed unmodified to notifier function
  *	@info: notifier information data
  *
  *	Call all network notifier blocks.  Parameters and return value
@@ -2020,31 +1693,8 @@ static void move_netdevice_notifiers_dev_net(struct net_device *dev,
 static int call_netdevice_notifiers_info(unsigned long val,
 					 struct netdev_notifier_info *info)
 {
-	struct net *net = dev_net(info->dev);
-	int ret;
-
 	ASSERT_RTNL();
-
-	/* Run per-netns notifier block chain first, then run the global one.
-	 * Hopefully, one day, the global one is going to be removed after
-	 * all notifier block registrators get converted to be per-netns.
-	 */
-	ret = raw_notifier_call_chain(&net->netdev_chain, val, info);
-	if (ret & NOTIFY_STOP_MASK)
-		return ret;
 	return raw_notifier_call_chain(&netdev_chain, val, info);
-}
-
-static int call_netdevice_notifiers_extack(unsigned long val,
-					   struct net_device *dev,
-					   struct netlink_ext_ack *extack)
-{
-	struct netdev_notifier_info info = {
-		.dev = dev,
-		.extack = extack,
-	};
-
-	return call_netdevice_notifiers_info(val, &info);
 }
 
 /**
@@ -2058,66 +1708,48 @@ static int call_netdevice_notifiers_extack(unsigned long val,
 
 int call_netdevice_notifiers(unsigned long val, struct net_device *dev)
 {
-	return call_netdevice_notifiers_extack(val, dev, NULL);
+	struct netdev_notifier_info info = {
+		.dev = dev,
+	};
+
+	return call_netdevice_notifiers_info(val, &info);
 }
 EXPORT_SYMBOL(call_netdevice_notifiers);
 
-/**
- *	call_netdevice_notifiers_mtu - call all network notifier blocks
- *	@val: value passed unmodified to notifier function
- *	@dev: net_device pointer passed unmodified to notifier function
- *	@arg: additional u32 argument passed to the notifier function
- *
- *	Call all network notifier blocks.  Parameters and return value
- *	are as for raw_notifier_call_chain().
- */
-static int call_netdevice_notifiers_mtu(unsigned long val,
-					struct net_device *dev, u32 arg)
-{
-	struct netdev_notifier_info_ext info = {
-		.info.dev = dev,
-		.ext.mtu = arg,
-	};
-
-	BUILD_BUG_ON(offsetof(struct netdev_notifier_info_ext, info) != 0);
-
-	return call_netdevice_notifiers_info(val, &info.info);
-}
-
 #ifdef CONFIG_NET_INGRESS
-static DEFINE_STATIC_KEY_FALSE(ingress_needed_key);
+static struct static_key ingress_needed __read_mostly;
 
 void net_inc_ingress_queue(void)
 {
-	static_branch_inc(&ingress_needed_key);
+	static_key_slow_inc(&ingress_needed);
 }
 EXPORT_SYMBOL_GPL(net_inc_ingress_queue);
 
 void net_dec_ingress_queue(void)
 {
-	static_branch_dec(&ingress_needed_key);
+	static_key_slow_dec(&ingress_needed);
 }
 EXPORT_SYMBOL_GPL(net_dec_ingress_queue);
 #endif
 
 #ifdef CONFIG_NET_EGRESS
-static DEFINE_STATIC_KEY_FALSE(egress_needed_key);
+static struct static_key egress_needed __read_mostly;
 
 void net_inc_egress_queue(void)
 {
-	static_branch_inc(&egress_needed_key);
+	static_key_slow_inc(&egress_needed);
 }
 EXPORT_SYMBOL_GPL(net_inc_egress_queue);
 
 void net_dec_egress_queue(void)
 {
-	static_branch_dec(&egress_needed_key);
+	static_key_slow_dec(&egress_needed);
 }
 EXPORT_SYMBOL_GPL(net_dec_egress_queue);
 #endif
 
-static DEFINE_STATIC_KEY_FALSE(netstamp_needed_key);
-#ifdef CONFIG_JUMP_LABEL
+static struct static_key netstamp_needed __read_mostly;
+#ifdef HAVE_JUMP_LABEL
 static atomic_t netstamp_needed_deferred;
 static atomic_t netstamp_wanted;
 static void netstamp_clear(struct work_struct *work)
@@ -2127,16 +1759,16 @@ static void netstamp_clear(struct work_struct *work)
 
 	wanted = atomic_add_return(deferred, &netstamp_wanted);
 	if (wanted > 0)
-		static_branch_enable(&netstamp_needed_key);
+		static_key_enable(&netstamp_needed);
 	else
-		static_branch_disable(&netstamp_needed_key);
+		static_key_disable(&netstamp_needed);
 }
 static DECLARE_WORK(netstamp_work, netstamp_clear);
 #endif
 
 void net_enable_timestamp(void)
 {
-#ifdef CONFIG_JUMP_LABEL
+#ifdef HAVE_JUMP_LABEL
 	int wanted;
 
 	while (1) {
@@ -2149,14 +1781,14 @@ void net_enable_timestamp(void)
 	atomic_inc(&netstamp_needed_deferred);
 	schedule_work(&netstamp_work);
 #else
-	static_branch_inc(&netstamp_needed_key);
+	static_key_slow_inc(&netstamp_needed);
 #endif
 }
 EXPORT_SYMBOL(net_enable_timestamp);
 
 void net_disable_timestamp(void)
 {
-#ifdef CONFIG_JUMP_LABEL
+#ifdef HAVE_JUMP_LABEL
 	int wanted;
 
 	while (1) {
@@ -2169,7 +1801,7 @@ void net_disable_timestamp(void)
 	atomic_dec(&netstamp_needed_deferred);
 	schedule_work(&netstamp_work);
 #else
-	static_branch_dec(&netstamp_needed_key);
+	static_key_slow_dec(&netstamp_needed);
 #endif
 }
 EXPORT_SYMBOL(net_disable_timestamp);
@@ -2177,15 +1809,15 @@ EXPORT_SYMBOL(net_disable_timestamp);
 static inline void net_timestamp_set(struct sk_buff *skb)
 {
 	skb->tstamp = 0;
-	if (static_branch_unlikely(&netstamp_needed_key))
+	if (static_key_false(&netstamp_needed))
 		__net_timestamp(skb);
 }
 
-#define net_timestamp_check(COND, SKB)				\
-	if (static_branch_unlikely(&netstamp_needed_key)) {	\
-		if ((COND) && !(SKB)->tstamp)			\
-			__net_timestamp(SKB);			\
-	}							\
+#define net_timestamp_check(COND, SKB)			\
+	if (static_key_false(&netstamp_needed)) {		\
+		if ((COND) && !(SKB)->tstamp)	\
+			__net_timestamp(SKB);		\
+	}						\
 
 bool is_skb_forwardable(const struct net_device *dev, const struct sk_buff *skb)
 {
@@ -2286,17 +1918,6 @@ static inline bool skb_loop_sk(struct packet_type *ptype, struct sk_buff *skb)
 	return false;
 }
 
-/**
- * dev_nit_active - return true if any network interface taps are in use
- *
- * @dev: network device to check for the presence of taps
- */
-bool dev_nit_active(struct net_device *dev)
-{
-	return !list_empty(&ptype_all) || !list_empty(&dev->ptype_all);
-}
-EXPORT_SYMBOL_GPL(dev_nit_active);
-
 /*
  *	Support routine. Sends outgoing frames to any network
  *	taps currently in use.
@@ -2312,9 +1933,6 @@ void dev_queue_xmit_nit(struct sk_buff *skb, struct net_device *dev)
 	rcu_read_lock();
 again:
 	list_for_each_entry_rcu(ptype, ptype_list, list) {
-		if (ptype->ignore_outgoing)
-			continue;
-
 		/* Never send packets back to the socket
 		 * they originated from - MvS (miquels@drinkel.ow.org)
 		 */
@@ -2412,13 +2030,11 @@ int netdev_txq_to_tc(struct net_device *dev, unsigned int txq)
 		struct netdev_tc_txq *tc = &dev->tc_to_txq[0];
 		int i;
 
-		/* walk through the TCs and see if it falls into any of them */
 		for (i = 0; i < TC_MAX_QUEUE; i++, tc++) {
 			if ((txq - tc->offset) < tc->count)
 				return i;
 		}
 
-		/* didn't find it, just return -1 to indicate no match */
 		return -1;
 	}
 
@@ -2427,10 +2043,6 @@ int netdev_txq_to_tc(struct net_device *dev, unsigned int txq)
 EXPORT_SYMBOL(netdev_txq_to_tc);
 
 #ifdef CONFIG_XPS
-struct static_key xps_needed __read_mostly;
-EXPORT_SYMBOL(xps_needed);
-struct static_key xps_rxqs_needed __read_mostly;
-EXPORT_SYMBOL(xps_rxqs_needed);
 static DEFINE_MUTEX(xps_map_mutex);
 #define xmap_dereference(P)		\
 	rcu_dereference_protected((P), lockdep_is_held(&xps_map_mutex))
@@ -2442,7 +2054,7 @@ static bool remove_xps_queue(struct xps_dev_maps *dev_maps,
 	int pos;
 
 	if (dev_maps)
-		map = xmap_dereference(dev_maps->attr_map[tci]);
+		map = xmap_dereference(dev_maps->cpu_map[tci]);
 	if (!map)
 		return false;
 
@@ -2455,7 +2067,7 @@ static bool remove_xps_queue(struct xps_dev_maps *dev_maps,
 			break;
 		}
 
-		RCU_INIT_POINTER(dev_maps->attr_map[tci], NULL);
+		RCU_INIT_POINTER(dev_maps->cpu_map[tci], NULL);
 		kfree_rcu(map, rcu);
 		return false;
 	}
@@ -2475,7 +2087,7 @@ static bool remove_xps_queue_cpu(struct net_device *dev,
 		int i, j;
 
 		for (i = count, j = offset; i--; j++) {
-			if (!remove_xps_queue(dev_maps, tci, j))
+			if (!remove_xps_queue(dev_maps, cpu, j))
 				break;
 		}
 
@@ -2485,78 +2097,34 @@ static bool remove_xps_queue_cpu(struct net_device *dev,
 	return active;
 }
 
-static void reset_xps_maps(struct net_device *dev,
-			   struct xps_dev_maps *dev_maps,
-			   bool is_rxqs_map)
-{
-	if (is_rxqs_map) {
-		static_key_slow_dec_cpuslocked(&xps_rxqs_needed);
-		RCU_INIT_POINTER(dev->xps_rxqs_map, NULL);
-	} else {
-		RCU_INIT_POINTER(dev->xps_cpus_map, NULL);
-	}
-	static_key_slow_dec_cpuslocked(&xps_needed);
-	kfree_rcu(dev_maps, rcu);
-}
-
-static void clean_xps_maps(struct net_device *dev, const unsigned long *mask,
-			   struct xps_dev_maps *dev_maps, unsigned int nr_ids,
-			   u16 offset, u16 count, bool is_rxqs_map)
-{
-	bool active = false;
-	int i, j;
-
-	for (j = -1; j = netif_attrmask_next(j, mask, nr_ids),
-	     j < nr_ids;)
-		active |= remove_xps_queue_cpu(dev, dev_maps, j, offset,
-					       count);
-	if (!active)
-		reset_xps_maps(dev, dev_maps, is_rxqs_map);
-
-	if (!is_rxqs_map) {
-		for (i = offset + (count - 1); count--; i--) {
-			netdev_queue_numa_node_write(
-				netdev_get_tx_queue(dev, i),
-				NUMA_NO_NODE);
-		}
-	}
-}
-
 static void netif_reset_xps_queues(struct net_device *dev, u16 offset,
 				   u16 count)
 {
-	const unsigned long *possible_mask = NULL;
 	struct xps_dev_maps *dev_maps;
-	unsigned int nr_ids;
+	int cpu, i;
+	bool active = false;
 
-	if (!static_key_false(&xps_needed))
-		return;
-
-	cpus_read_lock();
 	mutex_lock(&xps_map_mutex);
+	dev_maps = xmap_dereference(dev->xps_maps);
 
-	if (static_key_false(&xps_rxqs_needed)) {
-		dev_maps = xmap_dereference(dev->xps_rxqs_map);
-		if (dev_maps) {
-			nr_ids = dev->num_rx_queues;
-			clean_xps_maps(dev, possible_mask, dev_maps, nr_ids,
-				       offset, count, true);
-		}
-	}
-
-	dev_maps = xmap_dereference(dev->xps_cpus_map);
 	if (!dev_maps)
 		goto out_no_maps;
 
-	if (num_possible_cpus() > 1)
-		possible_mask = cpumask_bits(cpu_possible_mask);
-	nr_ids = nr_cpu_ids;
-	clean_xps_maps(dev, possible_mask, dev_maps, nr_ids, offset, count,
-		       false);
+	for_each_possible_cpu(cpu)
+		active |= remove_xps_queue_cpu(dev, dev_maps, cpu,
+					       offset, count);
+
+	if (!active) {
+		RCU_INIT_POINTER(dev->xps_maps, NULL);
+		kfree_rcu(dev_maps, rcu);
+	}
+
+	for (i = offset + (count - 1); count--; i--)
+		netdev_queue_numa_node_write(netdev_get_tx_queue(dev, i),
+					     NUMA_NO_NODE);
 
 out_no_maps:
 	mutex_unlock(&xps_map_mutex);
-	cpus_read_unlock();
 }
 
 static void netif_reset_xps_queues_gt(struct net_device *dev, u16 index)
@@ -2564,8 +2132,8 @@ static void netif_reset_xps_queues_gt(struct net_device *dev, u16 index)
 	netif_reset_xps_queues(dev, index, dev->num_tx_queues - index);
 }
 
-static struct xps_map *expand_xps_map(struct xps_map *map, int attr_index,
-				      u16 index, bool is_rxqs_map)
+static struct xps_map *expand_xps_map(struct xps_map *map,
+				      int cpu, u16 index)
 {
 	struct xps_map *new_map;
 	int alloc_len = XPS_MIN_MAP_ALLOC;
@@ -2577,7 +2145,7 @@ static struct xps_map *expand_xps_map(struct xps_map *map, int attr_index,
 		return map;
 	}
 
-	/* Need to add tx-queue to this CPU's/rx-queue's existing map */
+	/* Need to add queue to this CPU's existing map */
 	if (map) {
 		if (pos < map->alloc_len)
 			return map;
@@ -2585,14 +2153,9 @@ static struct xps_map *expand_xps_map(struct xps_map *map, int attr_index,
 		alloc_len = map->alloc_len * 2;
 	}
 
-	/* Need to allocate new map to store tx-queue on this CPU's/rx-queue's
-	 *  map
-	 */
-	if (is_rxqs_map)
-		new_map = kzalloc(XPS_MAP_SIZE(alloc_len), GFP_KERNEL);
-	else
-		new_map = kzalloc_node(XPS_MAP_SIZE(alloc_len), GFP_KERNEL,
-				       cpu_to_node(attr_index));
+	/* Need to allocate new map to store queue on this CPU's map */
+	new_map = kzalloc_node(XPS_MAP_SIZE(alloc_len), GFP_KERNEL,
+			       cpu_to_node(cpu));
 	if (!new_map)
 		return NULL;
 
@@ -2604,53 +2167,32 @@ static struct xps_map *expand_xps_map(struct xps_map *map, int attr_index,
 	return new_map;
 }
 
-/* Must be called under cpus_read_lock */
-int __netif_set_xps_queue(struct net_device *dev, const unsigned long *mask,
-			  u16 index, bool is_rxqs_map)
+int netif_set_xps_queue(struct net_device *dev, const struct cpumask *mask,
+			u16 index)
 {
-	const unsigned long *online_mask = NULL, *possible_mask = NULL;
 	struct xps_dev_maps *dev_maps, *new_dev_maps = NULL;
-	int i, j, tci, numa_node_id = -2;
+	int i, cpu, tci, numa_node_id = -2;
 	int maps_sz, num_tc = 1, tc = 0;
 	struct xps_map *map, *new_map;
 	bool active = false;
-	unsigned int nr_ids;
 
 	if (dev->num_tc) {
-		/* Do not allow XPS on subordinate device directly */
 		num_tc = dev->num_tc;
-		if (num_tc < 0)
-			return -EINVAL;
-
-		/* If queue belongs to subordinate dev use its map */
-		dev = netdev_get_tx_queue(dev, index)->sb_dev ? : dev;
-
 		tc = netdev_txq_to_tc(dev, index);
 		if (tc < 0)
 			return -EINVAL;
 	}
 
-	mutex_lock(&xps_map_mutex);
-	if (is_rxqs_map) {
-		maps_sz = XPS_RXQ_DEV_MAPS_SIZE(num_tc, dev->num_rx_queues);
-		dev_maps = xmap_dereference(dev->xps_rxqs_map);
-		nr_ids = dev->num_rx_queues;
-	} else {
-		maps_sz = XPS_CPU_DEV_MAPS_SIZE(num_tc);
-		if (num_possible_cpus() > 1) {
-			online_mask = cpumask_bits(cpu_online_mask);
-			possible_mask = cpumask_bits(cpu_possible_mask);
-		}
-		dev_maps = xmap_dereference(dev->xps_cpus_map);
-		nr_ids = nr_cpu_ids;
-	}
-
+	maps_sz = XPS_DEV_MAPS_SIZE(num_tc);
 	if (maps_sz < L1_CACHE_BYTES)
 		maps_sz = L1_CACHE_BYTES;
 
+	mutex_lock(&xps_map_mutex);
+
+	dev_maps = xmap_dereference(dev->xps_maps);
+
 	/* allocate memory for queue storage */
-	for (j = -1; j = netif_attrmask_next_and(j, online_mask, mask, nr_ids),
-	     j < nr_ids;) {
+	for_each_cpu_and(cpu, cpu_online_mask, mask) {
 		if (!new_dev_maps)
 			new_dev_maps = kzalloc(maps_sz, GFP_KERNEL);
 		if (!new_dev_maps) {
@@ -2658,88 +2200,73 @@ int __netif_set_xps_queue(struct net_device *dev, const unsigned long *mask,
 			return -ENOMEM;
 		}
 
-		tci = j * num_tc + tc;
-		map = dev_maps ? xmap_dereference(dev_maps->attr_map[tci]) :
+		tci = cpu * num_tc + tc;
+		map = dev_maps ? xmap_dereference(dev_maps->cpu_map[tci]) :
 				 NULL;
 
-		map = expand_xps_map(map, j, index, is_rxqs_map);
+		map = expand_xps_map(map, cpu, index);
 		if (!map)
 			goto error;
 
-		RCU_INIT_POINTER(new_dev_maps->attr_map[tci], map);
+		RCU_INIT_POINTER(new_dev_maps->cpu_map[tci], map);
 	}
 
 	if (!new_dev_maps)
 		goto out_no_new_maps;
 
-	if (!dev_maps) {
-		/* Increment static keys at most once per type */
-		static_key_slow_inc_cpuslocked(&xps_needed);
-		if (is_rxqs_map)
-			static_key_slow_inc_cpuslocked(&xps_rxqs_needed);
-	}
-
-	for (j = -1; j = netif_attrmask_next(j, possible_mask, nr_ids),
-	     j < nr_ids;) {
+	for_each_possible_cpu(cpu) {
 		/* copy maps belonging to foreign traffic classes */
-		for (i = tc, tci = j * num_tc; dev_maps && i--; tci++) {
+		for (i = tc, tci = cpu * num_tc; dev_maps && i--; tci++) {
 			/* fill in the new device map from the old device map */
-			map = xmap_dereference(dev_maps->attr_map[tci]);
-			RCU_INIT_POINTER(new_dev_maps->attr_map[tci], map);
+			map = xmap_dereference(dev_maps->cpu_map[tci]);
+			RCU_INIT_POINTER(new_dev_maps->cpu_map[tci], map);
 		}
 
 		/* We need to explicitly update tci as prevous loop
 		 * could break out early if dev_maps is NULL.
 		 */
-		tci = j * num_tc + tc;
+		tci = cpu * num_tc + tc;
 
-		if (netif_attr_test_mask(j, mask, nr_ids) &&
-		    netif_attr_test_online(j, online_mask, nr_ids)) {
-			/* add tx-queue to CPU/rx-queue maps */
+		if (cpumask_test_cpu(cpu, mask) && cpu_online(cpu)) {
+			/* add queue to CPU maps */
 			int pos = 0;
 
-			map = xmap_dereference(new_dev_maps->attr_map[tci]);
+			map = xmap_dereference(new_dev_maps->cpu_map[tci]);
 			while ((pos < map->len) && (map->queues[pos] != index))
 				pos++;
 
 			if (pos == map->len)
 				map->queues[map->len++] = index;
 #ifdef CONFIG_NUMA
-			if (!is_rxqs_map) {
-				if (numa_node_id == -2)
-					numa_node_id = cpu_to_node(j);
-				else if (numa_node_id != cpu_to_node(j))
-					numa_node_id = -1;
-			}
+			if (numa_node_id == -2)
+				numa_node_id = cpu_to_node(cpu);
+			else if (numa_node_id != cpu_to_node(cpu))
+				numa_node_id = -1;
 #endif
 		} else if (dev_maps) {
 			/* fill in the new device map from the old device map */
-			map = xmap_dereference(dev_maps->attr_map[tci]);
-			RCU_INIT_POINTER(new_dev_maps->attr_map[tci], map);
+			map = xmap_dereference(dev_maps->cpu_map[tci]);
+			RCU_INIT_POINTER(new_dev_maps->cpu_map[tci], map);
 		}
 
 		/* copy maps belonging to foreign traffic classes */
 		for (i = num_tc - tc, tci++; dev_maps && --i; tci++) {
 			/* fill in the new device map from the old device map */
-			map = xmap_dereference(dev_maps->attr_map[tci]);
-			RCU_INIT_POINTER(new_dev_maps->attr_map[tci], map);
+			map = xmap_dereference(dev_maps->cpu_map[tci]);
+			RCU_INIT_POINTER(new_dev_maps->cpu_map[tci], map);
 		}
 	}
 
-	if (is_rxqs_map)
-		rcu_assign_pointer(dev->xps_rxqs_map, new_dev_maps);
-	else
-		rcu_assign_pointer(dev->xps_cpus_map, new_dev_maps);
+	rcu_assign_pointer(dev->xps_maps, new_dev_maps);
 
 	/* Cleanup old maps */
 	if (!dev_maps)
 		goto out_no_old_maps;
 
-	for (j = -1; j = netif_attrmask_next(j, possible_mask, nr_ids),
-	     j < nr_ids;) {
-		for (i = num_tc, tci = j * num_tc; i--; tci++) {
-			new_map = xmap_dereference(new_dev_maps->attr_map[tci]);
-			map = xmap_dereference(dev_maps->attr_map[tci]);
+	for_each_possible_cpu(cpu) {
+		for (i = num_tc, tci = cpu * num_tc; i--; tci++) {
+			new_map = xmap_dereference(new_dev_maps->cpu_map[tci]);
+			map = xmap_dereference(dev_maps->cpu_map[tci]);
 			if (map && map != new_map)
 				kfree_rcu(map, rcu);
 		}
@@ -2752,31 +2279,29 @@ out_no_old_maps:
 	active = true;
 
 out_no_new_maps:
-	if (!is_rxqs_map) {
-		/* update Tx queue numa node */
-		netdev_queue_numa_node_write(netdev_get_tx_queue(dev, index),
-					     (numa_node_id >= 0) ?
-					     numa_node_id : NUMA_NO_NODE);
-	}
+	/* update Tx queue numa node */
+	netdev_queue_numa_node_write(netdev_get_tx_queue(dev, index),
+				     (numa_node_id >= 0) ? numa_node_id :
+				     NUMA_NO_NODE);
 
 	if (!dev_maps)
 		goto out_no_maps;
 
-	/* removes tx-queue from unused CPUs/rx-queues */
-	for (j = -1; j = netif_attrmask_next(j, possible_mask, nr_ids),
-	     j < nr_ids;) {
-		for (i = tc, tci = j * num_tc; i--; tci++)
+	/* removes queue from unused CPUs */
+	for_each_possible_cpu(cpu) {
+		for (i = tc, tci = cpu * num_tc; i--; tci++)
 			active |= remove_xps_queue(dev_maps, tci, index);
-		if (!netif_attr_test_mask(j, mask, nr_ids) ||
-		    !netif_attr_test_online(j, online_mask, nr_ids))
+		if (!cpumask_test_cpu(cpu, mask) || !cpu_online(cpu))
 			active |= remove_xps_queue(dev_maps, tci, index);
 		for (i = num_tc - tc, tci++; --i; tci++)
 			active |= remove_xps_queue(dev_maps, tci, index);
 	}
 
 	/* free map if not active */
-	if (!active)
-		reset_xps_maps(dev, dev_maps, is_rxqs_map);
+	if (!active) {
+		RCU_INIT_POINTER(dev->xps_maps, NULL);
+		kfree_rcu(dev_maps, rcu);
+	}
 
 out_no_maps:
 	mutex_unlock(&xps_map_mutex);
@@ -2784,12 +2309,11 @@ out_no_maps:
 	return 0;
 error:
 	/* remove any maps that we added */
-	for (j = -1; j = netif_attrmask_next(j, possible_mask, nr_ids),
-	     j < nr_ids;) {
-		for (i = num_tc, tci = j * num_tc; i--; tci++) {
-			new_map = xmap_dereference(new_dev_maps->attr_map[tci]);
+	for_each_possible_cpu(cpu) {
+		for (i = num_tc, tci = cpu * num_tc; i--; tci++) {
+			new_map = xmap_dereference(new_dev_maps->cpu_map[tci]);
 			map = dev_maps ?
-			      xmap_dereference(dev_maps->attr_map[tci]) :
+			      xmap_dereference(dev_maps->cpu_map[tci]) :
 			      NULL;
 			if (new_map && new_map != map)
 				kfree(new_map);
@@ -2801,41 +2325,14 @@ error:
 	kfree(new_dev_maps);
 	return -ENOMEM;
 }
-EXPORT_SYMBOL_GPL(__netif_set_xps_queue);
-
-int netif_set_xps_queue(struct net_device *dev, const struct cpumask *mask,
-			u16 index)
-{
-	int ret;
-
-	cpus_read_lock();
-	ret =  __netif_set_xps_queue(dev, cpumask_bits(mask), index, false);
-	cpus_read_unlock();
-
-	return ret;
-}
 EXPORT_SYMBOL(netif_set_xps_queue);
 
 #endif
-static void netdev_unbind_all_sb_channels(struct net_device *dev)
-{
-	struct netdev_queue *txq = &dev->_tx[dev->num_tx_queues];
-
-	/* Unbind any subordinate channels */
-	while (txq-- != &dev->_tx[0]) {
-		if (txq->sb_dev)
-			netdev_unbind_sb_channel(dev, txq->sb_dev);
-	}
-}
-
 void netdev_reset_tc(struct net_device *dev)
 {
 #ifdef CONFIG_XPS
 	netif_reset_xps_queues_gt(dev, 0);
 #endif
-	netdev_unbind_all_sb_channels(dev);
-
-	/* Reset TC configuration of device */
 	dev->num_tc = 0;
 	memset(dev->tc_to_txq, 0, sizeof(dev->tc_to_txq));
 	memset(dev->prio_tc_map, 0, sizeof(dev->prio_tc_map));
@@ -2864,87 +2361,18 @@ int netdev_set_num_tc(struct net_device *dev, u8 num_tc)
 #ifdef CONFIG_XPS
 	netif_reset_xps_queues_gt(dev, 0);
 #endif
-	netdev_unbind_all_sb_channels(dev);
-
 	dev->num_tc = num_tc;
 	return 0;
 }
 EXPORT_SYMBOL(netdev_set_num_tc);
 
-void netdev_unbind_sb_channel(struct net_device *dev,
-			      struct net_device *sb_dev)
-{
-	struct netdev_queue *txq = &dev->_tx[dev->num_tx_queues];
-
-#ifdef CONFIG_XPS
-	netif_reset_xps_queues_gt(sb_dev, 0);
-#endif
-	memset(sb_dev->tc_to_txq, 0, sizeof(sb_dev->tc_to_txq));
-	memset(sb_dev->prio_tc_map, 0, sizeof(sb_dev->prio_tc_map));
-
-	while (txq-- != &dev->_tx[0]) {
-		if (txq->sb_dev == sb_dev)
-			txq->sb_dev = NULL;
-	}
-}
-EXPORT_SYMBOL(netdev_unbind_sb_channel);
-
-int netdev_bind_sb_channel_queue(struct net_device *dev,
-				 struct net_device *sb_dev,
-				 u8 tc, u16 count, u16 offset)
-{
-	/* Make certain the sb_dev and dev are already configured */
-	if (sb_dev->num_tc >= 0 || tc >= dev->num_tc)
-		return -EINVAL;
-
-	/* We cannot hand out queues we don't have */
-	if ((offset + count) > dev->real_num_tx_queues)
-		return -EINVAL;
-
-	/* Record the mapping */
-	sb_dev->tc_to_txq[tc].count = count;
-	sb_dev->tc_to_txq[tc].offset = offset;
-
-	/* Provide a way for Tx queue to find the tc_to_txq map or
-	 * XPS map for itself.
-	 */
-	while (count--)
-		netdev_get_tx_queue(dev, count + offset)->sb_dev = sb_dev;
-
-	return 0;
-}
-EXPORT_SYMBOL(netdev_bind_sb_channel_queue);
-
-int netdev_set_sb_channel(struct net_device *dev, u16 channel)
-{
-	/* Do not use a multiqueue device to represent a subordinate channel */
-	if (netif_is_multiqueue(dev))
-		return -ENODEV;
-
-	/* We allow channels 1 - 32767 to be used for subordinate channels.
-	 * Channel 0 is meant to be "native" mode and used only to represent
-	 * the main root device. We allow writing 0 to reset the device back
-	 * to normal mode after being used as a subordinate channel.
-	 */
-	if (channel > S16_MAX)
-		return -EINVAL;
-
-	dev->num_tc = -channel;
-
-	return 0;
-}
-EXPORT_SYMBOL(netdev_set_sb_channel);
-
 /*
  * Routine to help set real_num_tx_queues. To avoid skbs mapped to queues
- * greater than real_num_tx_queues stale skbs on the qdisc must be flushed.
+ * greater then real_num_tx_queues stale skbs on the qdisc must be flushed.
  */
 int netif_set_real_num_tx_queues(struct net_device *dev, unsigned int txq)
 {
-	bool disabling;
 	int rc;
-
-	disabling = txq < dev->real_num_tx_queues;
 
 	if (txq < 1 || txq > dev->num_tx_queues)
 		return -EINVAL;
@@ -2961,19 +2389,15 @@ int netif_set_real_num_tx_queues(struct net_device *dev, unsigned int txq)
 		if (dev->num_tc)
 			netif_setup_tc(dev, txq);
 
-		dev->real_num_tx_queues = txq;
-
-		if (disabling) {
-			synchronize_net();
+		if (txq < dev->real_num_tx_queues) {
 			qdisc_reset_all_tx_gt(dev, txq);
 #ifdef CONFIG_XPS
 			netif_reset_xps_queues_gt(dev, txq);
 #endif
 		}
-	} else {
-		dev->real_num_tx_queues = txq;
 	}
 
+	dev->real_num_tx_queues = txq;
 	return 0;
 }
 EXPORT_SYMBOL(netif_set_real_num_tx_queues);
@@ -3057,7 +2481,7 @@ static struct dev_kfree_skb_cb *get_kfree_skb_cb(const struct sk_buff *skb)
 void netif_schedule_queue(struct netdev_queue *txq)
 {
 	rcu_read_lock();
-	if (!netif_xmit_stopped(txq)) {
+	if (!(txq->state & QUEUE_STATE_ANY_XOFF)) {
 		struct Qdisc *q = rcu_dereference(txq->qdisc);
 
 		__netif_schedule(q);
@@ -3146,32 +2570,30 @@ EXPORT_SYMBOL(netif_device_attach);
  * Returns a Tx hash based on the given packet descriptor a Tx queues' number
  * to be used as a distribution range.
  */
-static u16 skb_tx_hash(const struct net_device *dev,
-		       const struct net_device *sb_dev,
-		       struct sk_buff *skb)
+u16 __skb_tx_hash(const struct net_device *dev, struct sk_buff *skb,
+		  unsigned int num_tx_queues)
 {
 	u32 hash;
 	u16 qoffset = 0;
-	u16 qcount = dev->real_num_tx_queues;
+	u16 qcount = num_tx_queues;
+
+	if (skb_rx_queue_recorded(skb)) {
+		hash = skb_get_rx_queue(skb);
+		while (unlikely(hash >= num_tx_queues))
+			hash -= num_tx_queues;
+		return hash;
+	}
 
 	if (dev->num_tc) {
 		u8 tc = netdev_get_prio_tc_map(dev, skb->priority);
 
-		qoffset = sb_dev->tc_to_txq[tc].offset;
-		qcount = sb_dev->tc_to_txq[tc].count;
-	}
-
-	if (skb_rx_queue_recorded(skb)) {
-		hash = skb_get_rx_queue(skb);
-		if (hash >= qoffset)
-			hash -= qoffset;
-		while (unlikely(hash >= qcount))
-			hash -= qcount;
-		return hash + qoffset;
+		qoffset = dev->tc_to_txq[tc].offset;
+		qcount = dev->tc_to_txq[tc].count;
 	}
 
 	return (u16) reciprocal_scale(skb_get_hash(skb), qcount) + qoffset;
 }
+EXPORT_SYMBOL(__skb_tx_hash);
 
 static void skb_warn_bad_offload(const struct sk_buff *skb)
 {
@@ -3188,10 +2610,12 @@ static void skb_warn_bad_offload(const struct sk_buff *skb)
 		else
 			name = netdev_name(dev);
 	}
-	skb_dump(KERN_WARNING, skb, false);
-	WARN(1, "%s: caps=(%pNF, %pNF)\n",
+	WARN(1, "%s: caps=(%pNF, %pNF) len=%d data_len=%d gso_size=%d "
+	     "gso_type=%d ip_summed=%d\n",
 	     name, dev ? &dev->features : &null_features,
-	     skb->sk ? &skb->sk->sk_route_caps : &null_features);
+	     skb->sk ? &skb->sk->sk_route_caps : &null_features,
+	     skb->len, skb->data_len, skb_shinfo(skb)->gso_size,
+	     skb_shinfo(skb)->gso_type, skb->ip_summed);
 }
 
 /*
@@ -3227,9 +2651,12 @@ int skb_checksum_help(struct sk_buff *skb)
 	offset += skb->csum_offset;
 	BUG_ON(offset + sizeof(__sum16) > skb_headlen(skb));
 
-	ret = skb_ensure_writable(skb, offset + sizeof(__sum16));
-	if (ret)
-		goto out;
+	if (skb_cloned(skb) &&
+	    !skb_clone_writable(skb, offset + sizeof(__sum16))) {
+		ret = pskb_expand_head(skb, 0, 0, GFP_ATOMIC);
+		if (ret)
+			goto out;
+	}
 
 	*(__sum16 *)(skb->data + offset) = csum_fold(csum) ?: CSUM_MANGLED_0;
 out_set_summed:
@@ -3264,11 +2691,12 @@ int skb_crc32c_csum_help(struct sk_buff *skb)
 		ret = -EINVAL;
 		goto out;
 	}
-
-	ret = skb_ensure_writable(skb, offset + sizeof(__le32));
-	if (ret)
-		goto out;
-
+	if (skb_cloned(skb) &&
+	    !skb_clone_writable(skb, offset + sizeof(__le32))) {
+		ret = pskb_expand_head(skb, 0, 0, GFP_ATOMIC);
+		if (ret)
+			goto out;
+	}
 	crc32c_csum = cpu_to_le32(~__skb_checksum(skb, start,
 						  skb->len - start, ~(__u32)0,
 						  crc32c_csum_stub));
@@ -3290,7 +2718,7 @@ __be16 skb_network_protocol(struct sk_buff *skb, int *depth)
 		if (unlikely(!pskb_may_pull(skb, sizeof(struct ethhdr))))
 			return 0;
 
-		eth = (struct ethhdr *)skb->data;
+		eth = (struct ethhdr *)skb_mac_header(skb);
 		type = eth->h_proto;
 	}
 
@@ -3336,8 +2764,7 @@ EXPORT_SYMBOL(skb_mac_gso_segment);
 static inline bool skb_needs_check(struct sk_buff *skb, bool tx_path)
 {
 	if (tx_path)
-		return skb->ip_summed != CHECKSUM_PARTIAL &&
-		       skb->ip_summed != CHECKSUM_UNNECESSARY;
+		return skb->ip_summed != CHECKSUM_PARTIAL;
 
 	return skb->ip_summed == CHECKSUM_NONE;
 }
@@ -3353,7 +2780,7 @@ static inline bool skb_needs_check(struct sk_buff *skb, bool tx_path)
  *	It may return NULL if the skb requires no segmentation.  This is
  *	only possible when GSO is used for verifying header integrity.
  *
- *	Segmentation preserves SKB_GSO_CB_OFFSET bytes of previous skb cb.
+ *	Segmentation preserves SKB_SGO_CB_OFFSET bytes of previous skb cb.
  */
 struct sk_buff *__skb_gso_segment(struct sk_buff *skb,
 				  netdev_features_t features, bool tx_path)
@@ -3382,7 +2809,7 @@ struct sk_buff *__skb_gso_segment(struct sk_buff *skb,
 			features &= ~NETIF_F_GSO_PARTIAL;
 	}
 
-	BUILD_BUG_ON(SKB_GSO_CB_OFFSET +
+	BUILD_BUG_ON(SKB_SGO_CB_OFFSET +
 		     sizeof(*SKB_GSO_CB(skb)) > sizeof(skb->cb));
 
 	SKB_GSO_CB(skb)->mac_offset = skb_headroom(skb);
@@ -3393,7 +2820,7 @@ struct sk_buff *__skb_gso_segment(struct sk_buff *skb,
 
 	segs = skb_mac_gso_segment(skb, features);
 
-	if (segs != skb && unlikely(skb_needs_check(skb, tx_path) && !IS_ERR(segs)))
+	if (unlikely(skb_needs_check(skb, tx_path)))
 		skb_warn_bad_offload(skb);
 
 	return segs;
@@ -3402,18 +2829,21 @@ EXPORT_SYMBOL(__skb_gso_segment);
 
 /* Take action when hardware reception checksum errors are detected. */
 #ifdef CONFIG_BUG
-void netdev_rx_csum_fault(struct net_device *dev, struct sk_buff *skb)
+void netdev_rx_csum_fault(struct net_device *dev)
 {
 	if (net_ratelimit()) {
 		pr_err("%s: hw csum failure\n", dev ? dev->name : "<unknown>");
-		skb_dump(KERN_ERR, skb, true);
 		dump_stack();
 	}
 }
 EXPORT_SYMBOL(netdev_rx_csum_fault);
 #endif
 
-/* XXX: check that highmem exists at all on the given machine. */
+/* Actually, we should eliminate this check as soon as we know, that:
+ * 1. IOMMU is present and allows to map all the memory.
+ * 2. No high memory really exists on this machine.
+ */
+
 static int illegal_highdma(struct net_device *dev, struct sk_buff *skb)
 {
 #ifdef CONFIG_HIGHMEM
@@ -3424,6 +2854,20 @@ static int illegal_highdma(struct net_device *dev, struct sk_buff *skb)
 			skb_frag_t *frag = &skb_shinfo(skb)->frags[i];
 
 			if (PageHighMem(skb_frag_page(frag)))
+				return 1;
+		}
+	}
+
+	if (PCI_DMA_BUS_IS_PHYS) {
+		struct device *pdev = dev->dev.parent;
+
+		if (!pdev)
+			return 0;
+		for (i = 0; i < skb_shinfo(skb)->nr_frags; i++) {
+			skb_frag_t *frag = &skb_shinfo(skb)->frags[i];
+			dma_addr_t addr = page_to_phys(skb_frag_page(frag));
+
+			if (!pdev->dma_mask || addr + PAGE_SIZE - 1 > *pdev->dma_mask)
 				return 1;
 		}
 	}
@@ -3480,7 +2924,7 @@ netdev_features_t passthru_features_check(struct sk_buff *skb,
 }
 EXPORT_SYMBOL(passthru_features_check);
 
-static netdev_features_t dflt_features_check(struct sk_buff *skb,
+static netdev_features_t dflt_features_check(const struct sk_buff *skb,
 					     struct net_device *dev,
 					     netdev_features_t features)
 {
@@ -3556,11 +3000,10 @@ static int xmit_one(struct sk_buff *skb, struct net_device *dev,
 	unsigned int len;
 	int rc;
 
-	if (dev_nit_active(dev))
+	if (!list_empty(&ptype_all) || !list_empty(&dev->ptype_all))
 		dev_queue_xmit_nit(skb, dev);
 
 	len = skb->len;
-	PRANDOM_ADD_NOISE(skb, dev, txq, len + jiffies);
 	trace_net_dev_start_xmit(skb, dev);
 	rc = netdev_start_xmit(skb, dev, txq, more);
 	trace_net_dev_xmit(skb, rc, dev, len);
@@ -3577,7 +3020,7 @@ struct sk_buff *dev_hard_start_xmit(struct sk_buff *first, struct net_device *de
 	while (skb) {
 		struct sk_buff *next = skb->next;
 
-		skb_mark_not_on_list(skb);
+		skb->next = NULL;
 		rc = xmit_one(skb, dev, txq, next != NULL);
 		if (unlikely(!dev_xmit_complete(rc))) {
 			skb->next = next;
@@ -3585,7 +3028,7 @@ struct sk_buff *dev_hard_start_xmit(struct sk_buff *first, struct net_device *de
 		}
 
 		skb = next;
-		if (netif_tx_queue_stopped(txq) && skb) {
+		if (netif_xmit_stopped(txq) && skb) {
 			rc = NETDEV_TX_BUSY;
 			break;
 		}
@@ -3616,16 +3059,12 @@ int skb_csum_hwoffload_help(struct sk_buff *skb,
 }
 EXPORT_SYMBOL(skb_csum_hwoffload_help);
 
-static struct sk_buff *validate_xmit_skb(struct sk_buff *skb, struct net_device *dev, bool *again)
+static struct sk_buff *validate_xmit_skb(struct sk_buff *skb, struct net_device *dev)
 {
 	netdev_features_t features;
 
 	features = netif_skb_features(skb);
 	skb = validate_xmit_vlan(skb, features);
-	if (unlikely(!skb))
-		goto out_null;
-
-	skb = sk_validate_xmit_skb(skb, dev);
 	if (unlikely(!skb))
 		goto out_null;
 
@@ -3644,6 +3083,9 @@ static struct sk_buff *validate_xmit_skb(struct sk_buff *skb, struct net_device 
 		    __skb_linearize(skb))
 			goto out_kfree_skb;
 
+		if (validate_xmit_xfrm(skb, features))
+			goto out_kfree_skb;
+
 		/* If packet is not checksummed and device does not
 		 * support checksumming for this protocol, complete
 		 * checksumming here.
@@ -3660,8 +3102,6 @@ static struct sk_buff *validate_xmit_skb(struct sk_buff *skb, struct net_device 
 		}
 	}
 
-	skb = validate_xmit_xfrm(skb, features, again);
-
 	return skb;
 
 out_kfree_skb:
@@ -3671,18 +3111,18 @@ out_null:
 	return NULL;
 }
 
-struct sk_buff *validate_xmit_skb_list(struct sk_buff *skb, struct net_device *dev, bool *again)
+struct sk_buff *validate_xmit_skb_list(struct sk_buff *skb, struct net_device *dev)
 {
 	struct sk_buff *next, *head = NULL, *tail;
 
 	for (; skb != NULL; skb = next) {
 		next = skb->next;
-		skb_mark_not_on_list(skb);
+		skb->next = NULL;
 
 		/* in case skb wont be segmented, point to itself */
 		skb->prev = skb;
 
-		skb = validate_xmit_skb(skb, dev, again);
+		skb = validate_xmit_skb(skb, dev);
 		if (!skb)
 			continue;
 
@@ -3708,7 +3148,7 @@ static void qdisc_pkt_len_init(struct sk_buff *skb)
 	/* To get more precise estimation of bytes sent on wire,
 	 * we add to pkt_len the headers size of all segments
 	 */
-	if (shinfo->gso_size && skb_transport_header_was_set(skb)) {
+	if (shinfo->gso_size)  {
 		unsigned int hdr_len;
 		u16 gso_segs = shinfo->gso_segs;
 
@@ -3716,21 +3156,10 @@ static void qdisc_pkt_len_init(struct sk_buff *skb)
 		hdr_len = skb_transport_header(skb) - skb_mac_header(skb);
 
 		/* + transport layer */
-		if (likely(shinfo->gso_type & (SKB_GSO_TCPV4 | SKB_GSO_TCPV6))) {
-			const struct tcphdr *th;
-			struct tcphdr _tcphdr;
-
-			th = skb_header_pointer(skb, skb_transport_offset(skb),
-						sizeof(_tcphdr), &_tcphdr);
-			if (likely(th))
-				hdr_len += __tcp_hdrlen(th);
-		} else {
-			struct udphdr _udphdr;
-
-			if (skb_header_pointer(skb, skb_transport_offset(skb),
-					       sizeof(_udphdr), &_udphdr))
-				hdr_len += sizeof(struct udphdr);
-		}
+		if (likely(shinfo->gso_type & (SKB_GSO_TCPV4 | SKB_GSO_TCPV6)))
+			hdr_len += tcp_hdrlen(skb);
+		else
+			hdr_len += sizeof(struct udphdr);
 
 		if (shinfo->gso_type & SKB_GSO_DODGY)
 			gso_segs = DIV_ROUND_UP(skb->len - hdr_len,
@@ -3750,16 +3179,6 @@ static inline int __dev_xmit_skb(struct sk_buff *skb, struct Qdisc *q,
 	int rc;
 
 	qdisc_calculate_pkt_len(skb, q);
-
-	if (q->flags & TCQ_F_NOLOCK) {
-		rc = q->enqueue(skb, q, &to_free) & NET_XMIT_MASK;
-		qdisc_run(q);
-
-		if (unlikely(to_free))
-			kfree_skb_list(to_free);
-		return rc;
-	}
-
 	/*
 	 * Heuristic to force contended enqueues to serialize on a
 	 * separate lock before trying to get qdisc main lock.
@@ -3790,9 +3209,9 @@ static inline int __dev_xmit_skb(struct sk_buff *skb, struct Qdisc *q,
 				contended = false;
 			}
 			__qdisc_run(q);
-		}
+		} else
+			qdisc_run_end(q);
 
-		qdisc_run_end(q);
 		rc = NET_XMIT_SUCCESS;
 	} else {
 		rc = q->enqueue(skb, q, &to_free) & NET_XMIT_MASK;
@@ -3802,7 +3221,6 @@ static inline int __dev_xmit_skb(struct sk_buff *skb, struct Qdisc *q,
 				contended = false;
 			}
 			__qdisc_run(q);
-			qdisc_run_end(q);
 		}
 	}
 	spin_unlock(root_lock);
@@ -3816,27 +3234,22 @@ static inline int __dev_xmit_skb(struct sk_buff *skb, struct Qdisc *q,
 #if IS_ENABLED(CONFIG_CGROUP_NET_PRIO)
 static void skb_update_prio(struct sk_buff *skb)
 {
-	const struct netprio_map *map;
-	const struct sock *sk;
-	unsigned int prioidx;
+	struct netprio_map *map = rcu_dereference_bh(skb->dev->priomap);
 
-	if (skb->priority)
-		return;
-	map = rcu_dereference_bh(skb->dev->priomap);
-	if (!map)
-		return;
-	sk = skb_to_full_sk(skb);
-	if (!sk)
-		return;
+	if (!skb->priority && skb->sk && map) {
+		unsigned int prioidx =
+			sock_cgroup_prioidx(&skb->sk->sk_cgrp_data);
 
-	prioidx = sock_cgroup_prioidx(&sk->sk_cgrp_data);
-
-	if (prioidx < map->priomap_len)
-		skb->priority = map->priomap[prioidx];
+		if (prioidx < map->priomap_len)
+			skb->priority = map->priomap[prioidx];
+	}
 }
 #else
 #define skb_update_prio(skb)
 #endif
+
+DEFINE_PER_CPU(int, xmit_recursion);
+EXPORT_SYMBOL(xmit_recursion);
 
 /**
  *	dev_loopback_xmit - loop back @skb
@@ -3861,22 +3274,22 @@ EXPORT_SYMBOL(dev_loopback_xmit);
 static struct sk_buff *
 sch_handle_egress(struct sk_buff *skb, int *ret, struct net_device *dev)
 {
-	struct mini_Qdisc *miniq = rcu_dereference_bh(dev->miniq_egress);
+	struct tcf_proto *cl = rcu_dereference_bh(dev->egress_cl_list);
 	struct tcf_result cl_res;
 
-	if (!miniq)
+	if (!cl)
 		return skb;
 
 	/* qdisc_skb_cb(skb)->pkt_len was already set by the caller. */
-	mini_qdisc_bstats_cpu_update(miniq, skb);
+	qdisc_bstats_cpu_update(cl->q, skb);
 
-	switch (tcf_classify(skb, miniq->filter_list, &cl_res, false)) {
+	switch (tcf_classify(skb, cl, &cl_res, false)) {
 	case TC_ACT_OK:
 	case TC_ACT_RECLASSIFY:
 		skb->tc_index = TC_H_MIN(cl_res.classid);
 		break;
 	case TC_ACT_SHOT:
-		mini_qdisc_qstats_cpu_drop(miniq);
+		qdisc_qstats_cpu_drop(cl->q);
 		*ret = NET_XMIT_DROP;
 		kfree_skb(skb);
 		return NULL;
@@ -3899,64 +3312,32 @@ sch_handle_egress(struct sk_buff *skb, int *ret, struct net_device *dev)
 }
 #endif /* CONFIG_NET_EGRESS */
 
-#ifdef CONFIG_XPS
-static int __get_xps_queue_idx(struct net_device *dev, struct sk_buff *skb,
-			       struct xps_dev_maps *dev_maps, unsigned int tci)
-{
-	struct xps_map *map;
-	int queue_index = -1;
-
-	if (dev->num_tc) {
-		tci *= dev->num_tc;
-		tci += netdev_get_prio_tc_map(dev, skb->priority);
-	}
-
-	map = rcu_dereference(dev_maps->attr_map[tci]);
-	if (map) {
-		if (map->len == 1)
-			queue_index = map->queues[0];
-		else
-			queue_index = map->queues[reciprocal_scale(
-						skb_get_hash(skb), map->len)];
-		if (unlikely(queue_index >= dev->real_num_tx_queues))
-			queue_index = -1;
-	}
-	return queue_index;
-}
-#endif
-
-static int get_xps_queue(struct net_device *dev, struct net_device *sb_dev,
-			 struct sk_buff *skb)
+static inline int get_xps_queue(struct net_device *dev, struct sk_buff *skb)
 {
 #ifdef CONFIG_XPS
 	struct xps_dev_maps *dev_maps;
-	struct sock *sk = skb->sk;
+	struct xps_map *map;
 	int queue_index = -1;
 
-	if (!static_key_false(&xps_needed))
-		return -1;
-
 	rcu_read_lock();
-	if (!static_key_false(&xps_rxqs_needed))
-		goto get_cpus_map;
-
-	dev_maps = rcu_dereference(sb_dev->xps_rxqs_map);
+	dev_maps = rcu_dereference(dev->xps_maps);
 	if (dev_maps) {
-		int tci = sk_rx_queue_get(sk);
+		unsigned int tci = skb->sender_cpu - 1;
 
-		if (tci >= 0 && tci < dev->num_rx_queues)
-			queue_index = __get_xps_queue_idx(dev, skb, dev_maps,
-							  tci);
-	}
+		if (dev->num_tc) {
+			tci *= dev->num_tc;
+			tci += netdev_get_prio_tc_map(dev, skb->priority);
+		}
 
-get_cpus_map:
-	if (queue_index < 0) {
-		dev_maps = rcu_dereference(sb_dev->xps_cpus_map);
-		if (dev_maps) {
-			unsigned int tci = skb->sender_cpu - 1;
-
-			queue_index = __get_xps_queue_idx(dev, skb, dev_maps,
-							  tci);
+		map = rcu_dereference(dev_maps->cpu_map[tci]);
+		if (map) {
+			if (map->len == 1)
+				queue_index = map->queues[0];
+			else
+				queue_index = map->queues[reciprocal_scale(skb_get_hash(skb),
+									   map->len)];
+			if (unlikely(queue_index >= dev->real_num_tx_queues))
+				queue_index = -1;
 		}
 	}
 	rcu_read_unlock();
@@ -3967,34 +3348,17 @@ get_cpus_map:
 #endif
 }
 
-u16 dev_pick_tx_zero(struct net_device *dev, struct sk_buff *skb,
-		     struct net_device *sb_dev)
-{
-	return 0;
-}
-EXPORT_SYMBOL(dev_pick_tx_zero);
-
-u16 dev_pick_tx_cpu_id(struct net_device *dev, struct sk_buff *skb,
-		       struct net_device *sb_dev)
-{
-	return (u16)raw_smp_processor_id() % dev->real_num_tx_queues;
-}
-EXPORT_SYMBOL(dev_pick_tx_cpu_id);
-
-u16 netdev_pick_tx(struct net_device *dev, struct sk_buff *skb,
-		     struct net_device *sb_dev)
+static u16 __netdev_pick_tx(struct net_device *dev, struct sk_buff *skb)
 {
 	struct sock *sk = skb->sk;
 	int queue_index = sk_tx_queue_get(sk);
 
-	sb_dev = sb_dev ? : dev;
-
 	if (queue_index < 0 || skb->ooo_okay ||
 	    queue_index >= dev->real_num_tx_queues) {
-		int new_index = get_xps_queue(dev, sb_dev, skb);
+		int new_index = get_xps_queue(dev, skb);
 
 		if (new_index < 0)
-			new_index = skb_tx_hash(dev, sb_dev, skb);
+			new_index = skb_tx_hash(dev, skb);
 
 		if (queue_index != new_index && sk &&
 		    sk_fullsock(sk) &&
@@ -4006,11 +3370,10 @@ u16 netdev_pick_tx(struct net_device *dev, struct sk_buff *skb,
 
 	return queue_index;
 }
-EXPORT_SYMBOL(netdev_pick_tx);
 
-struct netdev_queue *netdev_core_pick_tx(struct net_device *dev,
-					 struct sk_buff *skb,
-					 struct net_device *sb_dev)
+struct netdev_queue *netdev_pick_tx(struct net_device *dev,
+				    struct sk_buff *skb,
+				    void *accel_priv)
 {
 	int queue_index = 0;
 
@@ -4025,11 +3388,13 @@ struct netdev_queue *netdev_core_pick_tx(struct net_device *dev,
 		const struct net_device_ops *ops = dev->netdev_ops;
 
 		if (ops->ndo_select_queue)
-			queue_index = ops->ndo_select_queue(dev, skb, sb_dev);
+			queue_index = ops->ndo_select_queue(dev, skb, accel_priv,
+							    __netdev_pick_tx);
 		else
-			queue_index = netdev_pick_tx(dev, skb, sb_dev);
+			queue_index = __netdev_pick_tx(dev, skb);
 
-		queue_index = netdev_cap_txqueue(dev, queue_index);
+		if (!accel_priv)
+			queue_index = netdev_cap_txqueue(dev, queue_index);
 	}
 
 	skb_set_queue_mapping(skb, queue_index);
@@ -4039,7 +3404,7 @@ struct netdev_queue *netdev_core_pick_tx(struct net_device *dev,
 /**
  *	__dev_queue_xmit - transmit a buffer
  *	@skb: buffer to transmit
- *	@sb_dev: suboordinate device used for L2 forwarding offload
+ *	@accel_priv: private data used for L2 forwarding offload
  *
  *	Queue a buffer for transmission to a network device. The caller must
  *	have set the device and priority and built the buffer before calling
@@ -4062,13 +3427,12 @@ struct netdev_queue *netdev_core_pick_tx(struct net_device *dev,
  *      the BH enable code must have IRQs enabled so that it will not deadlock.
  *          --BLG
  */
-static int __dev_queue_xmit(struct sk_buff *skb, struct net_device *sb_dev)
+static int __dev_queue_xmit(struct sk_buff *skb, void *accel_priv)
 {
 	struct net_device *dev = skb->dev;
 	struct netdev_queue *txq;
 	struct Qdisc *q;
 	int rc = -ENOMEM;
-	bool again = false;
 
 	skb_reset_mac_header(skb);
 
@@ -4086,7 +3450,7 @@ static int __dev_queue_xmit(struct sk_buff *skb, struct net_device *sb_dev)
 #ifdef CONFIG_NET_CLS_ACT
 	skb->tc_at_ingress = 0;
 # ifdef CONFIG_NET_EGRESS
-	if (static_branch_unlikely(&egress_needed_key)) {
+	if (static_key_false(&egress_needed)) {
 		skb = sch_handle_egress(skb, &rc, dev);
 		if (!skb)
 			goto out;
@@ -4101,7 +3465,7 @@ static int __dev_queue_xmit(struct sk_buff *skb, struct net_device *sb_dev)
 	else
 		skb_dst_force(skb);
 
-	txq = netdev_core_pick_tx(dev, skb, sb_dev);
+	txq = netdev_pick_tx(dev, skb, accel_priv);
 	q = rcu_dereference_bh(txq->qdisc);
 
 	trace_net_dev_queue(skb);
@@ -4126,20 +3490,20 @@ static int __dev_queue_xmit(struct sk_buff *skb, struct net_device *sb_dev)
 		int cpu = smp_processor_id(); /* ok because BHs are off */
 
 		if (txq->xmit_lock_owner != cpu) {
-			if (dev_xmit_recursion())
+			if (unlikely(__this_cpu_read(xmit_recursion) >
+				     XMIT_RECURSION_LIMIT))
 				goto recursion_alert;
 
-			skb = validate_xmit_skb(skb, dev, &again);
+			skb = validate_xmit_skb(skb, dev);
 			if (!skb)
 				goto out;
 
-			PRANDOM_ADD_NOISE(skb, dev, txq, jiffies);
 			HARD_TX_LOCK(dev, txq, cpu);
 
 			if (!netif_xmit_stopped(txq)) {
-				dev_xmit_recursion_inc();
+				__this_cpu_inc(xmit_recursion);
 				skb = dev_hard_start_xmit(skb, dev, txq, &rc);
-				dev_xmit_recursion_dec();
+				__this_cpu_dec(xmit_recursion);
 				if (dev_xmit_complete(rc)) {
 					HARD_TX_UNLOCK(dev, txq);
 					goto out;
@@ -4175,49 +3539,12 @@ int dev_queue_xmit(struct sk_buff *skb)
 }
 EXPORT_SYMBOL(dev_queue_xmit);
 
-int dev_queue_xmit_accel(struct sk_buff *skb, struct net_device *sb_dev)
+int dev_queue_xmit_accel(struct sk_buff *skb, void *accel_priv)
 {
-	return __dev_queue_xmit(skb, sb_dev);
+	return __dev_queue_xmit(skb, accel_priv);
 }
 EXPORT_SYMBOL(dev_queue_xmit_accel);
 
-int __dev_direct_xmit(struct sk_buff *skb, u16 queue_id)
-{
-	struct net_device *dev = skb->dev;
-	struct sk_buff *orig_skb = skb;
-	struct netdev_queue *txq;
-	int ret = NETDEV_TX_BUSY;
-	bool again = false;
-
-	if (unlikely(!netif_running(dev) ||
-		     !netif_carrier_ok(dev)))
-		goto drop;
-
-	skb = validate_xmit_skb_list(skb, dev, &again);
-	if (skb != orig_skb)
-		goto drop;
-
-	skb_set_queue_mapping(skb, queue_id);
-	txq = skb_get_tx_queue(dev, skb);
-	PRANDOM_ADD_NOISE(skb, dev, txq, jiffies);
-
-	local_bh_disable();
-
-	dev_xmit_recursion_inc();
-	HARD_TX_LOCK(dev, txq, smp_processor_id());
-	if (!netif_xmit_frozen_or_drv_stopped(txq))
-		ret = netdev_start_xmit(skb, dev, txq, false);
-	HARD_TX_UNLOCK(dev, txq);
-	dev_xmit_recursion_dec();
-
-	local_bh_enable();
-	return ret;
-drop:
-	atomic_long_inc(&dev->tx_dropped);
-	kfree_skb_list(skb);
-	return NET_XMIT_DROP;
-}
-EXPORT_SYMBOL(__dev_direct_xmit);
 
 /*************************************************************************
  *			Receiver routines
@@ -4228,15 +3555,12 @@ EXPORT_SYMBOL(netdev_max_backlog);
 
 int netdev_tstamp_prequeue __read_mostly = 1;
 int netdev_budget __read_mostly = 300;
-/* Must be at least 2 jiffes to guarantee 1 jiffy timeout */
-unsigned int __read_mostly netdev_budget_usecs = 2 * USEC_PER_SEC / HZ;
+unsigned int __read_mostly netdev_budget_usecs = 2000;
 int weight_p __read_mostly = 64;           /* old backlog weight */
 int dev_weight_rx_bias __read_mostly = 1;  /* bias for backlog weight */
 int dev_weight_tx_bias __read_mostly = 1;  /* bias for output_queue quota */
 int dev_rx_weight __read_mostly = 64;
 int dev_tx_weight __read_mostly = 64;
-/* Maximum number of GRO_NORMAL skbs to batch up for list-RX */
-int gro_normal_batch __read_mostly = 8;
 
 /* Called with irq disabled */
 static inline void ____napi_schedule(struct softnet_data *sd,
@@ -4254,9 +3578,9 @@ EXPORT_SYMBOL(rps_sock_flow_table);
 u32 rps_cpu_mask __read_mostly;
 EXPORT_SYMBOL(rps_cpu_mask);
 
-struct static_key_false rps_needed __read_mostly;
+struct static_key rps_needed __read_mostly;
 EXPORT_SYMBOL(rps_needed);
-struct static_key_false rfs_needed __read_mostly;
+struct static_key rfs_needed __read_mostly;
 EXPORT_SYMBOL(rfs_needed);
 
 static struct rps_dev_flow *
@@ -4430,7 +3754,7 @@ bool rps_may_expire_flow(struct net_device *dev, u16 rxq_index,
 	flow_table = rcu_dereference(rxqueue->rps_flow_table);
 	if (flow_table && flow_id <= flow_table->mask) {
 		rflow = &flow_table->flows[flow_id];
-		cpu = READ_ONCE(rflow->cpu);
+		cpu = ACCESS_ONCE(rflow->cpu);
 		if (rflow->filter == filter_id && cpu < nr_cpu_ids &&
 		    ((int)(per_cpu(softnet_data, cpu).input_queue_head -
 			   rflow->last_qtail) <
@@ -4566,53 +3890,26 @@ drop:
 	return NET_RX_DROP;
 }
 
-static struct netdev_rx_queue *netif_get_rxqueue(struct sk_buff *skb)
-{
-	struct net_device *dev = skb->dev;
-	struct netdev_rx_queue *rxqueue;
-
-	rxqueue = dev->_rx;
-
-	if (skb_rx_queue_recorded(skb)) {
-		u16 index = skb_get_rx_queue(skb);
-
-		if (unlikely(index >= dev->real_num_rx_queues)) {
-			WARN_ONCE(dev->real_num_rx_queues > 1,
-				  "%s received packet on queue %u, but number "
-				  "of RX queues is %u\n",
-				  dev->name, index, dev->real_num_rx_queues);
-
-			return rxqueue; /* Return first rxqueue */
-		}
-		rxqueue += index;
-	}
-	return rxqueue;
-}
-
 static u32 netif_receive_generic_xdp(struct sk_buff *skb,
-				     struct xdp_buff *xdp,
 				     struct bpf_prog *xdp_prog)
 {
-	struct netdev_rx_queue *rxqueue;
-	void *orig_data, *orig_data_end;
 	u32 metalen, act = XDP_DROP;
-	__be16 orig_eth_type;
-	struct ethhdr *eth;
-	bool orig_bcast;
+	struct xdp_buff xdp;
+	void *orig_data;
 	int hlen, off;
 	u32 mac_len;
 
 	/* Reinjected packets coming from act_mirred or similar should
 	 * not get XDP generic processing.
 	 */
-	if (skb_is_redirected(skb))
+	if (skb_cloned(skb))
 		return XDP_PASS;
 
 	/* XDP packets must be linear and must have sufficient headroom
 	 * of XDP_PACKET_HEADROOM bytes. This is the guarantee that also
 	 * native XDP provides, thus we need to do it here as well.
 	 */
-	if (skb_cloned(skb) || skb_is_nonlinear(skb) ||
+	if (skb_is_nonlinear(skb) ||
 	    skb_headroom(skb) < XDP_PACKET_HEADROOM) {
 		int hroom = XDP_PACKET_HEADROOM - skb_headroom(skb);
 		int troom = skb->tail + skb->data_len - skb->end;
@@ -4624,7 +3921,7 @@ static u32 netif_receive_generic_xdp(struct sk_buff *skb,
 				     hroom > 0 ? ALIGN(hroom, NET_SKB_PAD) : 0,
 				     troom > 0 ? troom + 128 : 0, GFP_ATOMIC))
 			goto do_drop;
-		if (skb_linearize(skb))
+		if (troom > 0 && __skb_linearize(skb))
 			goto do_drop;
 	}
 
@@ -4633,52 +3930,20 @@ static u32 netif_receive_generic_xdp(struct sk_buff *skb,
 	 */
 	mac_len = skb->data - skb_mac_header(skb);
 	hlen = skb_headlen(skb) + mac_len;
-	xdp->data = skb->data - mac_len;
-	xdp->data_meta = xdp->data;
-	xdp->data_end = xdp->data + hlen;
-	xdp->data_hard_start = skb->data - skb_headroom(skb);
+	xdp.data = skb->data - mac_len;
+	xdp.data_meta = xdp.data;
+	xdp.data_end = xdp.data + hlen;
+	xdp.data_hard_start = skb->data - skb_headroom(skb);
+	orig_data = xdp.data;
 
-	/* SKB "head" area always have tailroom for skb_shared_info */
-	xdp->frame_sz  = (void *)skb_end_pointer(skb) - xdp->data_hard_start;
-	xdp->frame_sz += SKB_DATA_ALIGN(sizeof(struct skb_shared_info));
+	act = bpf_prog_run_xdp(xdp_prog, &xdp);
 
-	orig_data_end = xdp->data_end;
-	orig_data = xdp->data;
-	eth = (struct ethhdr *)xdp->data;
-	orig_bcast = is_multicast_ether_addr_64bits(eth->h_dest);
-	orig_eth_type = eth->h_proto;
-
-	rxqueue = netif_get_rxqueue(skb);
-	xdp->rxq = &rxqueue->xdp_rxq;
-
-	act = bpf_prog_run_xdp(xdp_prog, xdp);
-
-	/* check if bpf_xdp_adjust_head was used */
-	off = xdp->data - orig_data;
-	if (off) {
-		if (off > 0)
-			__skb_pull(skb, off);
-		else if (off < 0)
-			__skb_push(skb, -off);
-
-		skb->mac_header += off;
-		skb_reset_network_header(skb);
-	}
-
-	/* check if bpf_xdp_adjust_tail was used */
-	off = xdp->data_end - orig_data_end;
-	if (off != 0) {
-		skb_set_tail_pointer(skb, xdp->data_end - xdp->data);
-		skb->len += off; /* positive on grow, negative on shrink */
-	}
-
-	/* check if XDP changed eth hdr such SKB needs update */
-	eth = (struct ethhdr *)xdp->data;
-	if ((orig_eth_type != eth->h_proto) ||
-	    (orig_bcast != is_multicast_ether_addr_64bits(eth->h_dest))) {
-		__skb_push(skb, ETH_HLEN);
-		skb->protocol = eth_type_trans(skb, skb->dev);
-	}
+	off = xdp.data - orig_data;
+	if (off > 0)
+		__skb_pull(skb, off);
+	else if (off < 0)
+		__skb_push(skb, -off);
+	skb->mac_header += off;
 
 	switch (act) {
 	case XDP_REDIRECT:
@@ -4686,16 +3951,16 @@ static u32 netif_receive_generic_xdp(struct sk_buff *skb,
 		__skb_push(skb, mac_len);
 		break;
 	case XDP_PASS:
-		metalen = xdp->data - xdp->data_meta;
+		metalen = xdp.data - xdp.data_meta;
 		if (metalen)
 			skb_metadata_set(skb, metalen);
 		break;
 	default:
 		bpf_warn_invalid_xdp_action(act);
-		fallthrough;
+		/* fall through */
 	case XDP_ABORTED:
 		trace_xdp_exception(skb->dev, xdp_prog, act);
-		fallthrough;
+		/* fall through */
 	case XDP_DROP:
 	do_drop:
 		kfree_skb(skb);
@@ -4715,7 +3980,7 @@ void generic_xdp_tx(struct sk_buff *skb, struct bpf_prog *xdp_prog)
 	bool free_skb = true;
 	int cpu, rc;
 
-	txq = netdev_core_pick_tx(dev, skb, NULL);
+	txq = netdev_pick_tx(dev, skb, NULL);
 	cpu = smp_processor_id();
 	HARD_TX_LOCK(dev, txq, cpu);
 	if (!netif_xmit_stopped(txq)) {
@@ -4729,25 +3994,24 @@ void generic_xdp_tx(struct sk_buff *skb, struct bpf_prog *xdp_prog)
 		kfree_skb(skb);
 	}
 }
+EXPORT_SYMBOL_GPL(generic_xdp_tx);
 
-static DEFINE_STATIC_KEY_FALSE(generic_xdp_needed_key);
+static struct static_key generic_xdp_needed __read_mostly;
 
 int do_xdp_generic(struct bpf_prog *xdp_prog, struct sk_buff *skb)
 {
 	if (xdp_prog) {
-		struct xdp_buff xdp;
-		u32 act;
+		u32 act = netif_receive_generic_xdp(skb, xdp_prog);
 		int err;
 
-		act = netif_receive_generic_xdp(skb, &xdp, xdp_prog);
 		if (act != XDP_PASS) {
 			switch (act) {
 			case XDP_REDIRECT:
 				err = xdp_do_generic_redirect(skb->dev, skb,
-							      &xdp, xdp_prog);
+							      xdp_prog);
 				if (err)
 					goto out_redir;
-				break;
+			/* fallthru to submit skb */
 			case XDP_TX:
 				generic_xdp_tx(skb, xdp_prog);
 				break;
@@ -4770,8 +4034,25 @@ static int netif_rx_internal(struct sk_buff *skb)
 
 	trace_netif_rx(skb);
 
+	if (static_key_false(&generic_xdp_needed)) {
+		int ret;
+
+		preempt_disable();
+		rcu_read_lock();
+		ret = do_xdp_generic(rcu_dereference(skb->dev->xdp_prog), skb);
+		rcu_read_unlock();
+		preempt_enable();
+
+		/* Consider XDP consuming the packet a success from
+		 * the netdev point of view we do not want to count
+		 * this as an error.
+		 */
+		if (ret != XDP_PASS)
+			return NET_RX_SUCCESS;
+	}
+
 #ifdef CONFIG_RPS
-	if (static_branch_unlikely(&rps_needed)) {
+	if (static_key_false(&rps_needed)) {
 		struct rps_dev_flow voidflow, *rflow = &voidflow;
 		int cpu;
 
@@ -4814,14 +4095,9 @@ static int netif_rx_internal(struct sk_buff *skb)
 
 int netif_rx(struct sk_buff *skb)
 {
-	int ret;
-
 	trace_netif_rx_entry(skb);
 
-	ret = netif_rx_internal(skb);
-	trace_netif_rx_exit(ret);
-
-	return ret;
+	return netif_rx_internal(skb);
 }
 EXPORT_SYMBOL(netif_rx);
 
@@ -4836,26 +4112,10 @@ int netif_rx_ni(struct sk_buff *skb)
 	if (local_softirq_pending())
 		do_softirq();
 	preempt_enable();
-	trace_netif_rx_ni_exit(err);
 
 	return err;
 }
 EXPORT_SYMBOL(netif_rx_ni);
-
-int netif_rx_any_context(struct sk_buff *skb)
-{
-	/*
-	 * If invoked from contexts which do not invoke bottom half
-	 * processing either at return from interrupt or when softrqs are
-	 * reenabled, use netif_rx_ni() which invokes bottomhalf processing
-	 * directly.
-	 */
-	if (in_interrupt())
-		return netif_rx(skb);
-	else
-		return netif_rx_ni(skb);
-}
-EXPORT_SYMBOL(netif_rx_any_context);
 
 static __latent_entropy void net_tx_action(struct softirq_action *h)
 {
@@ -4900,26 +4160,21 @@ static __latent_entropy void net_tx_action(struct softirq_action *h)
 
 		while (head) {
 			struct Qdisc *q = head;
-			spinlock_t *root_lock = NULL;
+			spinlock_t *root_lock;
 
 			head = head->next_sched;
 
-			if (!(q->flags & TCQ_F_NOLOCK)) {
-				root_lock = qdisc_lock(q);
-				spin_lock(root_lock);
-			}
+			root_lock = qdisc_lock(q);
+			spin_lock(root_lock);
 			/* We need to make sure head->next_sched is read
 			 * before clearing __QDISC_STATE_SCHED
 			 */
 			smp_mb__before_atomic();
 			clear_bit(__QDISC_STATE_SCHED, &q->state);
 			qdisc_run(q);
-			if (root_lock)
-				spin_unlock(root_lock);
+			spin_unlock(root_lock);
 		}
 	}
-
-	xfrm_dev_backlog(sd);
 }
 
 #if IS_ENABLED(CONFIG_BRIDGE) && IS_ENABLED(CONFIG_ATM_LANE)
@@ -4931,10 +4186,10 @@ EXPORT_SYMBOL_GPL(br_fdb_test_addr_hook);
 
 static inline struct sk_buff *
 sch_handle_ingress(struct sk_buff *skb, struct packet_type **pt_prev, int *ret,
-		   struct net_device *orig_dev, bool *another)
+		   struct net_device *orig_dev)
 {
 #ifdef CONFIG_NET_CLS_ACT
-	struct mini_Qdisc *miniq = rcu_dereference_bh(skb->dev->miniq_ingress);
+	struct tcf_proto *cl = rcu_dereference_bh(skb->dev->ingress_cl_list);
 	struct tcf_result cl_res;
 
 	/* If there's at least one ingress present somewhere (so
@@ -4942,9 +4197,8 @@ sch_handle_ingress(struct sk_buff *skb, struct packet_type **pt_prev, int *ret,
 	 * that are not configured with an ingress qdisc will bail
 	 * out here.
 	 */
-	if (!miniq)
+	if (!cl)
 		return skb;
-
 	if (*pt_prev) {
 		*ret = deliver_skb(skb, *pt_prev, orig_dev);
 		*pt_prev = NULL;
@@ -4952,16 +4206,15 @@ sch_handle_ingress(struct sk_buff *skb, struct packet_type **pt_prev, int *ret,
 
 	qdisc_skb_cb(skb)->pkt_len = skb->len;
 	skb->tc_at_ingress = 1;
-	mini_qdisc_bstats_cpu_update(miniq, skb);
+	qdisc_bstats_cpu_update(cl->q, skb);
 
-	switch (tcf_classify_ingress(skb, miniq->block, miniq->filter_list,
-				     &cl_res, false)) {
+	switch (tcf_classify(skb, cl, &cl_res, false)) {
 	case TC_ACT_OK:
 	case TC_ACT_RECLASSIFY:
 		skb->tc_index = TC_H_MIN(cl_res.classid);
 		break;
 	case TC_ACT_SHOT:
-		mini_qdisc_qstats_cpu_drop(miniq);
+		qdisc_qstats_cpu_drop(cl->q);
 		kfree_skb(skb);
 		return NULL;
 	case TC_ACT_STOLEN:
@@ -4975,13 +4228,7 @@ sch_handle_ingress(struct sk_buff *skb, struct packet_type **pt_prev, int *ret,
 		 * redirecting to another netdev
 		 */
 		__skb_push(skb, skb->mac_len);
-		if (skb_do_redirect(skb) == -EAGAIN) {
-			__skb_pull(skb, skb->mac_len);
-			*another = true;
-			break;
-		}
-		return NULL;
-	case TC_ACT_CONSUMED:
+		skb_do_redirect(skb);
 		return NULL;
 	default:
 		break;
@@ -5026,9 +4273,6 @@ int netdev_rx_handler_register(struct net_device *dev,
 {
 	if (netdev_is_rx_handler_busy(dev))
 		return -EBUSY;
-
-	if (dev->priv_flags & IFF_NO_RX_HANDLER)
-		return -EINVAL;
 
 	/* Note: rx_handler_data must be set before rx_handler */
 	rcu_assign_pointer(dev->rx_handler_data, rx_handler_data);
@@ -5081,6 +4325,7 @@ static bool skb_pfmemalloc_protocol(struct sk_buff *skb)
 static inline int nf_ingress(struct sk_buff *skb, struct packet_type **pt_prev,
 			     int *ret, struct net_device *orig_dev)
 {
+#ifdef CONFIG_NETFILTER_INGRESS
 	if (nf_hook_ingress_active(skb)) {
 		int ingress_retval;
 
@@ -5094,15 +4339,14 @@ static inline int nf_ingress(struct sk_buff *skb, struct packet_type **pt_prev,
 		rcu_read_unlock();
 		return ingress_retval;
 	}
+#endif /* CONFIG_NETFILTER_INGRESS */
 	return 0;
 }
 
-static int __netif_receive_skb_core(struct sk_buff **pskb, bool pfmemalloc,
-				    struct packet_type **ppt_prev)
+static int __netif_receive_skb_core(struct sk_buff *skb, bool pfmemalloc)
 {
 	struct packet_type *ptype, *pt_prev;
 	rx_handler_func_t *rx_handler;
-	struct sk_buff *skb = *pskb;
 	struct net_device *orig_dev;
 	bool deliver_exact = false;
 	int ret = NET_RX_DROP;
@@ -5125,20 +4369,6 @@ another_round:
 	skb->skb_iif = skb->dev->ifindex;
 
 	__this_cpu_inc(softnet_data.processed);
-
-	if (static_branch_unlikely(&generic_xdp_needed_key)) {
-		int ret2;
-
-		preempt_disable();
-		ret2 = do_xdp_generic(rcu_dereference(skb->dev->xdp_prog), skb);
-		preempt_enable();
-
-		if (ret2 != XDP_PASS) {
-			ret = NET_RX_DROP;
-			goto out;
-		}
-		skb_reset_mac_len(skb);
-	}
 
 	if (skb->protocol == cpu_to_be16(ETH_P_8021Q) ||
 	    skb->protocol == cpu_to_be16(ETH_P_8021AD)) {
@@ -5167,13 +4397,8 @@ another_round:
 
 skip_taps:
 #ifdef CONFIG_NET_INGRESS
-	if (static_branch_unlikely(&ingress_needed_key)) {
-		bool another = false;
-
-		skb = sch_handle_ingress(skb, &pt_prev, &ret, orig_dev,
-					 &another);
-		if (another)
-			goto another_round;
+	if (static_key_false(&ingress_needed)) {
+		skb = sch_handle_ingress(skb, &pt_prev, &ret, orig_dev);
 		if (!skb)
 			goto out;
 
@@ -5181,7 +4406,7 @@ skip_taps:
 			goto out;
 	}
 #endif
-	skb_reset_redirect(skb);
+	skb_reset_tc(skb);
 skip_classify:
 	if (pfmemalloc && !skb_pfmemalloc_protocol(skb))
 		goto drop;
@@ -5218,42 +4443,14 @@ skip_classify:
 		}
 	}
 
-	if (unlikely(skb_vlan_tag_present(skb)) && !netdev_uses_dsa(skb->dev)) {
-check_vlan_id:
-		if (skb_vlan_tag_get_id(skb)) {
-			/* Vlan id is non 0 and vlan_do_receive() above couldn't
-			 * find vlan device.
-			 */
+	if (unlikely(skb_vlan_tag_present(skb))) {
+		if (skb_vlan_tag_get_id(skb))
 			skb->pkt_type = PACKET_OTHERHOST;
-		} else if (skb->protocol == cpu_to_be16(ETH_P_8021Q) ||
-			   skb->protocol == cpu_to_be16(ETH_P_8021AD)) {
-			/* Outer header is 802.1P with vlan 0, inner header is
-			 * 802.1Q or 802.1AD and vlan_do_receive() above could
-			 * not find vlan dev for vlan id 0.
-			 */
-			__vlan_hwaccel_clear_tag(skb);
-			skb = skb_vlan_untag(skb);
-			if (unlikely(!skb))
-				goto out;
-			if (vlan_do_receive(&skb))
-				/* After stripping off 802.1P header with vlan 0
-				 * vlan dev is found for inner header.
-				 */
-				goto another_round;
-			else if (unlikely(!skb))
-				goto out;
-			else
-				/* We have stripped outer 802.1P vlan 0 header.
-				 * But could not find vlan dev.
-				 * check again for vlan id to set OTHERHOST.
-				 */
-				goto check_vlan_id;
-		}
 		/* Note: we might in the future use prio bits
 		 * and set skb->priority like in vlan_do_receive()
 		 * For the time being, just ignore Priority Code Point
 		 */
-		__vlan_hwaccel_clear_tag(skb);
+		skb->vlan_tci = 0;
 	}
 
 	type = skb->protocol;
@@ -5276,7 +4473,8 @@ check_vlan_id:
 	if (pt_prev) {
 		if (unlikely(skb_orphan_frags_rx(skb, GFP_ATOMIC)))
 			goto drop;
-		*ppt_prev = pt_prev;
+		else
+			ret = pt_prev->func(skb, skb->dev, pt_prev, orig_dev);
 	} else {
 drop:
 		if (!deliver_exact)
@@ -5291,26 +4489,6 @@ drop:
 	}
 
 out:
-	/* The invariant here is that if *ppt_prev is not NULL
-	 * then skb should also be non-NULL.
-	 *
-	 * Apparently *ppt_prev assignment above holds this invariant due to
-	 * skb dereferencing near it.
-	 */
-	*pskb = skb;
-	return ret;
-}
-
-static int __netif_receive_skb_one_core(struct sk_buff *skb, bool pfmemalloc)
-{
-	struct net_device *orig_dev = skb->dev;
-	struct packet_type *pt_prev = NULL;
-	int ret;
-
-	ret = __netif_receive_skb_core(&skb, pfmemalloc, &pt_prev);
-	if (pt_prev)
-		ret = INDIRECT_CALL_INET(pt_prev->func, ipv6_rcv, ip_rcv, skb,
-					 skb->dev, pt_prev, orig_dev);
 	return ret;
 }
 
@@ -5320,7 +4498,7 @@ static int __netif_receive_skb_one_core(struct sk_buff *skb, bool pfmemalloc)
  *
  *	More direct receive version of netif_receive_skb().  It should
  *	only be used by callers that have a need to skip RPS and Generic XDP.
- *	Caller must also take care of handling if ``(page_is_)pfmemalloc``.
+ *	Caller must also take care of handling if (page_is_)pfmemalloc.
  *
  *	This function may only be called from softirq context and interrupts
  *	should be enabled.
@@ -5334,74 +4512,12 @@ int netif_receive_skb_core(struct sk_buff *skb)
 	int ret;
 
 	rcu_read_lock();
-	ret = __netif_receive_skb_one_core(skb, false);
+	ret = __netif_receive_skb_core(skb, false);
 	rcu_read_unlock();
 
 	return ret;
 }
 EXPORT_SYMBOL(netif_receive_skb_core);
-
-static inline void __netif_receive_skb_list_ptype(struct list_head *head,
-						  struct packet_type *pt_prev,
-						  struct net_device *orig_dev)
-{
-	struct sk_buff *skb, *next;
-
-	if (!pt_prev)
-		return;
-	if (list_empty(head))
-		return;
-	if (pt_prev->list_func != NULL)
-		INDIRECT_CALL_INET(pt_prev->list_func, ipv6_list_rcv,
-				   ip_list_rcv, head, pt_prev, orig_dev);
-	else
-		list_for_each_entry_safe(skb, next, head, list) {
-			skb_list_del_init(skb);
-			pt_prev->func(skb, skb->dev, pt_prev, orig_dev);
-		}
-}
-
-static void __netif_receive_skb_list_core(struct list_head *head, bool pfmemalloc)
-{
-	/* Fast-path assumptions:
-	 * - There is no RX handler.
-	 * - Only one packet_type matches.
-	 * If either of these fails, we will end up doing some per-packet
-	 * processing in-line, then handling the 'last ptype' for the whole
-	 * sublist.  This can't cause out-of-order delivery to any single ptype,
-	 * because the 'last ptype' must be constant across the sublist, and all
-	 * other ptypes are handled per-packet.
-	 */
-	/* Current (common) ptype of sublist */
-	struct packet_type *pt_curr = NULL;
-	/* Current (common) orig_dev of sublist */
-	struct net_device *od_curr = NULL;
-	struct list_head sublist;
-	struct sk_buff *skb, *next;
-
-	INIT_LIST_HEAD(&sublist);
-	list_for_each_entry_safe(skb, next, head, list) {
-		struct net_device *orig_dev = skb->dev;
-		struct packet_type *pt_prev = NULL;
-
-		skb_list_del_init(skb);
-		__netif_receive_skb_core(&skb, pfmemalloc, &pt_prev);
-		if (!pt_prev)
-			continue;
-		if (pt_curr != pt_prev || od_curr != orig_dev) {
-			/* dispatch old sublist */
-			__netif_receive_skb_list_ptype(&sublist, pt_curr, od_curr);
-			/* start new sublist */
-			INIT_LIST_HEAD(&sublist);
-			pt_curr = pt_prev;
-			od_curr = orig_dev;
-		}
-		list_add_tail(&skb->list, &sublist);
-	}
-
-	/* dispatch final sublist */
-	__netif_receive_skb_list_ptype(&sublist, pt_curr, od_curr);
-}
 
 static int __netif_receive_skb(struct sk_buff *skb)
 {
@@ -5420,68 +4536,19 @@ static int __netif_receive_skb(struct sk_buff *skb)
 		 * context down to all allocation sites.
 		 */
 		noreclaim_flag = memalloc_noreclaim_save();
-		ret = __netif_receive_skb_one_core(skb, true);
+		ret = __netif_receive_skb_core(skb, true);
 		memalloc_noreclaim_restore(noreclaim_flag);
 	} else
-		ret = __netif_receive_skb_one_core(skb, false);
+		ret = __netif_receive_skb_core(skb, false);
 
 	return ret;
 }
 
-static void __netif_receive_skb_list(struct list_head *head)
-{
-	unsigned long noreclaim_flag = 0;
-	struct sk_buff *skb, *next;
-	bool pfmemalloc = false; /* Is current sublist PF_MEMALLOC? */
-
-	list_for_each_entry_safe(skb, next, head, list) {
-		if ((sk_memalloc_socks() && skb_pfmemalloc(skb)) != pfmemalloc) {
-			struct list_head sublist;
-
-			/* Handle the previous sublist */
-			list_cut_before(&sublist, head, &skb->list);
-			if (!list_empty(&sublist))
-				__netif_receive_skb_list_core(&sublist, pfmemalloc);
-			pfmemalloc = !pfmemalloc;
-			/* See comments in __netif_receive_skb */
-			if (pfmemalloc)
-				noreclaim_flag = memalloc_noreclaim_save();
-			else
-				memalloc_noreclaim_restore(noreclaim_flag);
-		}
-	}
-	/* Handle the remaining sublist */
-	if (!list_empty(head))
-		__netif_receive_skb_list_core(head, pfmemalloc);
-	/* Restore pflags */
-	if (pfmemalloc)
-		memalloc_noreclaim_restore(noreclaim_flag);
-}
-
-static int generic_xdp_install(struct net_device *dev, struct netdev_bpf *xdp)
+static int generic_xdp_install(struct net_device *dev, struct netdev_xdp *xdp)
 {
 	struct bpf_prog *old = rtnl_dereference(dev->xdp_prog);
 	struct bpf_prog *new = xdp->prog;
 	int ret = 0;
-
-	if (new) {
-		u32 i;
-
-		mutex_lock(&new->aux->used_maps_mutex);
-
-		/* generic XDP does not work with DEVMAPs that can
-		 * have a bpf_prog installed on an entry
-		 */
-		for (i = 0; i < new->aux->used_map_cnt; i++) {
-			if (dev_map_can_have_prog(new->aux->used_maps[i]) ||
-			    cpu_map_prog_allowed(new->aux->used_maps[i])) {
-				mutex_unlock(&new->aux->used_maps_mutex);
-				return -EINVAL;
-			}
-		}
-
-		mutex_unlock(&new->aux->used_maps_mutex);
-	}
 
 	switch (xdp->command) {
 	case XDP_SETUP_PROG:
@@ -5490,12 +4557,16 @@ static int generic_xdp_install(struct net_device *dev, struct netdev_bpf *xdp)
 			bpf_prog_put(old);
 
 		if (old && !new) {
-			static_branch_dec(&generic_xdp_needed_key);
+			static_key_slow_dec(&generic_xdp_needed);
 		} else if (new && !old) {
-			static_branch_inc(&generic_xdp_needed_key);
+			static_key_slow_inc(&generic_xdp_needed);
 			dev_disable_lro(dev);
-			dev_disable_gro_hw(dev);
 		}
+		break;
+
+	case XDP_QUERY_PROG:
+		xdp->prog_attached = !!old;
+		xdp->prog_id = old ? old->aux->id : 0;
 		break;
 
 	default:
@@ -5515,9 +4586,22 @@ static int netif_receive_skb_internal(struct sk_buff *skb)
 	if (skb_defer_rx_timestamp(skb))
 		return NET_RX_SUCCESS;
 
+	if (static_key_false(&generic_xdp_needed)) {
+		int ret;
+
+		preempt_disable();
+		rcu_read_lock();
+		ret = do_xdp_generic(rcu_dereference(skb->dev->xdp_prog), skb);
+		rcu_read_unlock();
+		preempt_enable();
+
+		if (ret != XDP_PASS)
+			return NET_RX_DROP;
+	}
+
 	rcu_read_lock();
 #ifdef CONFIG_RPS
-	if (static_branch_unlikely(&rps_needed)) {
+	if (static_key_false(&rps_needed)) {
 		struct rps_dev_flow voidflow, *rflow = &voidflow;
 		int cpu = get_rps_cpu(skb->dev, skb, &rflow);
 
@@ -5531,39 +4615,6 @@ static int netif_receive_skb_internal(struct sk_buff *skb)
 	ret = __netif_receive_skb(skb);
 	rcu_read_unlock();
 	return ret;
-}
-
-static void netif_receive_skb_list_internal(struct list_head *head)
-{
-	struct sk_buff *skb, *next;
-	struct list_head sublist;
-
-	INIT_LIST_HEAD(&sublist);
-	list_for_each_entry_safe(skb, next, head, list) {
-		net_timestamp_check(netdev_tstamp_prequeue, skb);
-		skb_list_del_init(skb);
-		if (!skb_defer_rx_timestamp(skb))
-			list_add_tail(&skb->list, &sublist);
-	}
-	list_splice_init(&sublist, head);
-
-	rcu_read_lock();
-#ifdef CONFIG_RPS
-	if (static_branch_unlikely(&rps_needed)) {
-		list_for_each_entry_safe(skb, next, head, list) {
-			struct rps_dev_flow voidflow, *rflow = &voidflow;
-			int cpu = get_rps_cpu(skb->dev, skb, &rflow);
-
-			if (cpu >= 0) {
-				/* Will be handled, remove from list */
-				skb_list_del_init(skb);
-				enqueue_to_backlog(skb, cpu, &rflow->last_qtail);
-			}
-		}
-	}
-#endif
-	__netif_receive_skb_list(head);
-	rcu_read_unlock();
 }
 
 /**
@@ -5583,43 +4634,13 @@ static void netif_receive_skb_list_internal(struct list_head *head)
  */
 int netif_receive_skb(struct sk_buff *skb)
 {
-	int ret;
-
 	trace_netif_receive_skb_entry(skb);
 
-	ret = netif_receive_skb_internal(skb);
-	trace_netif_receive_skb_exit(ret);
-
-	return ret;
+	return netif_receive_skb_internal(skb);
 }
 EXPORT_SYMBOL(netif_receive_skb);
 
-/**
- *	netif_receive_skb_list - process many receive buffers from network
- *	@head: list of skbs to process.
- *
- *	Since return value of netif_receive_skb() is normally ignored, and
- *	wouldn't be meaningful for a list, this function returns void.
- *
- *	This function may only be called from softirq context and interrupts
- *	should be enabled.
- */
-void netif_receive_skb_list(struct list_head *head)
-{
-	struct sk_buff *skb;
-
-	if (list_empty(head))
-		return;
-	if (trace_netif_receive_skb_list_entry_enabled()) {
-		list_for_each_entry(skb, head, list)
-			trace_netif_receive_skb_list_entry(skb);
-	}
-	netif_receive_skb_list_internal(head);
-	trace_netif_receive_skb_list_exit(0);
-}
-EXPORT_SYMBOL(netif_receive_skb_list);
-
-static DEFINE_PER_CPU(struct work_struct, flush_works);
+DEFINE_PER_CPU(struct work_struct, flush_works);
 
 /* Network device is going away, flush any packets still pending */
 static void flush_backlog(struct work_struct *work)
@@ -5635,7 +4656,7 @@ static void flush_backlog(struct work_struct *work)
 	skb_queue_walk_safe(&sd->input_pkt_queue, skb, tmp) {
 		if (skb->dev->reg_state == NETREG_UNREGISTERING) {
 			__skb_unlink(skb, &sd->input_pkt_queue);
-			dev_kfree_skb_irq(skb);
+			kfree_skb(skb);
 			input_queue_head_incr(sd);
 		}
 	}
@@ -5652,88 +4673,23 @@ static void flush_backlog(struct work_struct *work)
 	local_bh_enable();
 }
 
-static bool flush_required(int cpu)
-{
-#if IS_ENABLED(CONFIG_RPS)
-	struct softnet_data *sd = &per_cpu(softnet_data, cpu);
-	bool do_flush;
-
-	local_irq_disable();
-	rps_lock(sd);
-
-	/* as insertion into process_queue happens with the rps lock held,
-	 * process_queue access may race only with dequeue
-	 */
-	do_flush = !skb_queue_empty(&sd->input_pkt_queue) ||
-		   !skb_queue_empty_lockless(&sd->process_queue);
-	rps_unlock(sd);
-	local_irq_enable();
-
-	return do_flush;
-#endif
-	/* without RPS we can't safely check input_pkt_queue: during a
-	 * concurrent remote skb_queue_splice() we can detect as empty both
-	 * input_pkt_queue and process_queue even if the latter could end-up
-	 * containing a lot of packets.
-	 */
-	return true;
-}
-
 static void flush_all_backlogs(void)
 {
-	static cpumask_t flush_cpus;
 	unsigned int cpu;
-
-	/* since we are under rtnl lock protection we can use static data
-	 * for the cpumask and avoid allocating on stack the possibly
-	 * large mask
-	 */
-	ASSERT_RTNL();
 
 	get_online_cpus();
 
-	cpumask_clear(&flush_cpus);
-	for_each_online_cpu(cpu) {
-		if (flush_required(cpu)) {
-			queue_work_on(cpu, system_highpri_wq,
-				      per_cpu_ptr(&flush_works, cpu));
-			cpumask_set_cpu(cpu, &flush_cpus);
-		}
-	}
+	for_each_online_cpu(cpu)
+		queue_work_on(cpu, system_highpri_wq,
+			      per_cpu_ptr(&flush_works, cpu));
 
-	/* we can have in flight packet[s] on the cpus we are not flushing,
-	 * synchronize_net() in rollback_registered_many() will take care of
-	 * them
-	 */
-	for_each_cpu(cpu, &flush_cpus)
+	for_each_online_cpu(cpu)
 		flush_work(per_cpu_ptr(&flush_works, cpu));
 
 	put_online_cpus();
 }
 
-/* Pass the currently batched GRO_NORMAL SKBs up to the stack. */
-static void gro_normal_list(struct napi_struct *napi)
-{
-	if (!napi->rx_count)
-		return;
-	netif_receive_skb_list_internal(&napi->rx_list);
-	INIT_LIST_HEAD(&napi->rx_list);
-	napi->rx_count = 0;
-}
-
-/* Queue one GRO_NORMAL SKB up for list processing. If batch size exceeded,
- * pass the whole batch up to the stack.
- */
-static void gro_normal_one(struct napi_struct *napi, struct sk_buff *skb)
-{
-	list_add_tail(&skb->list, &napi->rx_list);
-	if (++napi->rx_count >= gro_normal_batch)
-		gro_normal_list(napi);
-}
-
-INDIRECT_CALLABLE_DECLARE(int inet_gro_complete(struct sk_buff *, int));
-INDIRECT_CALLABLE_DECLARE(int ipv6_gro_complete(struct sk_buff *, int));
-static int napi_gro_complete(struct napi_struct *napi, struct sk_buff *skb)
+static int napi_gro_complete(struct sk_buff *skb)
 {
 	struct packet_offload *ptype;
 	__be16 type = skb->protocol;
@@ -5752,9 +4708,7 @@ static int napi_gro_complete(struct napi_struct *napi, struct sk_buff *skb)
 		if (ptype->type != type || !ptype->callbacks.gro_complete)
 			continue;
 
-		err = INDIRECT_CALL_INET(ptype->callbacks.gro_complete,
-					 ipv6_gro_complete, inet_gro_complete,
-					 skb, 0);
+		err = ptype->callbacks.gro_complete(skb, 0);
 		break;
 	}
 	rcu_read_unlock();
@@ -5766,55 +4720,45 @@ static int napi_gro_complete(struct napi_struct *napi, struct sk_buff *skb)
 	}
 
 out:
-	gro_normal_one(napi, skb);
-	return NET_RX_SUCCESS;
+	return netif_receive_skb_internal(skb);
 }
 
-static void __napi_gro_flush_chain(struct napi_struct *napi, u32 index,
-				   bool flush_old)
-{
-	struct list_head *head = &napi->gro_hash[index].list;
-	struct sk_buff *skb, *p;
-
-	list_for_each_entry_safe_reverse(skb, p, head, list) {
-		if (flush_old && NAPI_GRO_CB(skb)->age == jiffies)
-			return;
-		skb_list_del_init(skb);
-		napi_gro_complete(napi, skb);
-		napi->gro_hash[index].count--;
-	}
-
-	if (!napi->gro_hash[index].count)
-		__clear_bit(index, &napi->gro_bitmask);
-}
-
-/* napi->gro_hash[].list contains packets ordered by age.
+/* napi->gro_list contains packets ordered by age.
  * youngest packets at the head of it.
  * Complete skbs in reverse order to reduce latencies.
  */
 void napi_gro_flush(struct napi_struct *napi, bool flush_old)
 {
-	unsigned long bitmask = napi->gro_bitmask;
-	unsigned int i, base = ~0U;
+	struct sk_buff *skb, *prev = NULL;
 
-	while ((i = ffs(bitmask)) != 0) {
-		bitmask >>= i;
-		base += i;
-		__napi_gro_flush_chain(napi, base, flush_old);
+	/* scan list and build reverse chain */
+	for (skb = napi->gro_list; skb != NULL; skb = skb->next) {
+		skb->prev = prev;
+		prev = skb;
 	}
+
+	for (skb = prev; skb; skb = prev) {
+		skb->next = NULL;
+
+		if (flush_old && NAPI_GRO_CB(skb)->age == jiffies)
+			return;
+
+		prev = skb->prev;
+		napi_gro_complete(skb);
+		napi->gro_count--;
+	}
+
+	napi->gro_list = NULL;
 }
 EXPORT_SYMBOL(napi_gro_flush);
 
-static struct list_head *gro_list_prepare(struct napi_struct *napi,
-					  struct sk_buff *skb)
+static void gro_list_prepare(struct napi_struct *napi, struct sk_buff *skb)
 {
+	struct sk_buff *p;
 	unsigned int maclen = skb->dev->hard_header_len;
 	u32 hash = skb_get_hash_raw(skb);
-	struct list_head *head;
-	struct sk_buff *p;
 
-	head = &napi->gro_hash[hash & (GRO_HASH_BUCKETS - 1)].list;
-	list_for_each_entry(p, head, list) {
+	for (p = napi->gro_list; p; p = p->next) {
 		unsigned long diffs;
 
 		NAPI_GRO_CB(p)->flush = 0;
@@ -5825,9 +4769,7 @@ static struct list_head *gro_list_prepare(struct napi_struct *napi,
 		}
 
 		diffs = (unsigned long)p->dev ^ (unsigned long)skb->dev;
-		diffs |= skb_vlan_tag_present(p) ^ skb_vlan_tag_present(skb);
-		if (skb_vlan_tag_present(p))
-			diffs |= skb_vlan_tag_get(p) ^ skb_vlan_tag_get(skb);
+		diffs |= p->vlan_tci ^ skb->vlan_tci;
 		diffs |= skb_metadata_dst_cmp(p, skb);
 		diffs |= skb_metadata_differs(p, skb);
 		if (maclen == ETH_HLEN)
@@ -5839,8 +4781,6 @@ static struct list_head *gro_list_prepare(struct napi_struct *napi,
 				       maclen);
 		NAPI_GRO_CB(p)->same_flow = !diffs;
 	}
-
-	return head;
 }
 
 static void skb_gro_reset_offset(struct sk_buff *skb)
@@ -5852,7 +4792,8 @@ static void skb_gro_reset_offset(struct sk_buff *skb)
 	NAPI_GRO_CB(skb)->frag0 = NULL;
 	NAPI_GRO_CB(skb)->frag0_len = 0;
 
-	if (!skb_headlen(skb) && pinfo->nr_frags &&
+	if (skb_mac_header(skb) == skb_tail_pointer(skb) &&
+	    pinfo->nr_frags &&
 	    !PageHighMem(skb_frag_page(frag0))) {
 		NAPI_GRO_CB(skb)->frag0 = skb_frag_address(frag0);
 		NAPI_GRO_CB(skb)->frag0_len = min_t(unsigned int,
@@ -5872,7 +4813,7 @@ static void gro_pull_from_frag0(struct sk_buff *skb, int grow)
 	skb->data_len -= grow;
 	skb->tail += grow;
 
-	skb_frag_off_add(&pinfo->frags[0], grow);
+	pinfo->frags[0].page_offset += grow;
 	skb_frag_size_sub(&pinfo->frags[0], grow);
 
 	if (unlikely(!skb_frag_size(&pinfo->frags[0]))) {
@@ -5882,45 +4823,20 @@ static void gro_pull_from_frag0(struct sk_buff *skb, int grow)
 	}
 }
 
-static void gro_flush_oldest(struct napi_struct *napi, struct list_head *head)
-{
-	struct sk_buff *oldest;
-
-	oldest = list_last_entry(head, struct sk_buff, list);
-
-	/* We are called with head length >= MAX_GRO_SKBS, so this is
-	 * impossible.
-	 */
-	if (WARN_ON_ONCE(!oldest))
-		return;
-
-	/* Do not adjust napi->gro_hash[].count, caller is adding a new
-	 * SKB to the chain.
-	 */
-	skb_list_del_init(oldest);
-	napi_gro_complete(napi, oldest);
-}
-
-INDIRECT_CALLABLE_DECLARE(struct sk_buff *inet_gro_receive(struct list_head *,
-							   struct sk_buff *));
-INDIRECT_CALLABLE_DECLARE(struct sk_buff *ipv6_gro_receive(struct list_head *,
-							   struct sk_buff *));
 static enum gro_result dev_gro_receive(struct napi_struct *napi, struct sk_buff *skb)
 {
-	u32 hash = skb_get_hash_raw(skb) & (GRO_HASH_BUCKETS - 1);
-	struct list_head *head = &offload_base;
+	struct sk_buff **pp = NULL;
 	struct packet_offload *ptype;
 	__be16 type = skb->protocol;
-	struct list_head *gro_head;
-	struct sk_buff *pp = NULL;
-	enum gro_result ret;
+	struct list_head *head = &offload_base;
 	int same_flow;
+	enum gro_result ret;
 	int grow;
 
 	if (netif_elide_gro(skb->dev))
 		goto normal;
 
-	gro_head = gro_list_prepare(napi, skb);
+	gro_list_prepare(napi, skb);
 
 	rcu_read_lock();
 	list_for_each_entry_rcu(ptype, head, list) {
@@ -5954,9 +4870,7 @@ static enum gro_result dev_gro_receive(struct napi_struct *napi, struct sk_buff 
 			NAPI_GRO_CB(skb)->csum_valid = 0;
 		}
 
-		pp = INDIRECT_CALL_INET(ptype->callbacks.gro_receive,
-					ipv6_gro_receive, inet_gro_receive,
-					gro_head, skb);
+		pp = ptype->callbacks.gro_receive(&napi->gro_list, skb);
 		break;
 	}
 	rcu_read_unlock();
@@ -5964,7 +4878,7 @@ static enum gro_result dev_gro_receive(struct napi_struct *napi, struct sk_buff 
 	if (&ptype->list == head)
 		goto normal;
 
-	if (PTR_ERR(pp) == -EINPROGRESS) {
+	if (IS_ERR(pp) && PTR_ERR(pp) == -EINPROGRESS) {
 		ret = GRO_CONSUMED;
 		goto ok;
 	}
@@ -5973,9 +4887,12 @@ static enum gro_result dev_gro_receive(struct napi_struct *napi, struct sk_buff 
 	ret = NAPI_GRO_CB(skb)->free ? GRO_MERGED_FREE : GRO_MERGED;
 
 	if (pp) {
-		skb_list_del_init(pp);
-		napi_gro_complete(napi, pp);
-		napi->gro_hash[hash].count--;
+		struct sk_buff *nskb = *pp;
+
+		*pp = nskb->next;
+		nskb->next = NULL;
+		napi_gro_complete(nskb);
+		napi->gro_count--;
 	}
 
 	if (same_flow)
@@ -5984,16 +4901,26 @@ static enum gro_result dev_gro_receive(struct napi_struct *napi, struct sk_buff 
 	if (NAPI_GRO_CB(skb)->flush)
 		goto normal;
 
-	if (unlikely(napi->gro_hash[hash].count >= MAX_GRO_SKBS)) {
-		gro_flush_oldest(napi, gro_head);
+	if (unlikely(napi->gro_count >= MAX_GRO_SKBS)) {
+		struct sk_buff *nskb = napi->gro_list;
+
+		/* locate the end of the list to select the 'oldest' flow */
+		while (nskb->next) {
+			pp = &nskb->next;
+			nskb = *pp;
+		}
+		*pp = NULL;
+		nskb->next = NULL;
+		napi_gro_complete(nskb);
 	} else {
-		napi->gro_hash[hash].count++;
+		napi->gro_count++;
 	}
 	NAPI_GRO_CB(skb)->count = 1;
 	NAPI_GRO_CB(skb)->age = jiffies;
 	NAPI_GRO_CB(skb)->last = skb;
 	skb_shinfo(skb)->gso_size = skb_gro_len(skb);
-	list_add(&skb->list, gro_head);
+	skb->next = napi->gro_list;
+	napi->gro_list = skb;
 	ret = GRO_HELD;
 
 pull:
@@ -6001,13 +4928,6 @@ pull:
 	if (grow > 0)
 		gro_pull_from_frag0(skb, grow);
 ok:
-	if (napi->gro_hash[hash].count) {
-		if (!test_bit(hash, &napi->gro_bitmask))
-			__set_bit(hash, &napi->gro_bitmask);
-	} else if (test_bit(hash, &napi->gro_bitmask)) {
-		__clear_bit(hash, &napi->gro_bitmask);
-	}
-
 	return ret;
 
 normal:
@@ -6046,17 +4966,16 @@ EXPORT_SYMBOL(gro_find_complete_by_type);
 static void napi_skb_free_stolen_head(struct sk_buff *skb)
 {
 	skb_dst_drop(skb);
-	skb_ext_put(skb);
+	secpath_reset(skb);
 	kmem_cache_free(skbuff_head_cache, skb);
 }
 
-static gro_result_t napi_skb_finish(struct napi_struct *napi,
-				    struct sk_buff *skb,
-				    gro_result_t ret)
+static gro_result_t napi_skb_finish(gro_result_t ret, struct sk_buff *skb)
 {
 	switch (ret) {
 	case GRO_NORMAL:
-		gro_normal_one(napi, skb);
+		if (netif_receive_skb_internal(skb))
+			ret = GRO_DROP;
 		break;
 
 	case GRO_DROP:
@@ -6081,17 +5000,12 @@ static gro_result_t napi_skb_finish(struct napi_struct *napi,
 
 gro_result_t napi_gro_receive(struct napi_struct *napi, struct sk_buff *skb)
 {
-	gro_result_t ret;
-
 	skb_mark_napi_id(skb, napi);
 	trace_napi_gro_receive_entry(skb);
 
 	skb_gro_reset_offset(skb);
 
-	ret = napi_skb_finish(napi, skb, dev_gro_receive(napi, skb));
-	trace_napi_gro_receive_exit(ret);
-
-	return ret;
+	return napi_skb_finish(dev_gro_receive(napi, skb), skb);
 }
 EXPORT_SYMBOL(napi_gro_receive);
 
@@ -6104,17 +5018,13 @@ static void napi_reuse_skb(struct napi_struct *napi, struct sk_buff *skb)
 	__skb_pull(skb, skb_headlen(skb));
 	/* restore the reserve we had after netdev_alloc_skb_ip_align() */
 	skb_reserve(skb, NET_SKB_PAD + NET_IP_ALIGN - skb_headroom(skb));
-	__vlan_hwaccel_clear_tag(skb);
+	skb->vlan_tci = 0;
 	skb->dev = napi->dev;
 	skb->skb_iif = 0;
-
-	/* eth_type_trans() assumes pkt_type is PACKET_HOST */
-	skb->pkt_type = PACKET_HOST;
-
 	skb->encapsulation = 0;
 	skb_shinfo(skb)->gso_type = 0;
 	skb->truesize = SKB_TRUESIZE(skb_end_offset(skb));
-	skb_ext_reset(skb);
+	secpath_reset(skb);
 
 	napi->skb = skb;
 }
@@ -6143,8 +5053,8 @@ static gro_result_t napi_frags_finish(struct napi_struct *napi,
 	case GRO_HELD:
 		__skb_push(skb, ETH_HLEN);
 		skb->protocol = eth_type_trans(skb, skb->dev);
-		if (ret == GRO_NORMAL)
-			gro_normal_one(napi, skb);
+		if (ret == GRO_NORMAL && netif_receive_skb_internal(skb))
+			ret = GRO_DROP;
 		break;
 
 	case GRO_DROP:
@@ -6181,6 +5091,7 @@ static struct sk_buff *napi_frags_skb(struct napi_struct *napi)
 	skb_reset_mac_header(skb);
 	skb_gro_reset_offset(skb);
 
+	eth = skb_gro_header_fast(skb, 0);
 	if (unlikely(skb_gro_header_hard(skb, hlen))) {
 		eth = skb_gro_header_slow(skb, hlen, 0);
 		if (unlikely(!eth)) {
@@ -6190,7 +5101,6 @@ static struct sk_buff *napi_frags_skb(struct napi_struct *napi)
 			return NULL;
 		}
 	} else {
-		eth = (const struct ethhdr *)skb->data;
 		gro_pull_from_frag0(skb, hlen);
 		NAPI_GRO_CB(skb)->frag0 += hlen;
 		NAPI_GRO_CB(skb)->frag0_len -= hlen;
@@ -6209,7 +5119,6 @@ static struct sk_buff *napi_frags_skb(struct napi_struct *napi)
 
 gro_result_t napi_gro_frags(struct napi_struct *napi)
 {
-	gro_result_t ret;
 	struct sk_buff *skb = napi_frags_skb(napi);
 
 	if (!skb)
@@ -6217,10 +5126,7 @@ gro_result_t napi_gro_frags(struct napi_struct *napi)
 
 	trace_napi_gro_frags_entry(skb);
 
-	ret = napi_frags_finish(napi, skb, dev_gro_receive(napi, skb));
-	trace_napi_gro_frags_exit(ret);
-
-	return ret;
+	return napi_frags_finish(napi, skb, dev_gro_receive(napi, skb));
 }
 EXPORT_SYMBOL(napi_gro_frags);
 
@@ -6236,11 +5142,10 @@ __sum16 __skb_gro_checksum_complete(struct sk_buff *skb)
 
 	/* NAPI_GRO_CB(skb)->csum holds pseudo checksum */
 	sum = csum_fold(csum_add(NAPI_GRO_CB(skb)->csum, wsum));
-	/* See comments in __skb_checksum_complete(). */
 	if (likely(!sum)) {
 		if (unlikely(skb->ip_summed == CHECKSUM_COMPLETE) &&
 		    !skb->csum_complete_sw)
-			netdev_rx_csum_fault(skb->dev, skb);
+			netdev_rx_csum_fault(skb->dev);
 	}
 
 	NAPI_GRO_CB(skb)->csum = wsum;
@@ -6367,7 +5272,7 @@ EXPORT_SYMBOL(__napi_schedule);
  *	@n: napi context
  *
  * Test if NAPI routine is already running, and if not mark
- * it as running.  This is used as a condition variable to
+ * it as running.  This is used as a condition variable
  * insure only one NAPI poll instance runs.  We also make
  * sure there is no pending NAPI disable.
  */
@@ -6409,8 +5314,7 @@ EXPORT_SYMBOL(__napi_schedule_irqoff);
 
 bool napi_complete_done(struct napi_struct *n, int work_done)
 {
-	unsigned long flags, val, new, timeout = 0;
-	bool ret = true;
+	unsigned long flags, val, new;
 
 	/*
 	 * 1) Don't let napi dequeue from the cpu poll list
@@ -6422,27 +5326,18 @@ bool napi_complete_done(struct napi_struct *n, int work_done)
 				 NAPIF_STATE_IN_BUSY_POLL)))
 		return false;
 
-	if (work_done) {
-		if (n->gro_bitmask)
-			timeout = READ_ONCE(n->dev->gro_flush_timeout);
-		n->defer_hard_irqs_count = READ_ONCE(n->dev->napi_defer_hard_irqs);
-	}
-	if (n->defer_hard_irqs_count > 0) {
-		n->defer_hard_irqs_count--;
-		timeout = READ_ONCE(n->dev->gro_flush_timeout);
+	if (n->gro_list) {
+		unsigned long timeout = 0;
+
+		if (work_done)
+			timeout = n->dev->gro_flush_timeout;
+
 		if (timeout)
-			ret = false;
+			hrtimer_start(&n->timer, ns_to_ktime(timeout),
+				      HRTIMER_MODE_REL_PINNED);
+		else
+			napi_gro_flush(n, false);
 	}
-	if (n->gro_bitmask) {
-		/* When the NAPI instance uses a timeout and keeps postponing
-		 * it, we need to bound somehow the time packets are kept in
-		 * the GRO layer
-		 */
-		napi_gro_flush(n, !!timeout);
-	}
-
-	gro_normal_list(n);
-
 	if (unlikely(!list_empty(&n->poll_list))) {
 		/* If n->poll_list is not empty, we need to mask irqs */
 		local_irq_save(flags);
@@ -6470,10 +5365,7 @@ bool napi_complete_done(struct napi_struct *n, int work_done)
 		return false;
 	}
 
-	if (timeout)
-		hrtimer_start(&n->timer, ns_to_ktime(timeout),
-			      HRTIMER_MODE_REL_PINNED);
-	return ret;
+	return true;
 }
 EXPORT_SYMBOL(napi_complete_done);
 
@@ -6516,19 +5408,10 @@ static void busy_poll_stop(struct napi_struct *napi, void *have_poll_lock)
 	 * Ideally, a new ndo_busy_poll_stop() could avoid another round.
 	 */
 	rc = napi->poll(napi, BUSY_POLL_BUDGET);
-	/* We can't gro_normal_list() here, because napi->poll() might have
-	 * rearmed the napi (napi_complete_done()) in which case it could
-	 * already be running on another CPU.
-	 */
 	trace_napi_poll(napi, rc, BUSY_POLL_BUDGET);
 	netpoll_poll_unlock(have_poll_lock);
-	if (rc == BUSY_POLL_BUDGET) {
-		/* As the whole budget was spent, we still own the napi so can
-		 * safely handle the rx_list.
-		 */
-		gro_normal_list(napi);
+	if (rc == BUSY_POLL_BUDGET)
 		__napi_schedule(napi);
-	}
 	local_bh_enable();
 }
 
@@ -6573,7 +5456,6 @@ restart:
 		}
 		work = napi_poll(napi, BUSY_POLL_BUDGET);
 		trace_napi_poll(napi, work, BUSY_POLL_BUDGET);
-		gro_normal_list(napi);
 count:
 		if (work > 0)
 			__NET_ADD_STATS(dev_net(napi->dev),
@@ -6607,7 +5489,8 @@ EXPORT_SYMBOL(napi_busy_loop);
 
 static void napi_hash_add(struct napi_struct *napi)
 {
-	if (test_bit(NAPI_STATE_NO_BUSY_POLL, &napi->state))
+	if (test_bit(NAPI_STATE_NO_BUSY_POLL, &napi->state) ||
+	    test_and_set_bit(NAPI_STATE_HASHED, &napi->state))
 		return;
 
 	spin_lock(&napi_hash_lock);
@@ -6628,14 +5511,20 @@ static void napi_hash_add(struct napi_struct *napi)
 /* Warning : caller is responsible to make sure rcu grace period
  * is respected before freeing memory containing @napi
  */
-static void napi_hash_del(struct napi_struct *napi)
+bool napi_hash_del(struct napi_struct *napi)
 {
+	bool rcu_sync_needed = false;
+
 	spin_lock(&napi_hash_lock);
 
-	hlist_del_init_rcu(&napi->napi_hash_node);
-
+	if (test_and_clear_bit(NAPI_STATE_HASHED, &napi->state)) {
+		rcu_sync_needed = true;
+		hlist_del_rcu(&napi->napi_hash_node);
+	}
 	spin_unlock(&napi_hash_lock);
+	return rcu_sync_needed;
 }
+EXPORT_SYMBOL_GPL(napi_hash_del);
 
 static enum hrtimer_restart napi_watchdog(struct hrtimer *timer)
 {
@@ -6646,50 +5535,33 @@ static enum hrtimer_restart napi_watchdog(struct hrtimer *timer)
 	/* Note : we use a relaxed variant of napi_schedule_prep() not setting
 	 * NAPI_STATE_MISSED, since we do not react to a device IRQ.
 	 */
-	if (!napi_disable_pending(napi) &&
+	if (napi->gro_list && !napi_disable_pending(napi) &&
 	    !test_and_set_bit(NAPI_STATE_SCHED, &napi->state))
 		__napi_schedule_irqoff(napi);
 
 	return HRTIMER_NORESTART;
 }
 
-static void init_gro_hash(struct napi_struct *napi)
-{
-	int i;
-
-	for (i = 0; i < GRO_HASH_BUCKETS; i++) {
-		INIT_LIST_HEAD(&napi->gro_hash[i].list);
-		napi->gro_hash[i].count = 0;
-	}
-	napi->gro_bitmask = 0;
-}
-
 void netif_napi_add(struct net_device *dev, struct napi_struct *napi,
 		    int (*poll)(struct napi_struct *, int), int weight)
 {
-	if (WARN_ON(test_and_set_bit(NAPI_STATE_LISTED, &napi->state)))
-		return;
-
 	INIT_LIST_HEAD(&napi->poll_list);
-	INIT_HLIST_NODE(&napi->napi_hash_node);
 	hrtimer_init(&napi->timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL_PINNED);
 	napi->timer.function = napi_watchdog;
-	init_gro_hash(napi);
+	napi->gro_count = 0;
+	napi->gro_list = NULL;
 	napi->skb = NULL;
-	INIT_LIST_HEAD(&napi->rx_list);
-	napi->rx_count = 0;
 	napi->poll = poll;
 	if (weight > NAPI_POLL_WEIGHT)
-		netdev_err_once(dev, "%s() called with weight %d\n", __func__,
-				weight);
+		pr_err_once("netif_napi_add() called with weight %d on device %s\n",
+			    weight, dev->name);
 	napi->weight = weight;
+	list_add(&napi->dev_list, &dev->napi_list);
 	napi->dev = dev;
 #ifdef CONFIG_NETPOLL
 	napi->poll_owner = -1;
 #endif
 	set_bit(NAPI_STATE_SCHED, &napi->state);
-	set_bit(NAPI_STATE_NPSVC, &napi->state);
-	list_add_rcu(&napi->dev_list, &dev->napi_list);
 	napi_hash_add(napi);
 }
 EXPORT_SYMBOL(netif_napi_add);
@@ -6710,33 +5582,20 @@ void napi_disable(struct napi_struct *n)
 }
 EXPORT_SYMBOL(napi_disable);
 
-static void flush_gro_hash(struct napi_struct *napi)
-{
-	int i;
-
-	for (i = 0; i < GRO_HASH_BUCKETS; i++) {
-		struct sk_buff *skb, *n;
-
-		list_for_each_entry_safe(skb, n, &napi->gro_hash[i].list, list)
-			kfree_skb(skb);
-		napi->gro_hash[i].count = 0;
-	}
-}
-
 /* Must be called in process context */
-void __netif_napi_del(struct napi_struct *napi)
+void netif_napi_del(struct napi_struct *napi)
 {
-	if (!test_and_clear_bit(NAPI_STATE_LISTED, &napi->state))
-		return;
-
-	napi_hash_del(napi);
-	list_del_rcu(&napi->dev_list);
+	might_sleep();
+	if (napi_hash_del(napi))
+		synchronize_net();
+	list_del_init(&napi->dev_list);
 	napi_free_frags(napi);
 
-	flush_gro_hash(napi);
-	napi->gro_bitmask = 0;
+	kfree_skb_list(napi->gro_list);
+	napi->gro_list = NULL;
+	napi->gro_count = 0;
 }
-EXPORT_SYMBOL(__netif_napi_del);
+EXPORT_SYMBOL(netif_napi_del);
 
 static int napi_poll(struct napi_struct *n, struct list_head *repoll)
 {
@@ -6761,9 +5620,7 @@ static int napi_poll(struct napi_struct *n, struct list_head *repoll)
 		trace_napi_poll(n, work, weight);
 	}
 
-	if (unlikely(work > weight))
-		pr_err_once("NAPI poll function %pS returned %d, exceeding its budget of %d.\n",
-			    n->poll, work, weight);
+	WARN_ON_ONCE(work > weight);
 
 	if (likely(work < weight))
 		goto out_unlock;
@@ -6778,14 +5635,12 @@ static int napi_poll(struct napi_struct *n, struct list_head *repoll)
 		goto out_unlock;
 	}
 
-	if (n->gro_bitmask) {
+	if (n->gro_list) {
 		/* flush too old packets
 		 * If HZ < 1000, flush all packets.
 		 */
 		napi_gro_flush(n, HZ >= 1000);
 	}
-
-	gro_normal_list(n);
 
 	/* Some drivers may have called napi_schedule
 	 * prior to exhausting their budget.
@@ -6859,9 +5714,6 @@ struct netdev_adjacent {
 	/* upper master flag, there can only be one master device per list */
 	bool master;
 
-	/* lookup ignore flag */
-	bool ignore;
-
 	/* counter for the number of times this device was added to us */
 	u16 ref_nr;
 
@@ -6884,10 +5736,9 @@ static struct netdev_adjacent *__netdev_find_adj(struct net_device *adj_dev,
 	return NULL;
 }
 
-static int ____netdev_has_upper_dev(struct net_device *upper_dev,
-				    struct netdev_nested_priv *priv)
+static int __netdev_has_upper_dev(struct net_device *upper_dev, void *data)
 {
-	struct net_device *dev = (struct net_device *)priv->data;
+	struct net_device *dev = data;
 
 	return upper_dev == dev;
 }
@@ -6904,14 +5755,10 @@ static int ____netdev_has_upper_dev(struct net_device *upper_dev,
 bool netdev_has_upper_dev(struct net_device *dev,
 			  struct net_device *upper_dev)
 {
-	struct netdev_nested_priv priv = {
-		.data = (void *)upper_dev,
-	};
-
 	ASSERT_RTNL();
 
-	return netdev_walk_all_upper_dev_rcu(dev, ____netdev_has_upper_dev,
-					     &priv);
+	return netdev_walk_all_upper_dev_rcu(dev, __netdev_has_upper_dev,
+					     upper_dev);
 }
 EXPORT_SYMBOL(netdev_has_upper_dev);
 
@@ -6928,12 +5775,8 @@ EXPORT_SYMBOL(netdev_has_upper_dev);
 bool netdev_has_upper_dev_all_rcu(struct net_device *dev,
 				  struct net_device *upper_dev)
 {
-	struct netdev_nested_priv priv = {
-		.data = (void *)upper_dev,
-	};
-
-	return !!netdev_walk_all_upper_dev_rcu(dev, ____netdev_has_upper_dev,
-					       &priv);
+	return !!netdev_walk_all_upper_dev_rcu(dev, __netdev_has_upper_dev,
+					       upper_dev);
 }
 EXPORT_SYMBOL(netdev_has_upper_dev_all_rcu);
 
@@ -6975,22 +5818,6 @@ struct net_device *netdev_master_upper_dev_get(struct net_device *dev)
 	return NULL;
 }
 EXPORT_SYMBOL(netdev_master_upper_dev_get);
-
-static struct net_device *__netdev_master_upper_dev_get(struct net_device *dev)
-{
-	struct netdev_adjacent *upper;
-
-	ASSERT_RTNL();
-
-	if (list_empty(&dev->adj_list.upper))
-		return NULL;
-
-	upper = list_first_entry(&dev->adj_list.upper,
-				 struct netdev_adjacent, list);
-	if (likely(upper->master) && !upper->ignore)
-		return upper->dev;
-	return NULL;
-}
 
 /**
  * netdev_has_any_lower_dev - Check if device is linked to some device
@@ -7042,23 +5869,6 @@ struct net_device *netdev_upper_get_next_dev_rcu(struct net_device *dev,
 }
 EXPORT_SYMBOL(netdev_upper_get_next_dev_rcu);
 
-static struct net_device *__netdev_next_upper_dev(struct net_device *dev,
-						  struct list_head **iter,
-						  bool *ignore)
-{
-	struct netdev_adjacent *upper;
-
-	upper = list_entry((*iter)->next, struct netdev_adjacent, list);
-
-	if (&upper->list == &dev->adj_list.upper)
-		return NULL;
-
-	*iter = &upper->list;
-	*ignore = upper->ignore;
-
-	return upper->dev;
-}
-
 static struct net_device *netdev_next_upper_dev_rcu(struct net_device *dev,
 						    struct list_head **iter)
 {
@@ -7076,115 +5886,33 @@ static struct net_device *netdev_next_upper_dev_rcu(struct net_device *dev,
 	return upper->dev;
 }
 
-static int __netdev_walk_all_upper_dev(struct net_device *dev,
-				       int (*fn)(struct net_device *dev,
-					 struct netdev_nested_priv *priv),
-				       struct netdev_nested_priv *priv)
-{
-	struct net_device *udev, *next, *now, *dev_stack[MAX_NEST_DEV + 1];
-	struct list_head *niter, *iter, *iter_stack[MAX_NEST_DEV + 1];
-	int ret, cur = 0;
-	bool ignore;
-
-	now = dev;
-	iter = &dev->adj_list.upper;
-
-	while (1) {
-		if (now != dev) {
-			ret = fn(now, priv);
-			if (ret)
-				return ret;
-		}
-
-		next = NULL;
-		while (1) {
-			udev = __netdev_next_upper_dev(now, &iter, &ignore);
-			if (!udev)
-				break;
-			if (ignore)
-				continue;
-
-			next = udev;
-			niter = &udev->adj_list.upper;
-			dev_stack[cur] = now;
-			iter_stack[cur++] = iter;
-			break;
-		}
-
-		if (!next) {
-			if (!cur)
-				return 0;
-			next = dev_stack[--cur];
-			niter = iter_stack[cur];
-		}
-
-		now = next;
-		iter = niter;
-	}
-
-	return 0;
-}
-
 int netdev_walk_all_upper_dev_rcu(struct net_device *dev,
 				  int (*fn)(struct net_device *dev,
-					    struct netdev_nested_priv *priv),
-				  struct netdev_nested_priv *priv)
+					    void *data),
+				  void *data)
 {
-	struct net_device *udev, *next, *now, *dev_stack[MAX_NEST_DEV + 1];
-	struct list_head *niter, *iter, *iter_stack[MAX_NEST_DEV + 1];
-	int ret, cur = 0;
+	struct net_device *udev;
+	struct list_head *iter;
+	int ret;
 
-	now = dev;
-	iter = &dev->adj_list.upper;
+	for (iter = &dev->adj_list.upper,
+	     udev = netdev_next_upper_dev_rcu(dev, &iter);
+	     udev;
+	     udev = netdev_next_upper_dev_rcu(dev, &iter)) {
+		/* first is the upper device itself */
+		ret = fn(udev, data);
+		if (ret)
+			return ret;
 
-	while (1) {
-		if (now != dev) {
-			ret = fn(now, priv);
-			if (ret)
-				return ret;
-		}
-
-		next = NULL;
-		while (1) {
-			udev = netdev_next_upper_dev_rcu(now, &iter);
-			if (!udev)
-				break;
-
-			next = udev;
-			niter = &udev->adj_list.upper;
-			dev_stack[cur] = now;
-			iter_stack[cur++] = iter;
-			break;
-		}
-
-		if (!next) {
-			if (!cur)
-				return 0;
-			next = dev_stack[--cur];
-			niter = iter_stack[cur];
-		}
-
-		now = next;
-		iter = niter;
+		/* then look at all of its upper devices */
+		ret = netdev_walk_all_upper_dev_rcu(udev, fn, data);
+		if (ret)
+			return ret;
 	}
 
 	return 0;
 }
 EXPORT_SYMBOL_GPL(netdev_walk_all_upper_dev_rcu);
-
-static bool __netdev_has_upper_dev(struct net_device *dev,
-				   struct net_device *upper_dev)
-{
-	struct netdev_nested_priv priv = {
-		.flags = 0,
-		.data = (void *)upper_dev,
-	};
-
-	ASSERT_RTNL();
-
-	return __netdev_walk_all_upper_dev(dev, ____netdev_has_upper_dev,
-					   &priv);
-}
 
 /**
  * netdev_lower_get_next_private - Get the next ->private from the
@@ -7282,121 +6010,36 @@ static struct net_device *netdev_next_lower_dev(struct net_device *dev,
 	return lower->dev;
 }
 
-static struct net_device *__netdev_next_lower_dev(struct net_device *dev,
-						  struct list_head **iter,
-						  bool *ignore)
-{
-	struct netdev_adjacent *lower;
-
-	lower = list_entry((*iter)->next, struct netdev_adjacent, list);
-
-	if (&lower->list == &dev->adj_list.lower)
-		return NULL;
-
-	*iter = &lower->list;
-	*ignore = lower->ignore;
-
-	return lower->dev;
-}
-
 int netdev_walk_all_lower_dev(struct net_device *dev,
 			      int (*fn)(struct net_device *dev,
-					struct netdev_nested_priv *priv),
-			      struct netdev_nested_priv *priv)
+					void *data),
+			      void *data)
 {
-	struct net_device *ldev, *next, *now, *dev_stack[MAX_NEST_DEV + 1];
-	struct list_head *niter, *iter, *iter_stack[MAX_NEST_DEV + 1];
-	int ret, cur = 0;
+	struct net_device *ldev;
+	struct list_head *iter;
+	int ret;
 
-	now = dev;
-	iter = &dev->adj_list.lower;
+	for (iter = &dev->adj_list.lower,
+	     ldev = netdev_next_lower_dev(dev, &iter);
+	     ldev;
+	     ldev = netdev_next_lower_dev(dev, &iter)) {
+		/* first is the lower device itself */
+		ret = fn(ldev, data);
+		if (ret)
+			return ret;
 
-	while (1) {
-		if (now != dev) {
-			ret = fn(now, priv);
-			if (ret)
-				return ret;
-		}
-
-		next = NULL;
-		while (1) {
-			ldev = netdev_next_lower_dev(now, &iter);
-			if (!ldev)
-				break;
-
-			next = ldev;
-			niter = &ldev->adj_list.lower;
-			dev_stack[cur] = now;
-			iter_stack[cur++] = iter;
-			break;
-		}
-
-		if (!next) {
-			if (!cur)
-				return 0;
-			next = dev_stack[--cur];
-			niter = iter_stack[cur];
-		}
-
-		now = next;
-		iter = niter;
+		/* then look at all of its lower devices */
+		ret = netdev_walk_all_lower_dev(ldev, fn, data);
+		if (ret)
+			return ret;
 	}
 
 	return 0;
 }
 EXPORT_SYMBOL_GPL(netdev_walk_all_lower_dev);
 
-static int __netdev_walk_all_lower_dev(struct net_device *dev,
-				       int (*fn)(struct net_device *dev,
-					 struct netdev_nested_priv *priv),
-				       struct netdev_nested_priv *priv)
-{
-	struct net_device *ldev, *next, *now, *dev_stack[MAX_NEST_DEV + 1];
-	struct list_head *niter, *iter, *iter_stack[MAX_NEST_DEV + 1];
-	int ret, cur = 0;
-	bool ignore;
-
-	now = dev;
-	iter = &dev->adj_list.lower;
-
-	while (1) {
-		if (now != dev) {
-			ret = fn(now, priv);
-			if (ret)
-				return ret;
-		}
-
-		next = NULL;
-		while (1) {
-			ldev = __netdev_next_lower_dev(now, &iter, &ignore);
-			if (!ldev)
-				break;
-			if (ignore)
-				continue;
-
-			next = ldev;
-			niter = &ldev->adj_list.lower;
-			dev_stack[cur] = now;
-			iter_stack[cur++] = iter;
-			break;
-		}
-
-		if (!next) {
-			if (!cur)
-				return 0;
-			next = dev_stack[--cur];
-			niter = iter_stack[cur];
-		}
-
-		now = next;
-		iter = niter;
-	}
-
-	return 0;
-}
-
-struct net_device *netdev_next_lower_dev_rcu(struct net_device *dev,
-					     struct list_head **iter)
+static struct net_device *netdev_next_lower_dev_rcu(struct net_device *dev,
+						    struct list_head **iter)
 {
 	struct netdev_adjacent *lower;
 
@@ -7408,113 +6051,29 @@ struct net_device *netdev_next_lower_dev_rcu(struct net_device *dev,
 
 	return lower->dev;
 }
-EXPORT_SYMBOL(netdev_next_lower_dev_rcu);
-
-static u8 __netdev_upper_depth(struct net_device *dev)
-{
-	struct net_device *udev;
-	struct list_head *iter;
-	u8 max_depth = 0;
-	bool ignore;
-
-	for (iter = &dev->adj_list.upper,
-	     udev = __netdev_next_upper_dev(dev, &iter, &ignore);
-	     udev;
-	     udev = __netdev_next_upper_dev(dev, &iter, &ignore)) {
-		if (ignore)
-			continue;
-		if (max_depth < udev->upper_level)
-			max_depth = udev->upper_level;
-	}
-
-	return max_depth;
-}
-
-static u8 __netdev_lower_depth(struct net_device *dev)
-{
-	struct net_device *ldev;
-	struct list_head *iter;
-	u8 max_depth = 0;
-	bool ignore;
-
-	for (iter = &dev->adj_list.lower,
-	     ldev = __netdev_next_lower_dev(dev, &iter, &ignore);
-	     ldev;
-	     ldev = __netdev_next_lower_dev(dev, &iter, &ignore)) {
-		if (ignore)
-			continue;
-		if (max_depth < ldev->lower_level)
-			max_depth = ldev->lower_level;
-	}
-
-	return max_depth;
-}
-
-static int __netdev_update_upper_level(struct net_device *dev,
-				       struct netdev_nested_priv *__unused)
-{
-	dev->upper_level = __netdev_upper_depth(dev) + 1;
-	return 0;
-}
-
-static int __netdev_update_lower_level(struct net_device *dev,
-				       struct netdev_nested_priv *priv)
-{
-	dev->lower_level = __netdev_lower_depth(dev) + 1;
-
-#ifdef CONFIG_LOCKDEP
-	if (!priv)
-		return 0;
-
-	if (priv->flags & NESTED_SYNC_IMM)
-		dev->nested_level = dev->lower_level - 1;
-	if (priv->flags & NESTED_SYNC_TODO)
-		net_unlink_todo(dev);
-#endif
-	return 0;
-}
 
 int netdev_walk_all_lower_dev_rcu(struct net_device *dev,
 				  int (*fn)(struct net_device *dev,
-					    struct netdev_nested_priv *priv),
-				  struct netdev_nested_priv *priv)
+					    void *data),
+				  void *data)
 {
-	struct net_device *ldev, *next, *now, *dev_stack[MAX_NEST_DEV + 1];
-	struct list_head *niter, *iter, *iter_stack[MAX_NEST_DEV + 1];
-	int ret, cur = 0;
+	struct net_device *ldev;
+	struct list_head *iter;
+	int ret;
 
-	now = dev;
-	iter = &dev->adj_list.lower;
+	for (iter = &dev->adj_list.lower,
+	     ldev = netdev_next_lower_dev_rcu(dev, &iter);
+	     ldev;
+	     ldev = netdev_next_lower_dev_rcu(dev, &iter)) {
+		/* first is the lower device itself */
+		ret = fn(ldev, data);
+		if (ret)
+			return ret;
 
-	while (1) {
-		if (now != dev) {
-			ret = fn(now, priv);
-			if (ret)
-				return ret;
-		}
-
-		next = NULL;
-		while (1) {
-			ldev = netdev_next_lower_dev_rcu(now, &iter);
-			if (!ldev)
-				break;
-
-			next = ldev;
-			niter = &ldev->adj_list.lower;
-			dev_stack[cur] = now;
-			iter_stack[cur++] = iter;
-			break;
-		}
-
-		if (!next) {
-			if (!cur)
-				return 0;
-			next = dev_stack[--cur];
-			niter = iter_stack[cur];
-		}
-
-		now = next;
-		iter = niter;
+		/* then look at all of its lower devices */
+		ret = netdev_walk_all_lower_dev_rcu(ldev, fn, data);
+		if (ret)
+			return ret;
 	}
 
 	return 0;
@@ -7618,7 +6177,6 @@ static int __netdev_adjacent_dev_insert(struct net_device *dev,
 	adj->master = master;
 	adj->ref_nr = 1;
 	adj->private = private;
-	adj->ignore = false;
 	dev_hold(adj_dev);
 
 	pr_debug("Insert adjacency: dev %s adj_dev %s adj->ref_nr %d; dev_hold on %s\n",
@@ -7748,7 +6306,6 @@ static void __netdev_adjacent_dev_unlink_neighbour(struct net_device *dev,
 static int __netdev_upper_dev_link(struct net_device *dev,
 				   struct net_device *upper_dev, bool master,
 				   void *upper_priv, void *upper_info,
-				   struct netdev_nested_priv *priv,
 				   struct netlink_ext_ack *extack)
 {
 	struct netdev_notifier_changeupper_info changeupper_info = {
@@ -7761,7 +6318,6 @@ static int __netdev_upper_dev_link(struct net_device *dev,
 		.linking = true,
 		.upper_info = upper_info,
 	};
-	struct net_device *master_dev;
 	int ret = 0;
 
 	ASSERT_RTNL();
@@ -7770,20 +6326,14 @@ static int __netdev_upper_dev_link(struct net_device *dev,
 		return -EBUSY;
 
 	/* To prevent loops, check if dev is not upper device to upper_dev. */
-	if (__netdev_has_upper_dev(upper_dev, dev))
+	if (netdev_has_upper_dev(upper_dev, dev))
 		return -EBUSY;
 
-	if ((dev->lower_level + upper_dev->upper_level) > MAX_NEST_DEV)
-		return -EMLINK;
+	if (netdev_has_upper_dev(dev, upper_dev))
+		return -EEXIST;
 
-	if (!master) {
-		if (__netdev_has_upper_dev(dev, upper_dev))
-			return -EEXIST;
-	} else {
-		master_dev = __netdev_master_upper_dev_get(dev);
-		if (master_dev)
-			return master_dev == upper_dev ? -EEXIST : -EBUSY;
-	}
+	if (master && netdev_master_upper_dev_get(dev))
+		return -EBUSY;
 
 	ret = call_netdevice_notifiers_info(NETDEV_PRECHANGEUPPER,
 					    &changeupper_info.info);
@@ -7802,13 +6352,6 @@ static int __netdev_upper_dev_link(struct net_device *dev,
 	if (ret)
 		goto rollback;
 
-	__netdev_update_upper_level(dev, NULL);
-	__netdev_walk_all_lower_dev(dev, __netdev_update_upper_level, NULL);
-
-	__netdev_update_lower_level(upper_dev, priv);
-	__netdev_walk_all_upper_dev(upper_dev, __netdev_update_lower_level,
-				    priv);
-
 	return 0;
 
 rollback:
@@ -7821,7 +6364,6 @@ rollback:
  * netdev_upper_dev_link - Add a link to the upper device
  * @dev: device
  * @upper_dev: new upper device
- * @extack: netlink extended ack
  *
  * Adds a link to device which is upper to this one. The caller must hold
  * the RTNL lock. On a failure a negative errno code is returned.
@@ -7832,13 +6374,8 @@ int netdev_upper_dev_link(struct net_device *dev,
 			  struct net_device *upper_dev,
 			  struct netlink_ext_ack *extack)
 {
-	struct netdev_nested_priv priv = {
-		.flags = NESTED_SYNC_IMM | NESTED_SYNC_TODO,
-		.data = NULL,
-	};
-
 	return __netdev_upper_dev_link(dev, upper_dev, false,
-				       NULL, NULL, &priv, extack);
+				       NULL, NULL, extack);
 }
 EXPORT_SYMBOL(netdev_upper_dev_link);
 
@@ -7848,7 +6385,6 @@ EXPORT_SYMBOL(netdev_upper_dev_link);
  * @upper_dev: new upper device
  * @upper_priv: upper device private
  * @upper_info: upper info to be passed down via notifier
- * @extack: netlink extended ack
  *
  * Adds a link to device which is upper to this one. In this case, only
  * one master upper device can be linked, although other non-master devices
@@ -7861,19 +6397,21 @@ int netdev_master_upper_dev_link(struct net_device *dev,
 				 void *upper_priv, void *upper_info,
 				 struct netlink_ext_ack *extack)
 {
-	struct netdev_nested_priv priv = {
-		.flags = NESTED_SYNC_IMM | NESTED_SYNC_TODO,
-		.data = NULL,
-	};
-
 	return __netdev_upper_dev_link(dev, upper_dev, true,
-				       upper_priv, upper_info, &priv, extack);
+				       upper_priv, upper_info, extack);
 }
 EXPORT_SYMBOL(netdev_master_upper_dev_link);
 
-static void __netdev_upper_dev_unlink(struct net_device *dev,
-				      struct net_device *upper_dev,
-				      struct netdev_nested_priv *priv)
+/**
+ * netdev_upper_dev_unlink - Removes a link to upper device
+ * @dev: device
+ * @upper_dev: new upper device
+ *
+ * Removes a link to device which is upper to this one. The caller must hold
+ * the RTNL lock.
+ */
+void netdev_upper_dev_unlink(struct net_device *dev,
+			     struct net_device *upper_dev)
 {
 	struct netdev_notifier_changeupper_info changeupper_info = {
 		.info = {
@@ -7894,128 +6432,8 @@ static void __netdev_upper_dev_unlink(struct net_device *dev,
 
 	call_netdevice_notifiers_info(NETDEV_CHANGEUPPER,
 				      &changeupper_info.info);
-
-	__netdev_update_upper_level(dev, NULL);
-	__netdev_walk_all_lower_dev(dev, __netdev_update_upper_level, NULL);
-
-	__netdev_update_lower_level(upper_dev, priv);
-	__netdev_walk_all_upper_dev(upper_dev, __netdev_update_lower_level,
-				    priv);
-}
-
-/**
- * netdev_upper_dev_unlink - Removes a link to upper device
- * @dev: device
- * @upper_dev: new upper device
- *
- * Removes a link to device which is upper to this one. The caller must hold
- * the RTNL lock.
- */
-void netdev_upper_dev_unlink(struct net_device *dev,
-			     struct net_device *upper_dev)
-{
-	struct netdev_nested_priv priv = {
-		.flags = NESTED_SYNC_TODO,
-		.data = NULL,
-	};
-
-	__netdev_upper_dev_unlink(dev, upper_dev, &priv);
 }
 EXPORT_SYMBOL(netdev_upper_dev_unlink);
-
-static void __netdev_adjacent_dev_set(struct net_device *upper_dev,
-				      struct net_device *lower_dev,
-				      bool val)
-{
-	struct netdev_adjacent *adj;
-
-	adj = __netdev_find_adj(lower_dev, &upper_dev->adj_list.lower);
-	if (adj)
-		adj->ignore = val;
-
-	adj = __netdev_find_adj(upper_dev, &lower_dev->adj_list.upper);
-	if (adj)
-		adj->ignore = val;
-}
-
-static void netdev_adjacent_dev_disable(struct net_device *upper_dev,
-					struct net_device *lower_dev)
-{
-	__netdev_adjacent_dev_set(upper_dev, lower_dev, true);
-}
-
-static void netdev_adjacent_dev_enable(struct net_device *upper_dev,
-				       struct net_device *lower_dev)
-{
-	__netdev_adjacent_dev_set(upper_dev, lower_dev, false);
-}
-
-int netdev_adjacent_change_prepare(struct net_device *old_dev,
-				   struct net_device *new_dev,
-				   struct net_device *dev,
-				   struct netlink_ext_ack *extack)
-{
-	struct netdev_nested_priv priv = {
-		.flags = 0,
-		.data = NULL,
-	};
-	int err;
-
-	if (!new_dev)
-		return 0;
-
-	if (old_dev && new_dev != old_dev)
-		netdev_adjacent_dev_disable(dev, old_dev);
-	err = __netdev_upper_dev_link(new_dev, dev, false, NULL, NULL, &priv,
-				      extack);
-	if (err) {
-		if (old_dev && new_dev != old_dev)
-			netdev_adjacent_dev_enable(dev, old_dev);
-		return err;
-	}
-
-	return 0;
-}
-EXPORT_SYMBOL(netdev_adjacent_change_prepare);
-
-void netdev_adjacent_change_commit(struct net_device *old_dev,
-				   struct net_device *new_dev,
-				   struct net_device *dev)
-{
-	struct netdev_nested_priv priv = {
-		.flags = NESTED_SYNC_IMM | NESTED_SYNC_TODO,
-		.data = NULL,
-	};
-
-	if (!new_dev || !old_dev)
-		return;
-
-	if (new_dev == old_dev)
-		return;
-
-	netdev_adjacent_dev_enable(dev, old_dev);
-	__netdev_upper_dev_unlink(old_dev, dev, &priv);
-}
-EXPORT_SYMBOL(netdev_adjacent_change_commit);
-
-void netdev_adjacent_change_abort(struct net_device *old_dev,
-				  struct net_device *new_dev,
-				  struct net_device *dev)
-{
-	struct netdev_nested_priv priv = {
-		.flags = 0,
-		.data = NULL,
-	};
-
-	if (!new_dev)
-		return;
-
-	if (old_dev && new_dev != old_dev)
-		netdev_adjacent_dev_enable(dev, old_dev);
-
-	__netdev_upper_dev_unlink(new_dev, dev, &priv);
-}
-EXPORT_SYMBOL(netdev_adjacent_change_abort);
 
 /**
  * netdev_bonding_info_change - Dispatch event about slave change
@@ -8038,29 +6456,6 @@ void netdev_bonding_info_change(struct net_device *dev,
 				      &info.info);
 }
 EXPORT_SYMBOL(netdev_bonding_info_change);
-
-/**
- * netdev_get_xmit_slave - Get the xmit slave of master device
- * @dev: device
- * @skb: The packet
- * @all_slaves: assume all the slaves are active
- *
- * The reference counters are not incremented so the caller must be
- * careful with locks. The caller must hold RCU lock.
- * %NULL is returned if no slave is found.
- */
-
-struct net_device *netdev_get_xmit_slave(struct net_device *dev,
-					 struct sk_buff *skb,
-					 bool all_slaves)
-{
-	const struct net_device_ops *ops = dev->netdev_ops;
-
-	if (!ops->ndo_get_xmit_slave)
-		return NULL;
-	return ops->ndo_get_xmit_slave(dev, skb, all_slaves);
-}
-EXPORT_SYMBOL(netdev_get_xmit_slave);
 
 static void netdev_adjacent_add_links(struct net_device *dev)
 {
@@ -8153,6 +6548,25 @@ void *netdev_lower_dev_get_private(struct net_device *dev,
 EXPORT_SYMBOL(netdev_lower_dev_get_private);
 
 
+int dev_get_nest_level(struct net_device *dev)
+{
+	struct net_device *lower = NULL;
+	struct list_head *iter;
+	int max_nest = -1;
+	int nest;
+
+	ASSERT_RTNL();
+
+	netdev_for_each_lower_dev(dev, lower, iter) {
+		nest = dev_get_nest_level(lower);
+		if (max_nest < nest)
+			max_nest = nest;
+	}
+
+	return max_nest + 1;
+}
+EXPORT_SYMBOL(dev_get_nest_level);
+
 /**
  * netdev_lower_change - Dispatch event about lower device state change
  * @lower_dev: device
@@ -8213,15 +6627,15 @@ static int __dev_set_promiscuity(struct net_device *dev, int inc, bool notify)
 			dev->flags & IFF_PROMISC ? "entered" : "left");
 		if (audit_enabled) {
 			current_uid_gid(&uid, &gid);
-			audit_log(audit_context(), GFP_ATOMIC,
-				  AUDIT_ANOM_PROMISCUOUS,
-				  "dev=%s prom=%d old_prom=%d auid=%u uid=%u gid=%u ses=%u",
-				  dev->name, (dev->flags & IFF_PROMISC),
-				  (old_flags & IFF_PROMISC),
-				  from_kuid(&init_user_ns, audit_get_loginuid(current)),
-				  from_kuid(&init_user_ns, uid),
-				  from_kgid(&init_user_ns, gid),
-				  audit_get_sessionid(current));
+			audit_log(current->audit_context, GFP_ATOMIC,
+				AUDIT_ANOM_PROMISCUOUS,
+				"dev=%s prom=%d old_prom=%d auid=%u uid=%u gid=%u ses=%u",
+				dev->name, (dev->flags & IFF_PROMISC),
+				(old_flags & IFF_PROMISC),
+				from_kuid(&init_user_ns, audit_get_loginuid(current)),
+				from_kuid(&init_user_ns, uid),
+				from_kgid(&init_user_ns, gid),
+				audit_get_sessionid(current));
 		}
 
 		dev_change_rx_flags(dev, IFF_PROMISC);
@@ -8379,8 +6793,7 @@ unsigned int dev_get_flags(const struct net_device *dev)
 }
 EXPORT_SYMBOL(dev_get_flags);
 
-int __dev_change_flags(struct net_device *dev, unsigned int flags,
-		       struct netlink_ext_ack *extack)
+int __dev_change_flags(struct net_device *dev, unsigned int flags)
 {
 	unsigned int old_flags = dev->flags;
 	int ret;
@@ -8417,7 +6830,7 @@ int __dev_change_flags(struct net_device *dev, unsigned int flags,
 		if (old_flags & IFF_UP)
 			__dev_close(dev);
 		else
-			ret = __dev_open(dev, extack);
+			ret = __dev_open(dev);
 	}
 
 	if ((flags ^ dev->gflags) & IFF_PROMISC) {
@@ -8477,18 +6890,16 @@ void __dev_notify_flags(struct net_device *dev, unsigned int old_flags,
  *	dev_change_flags - change device settings
  *	@dev: device
  *	@flags: device state flags
- *	@extack: netlink extended ack
  *
  *	Change settings on device based state flags. The flags are
  *	in the userspace exported format.
  */
-int dev_change_flags(struct net_device *dev, unsigned int flags,
-		     struct netlink_ext_ack *extack)
+int dev_change_flags(struct net_device *dev, unsigned int flags)
 {
 	int ret;
 	unsigned int changes, old_flags = dev->flags, old_gflags = dev->gflags;
 
-	ret = __dev_change_flags(dev, flags, extack);
+	ret = __dev_change_flags(dev, flags);
 	if (ret < 0)
 		return ret;
 
@@ -8505,47 +6916,37 @@ int __dev_set_mtu(struct net_device *dev, int new_mtu)
 	if (ops->ndo_change_mtu)
 		return ops->ndo_change_mtu(dev, new_mtu);
 
-	/* Pairs with all the lockless reads of dev->mtu in the stack */
-	WRITE_ONCE(dev->mtu, new_mtu);
+	dev->mtu = new_mtu;
 	return 0;
 }
 EXPORT_SYMBOL(__dev_set_mtu);
 
-int dev_validate_mtu(struct net_device *dev, int new_mtu,
-		     struct netlink_ext_ack *extack)
-{
-	/* MTU must be positive, and in range */
-	if (new_mtu < 0 || new_mtu < dev->min_mtu) {
-		NL_SET_ERR_MSG(extack, "mtu less than device minimum");
-		return -EINVAL;
-	}
-
-	if (dev->max_mtu > 0 && new_mtu > dev->max_mtu) {
-		NL_SET_ERR_MSG(extack, "mtu greater than device maximum");
-		return -EINVAL;
-	}
-	return 0;
-}
-
 /**
- *	dev_set_mtu_ext - Change maximum transfer unit
+ *	dev_set_mtu - Change maximum transfer unit
  *	@dev: device
  *	@new_mtu: new transfer unit
- *	@extack: netlink extended ack
  *
  *	Change the maximum transfer size of the network device.
  */
-int dev_set_mtu_ext(struct net_device *dev, int new_mtu,
-		    struct netlink_ext_ack *extack)
+int dev_set_mtu(struct net_device *dev, int new_mtu)
 {
 	int err, orig_mtu;
 
 	if (new_mtu == dev->mtu)
 		return 0;
 
-	err = dev_validate_mtu(dev, new_mtu, extack);
-	if (err)
-		return err;
+	/* MTU must be positive, and in range */
+	if (new_mtu < 0 || new_mtu < dev->min_mtu) {
+		net_err_ratelimited("%s: Invalid MTU %d requested, hw min %d\n",
+				    dev->name, new_mtu, dev->min_mtu);
+		return -EINVAL;
+	}
+
+	if (dev->max_mtu > 0 && new_mtu > dev->max_mtu) {
+		net_err_ratelimited("%s: Invalid MTU %d requested, hw max %d\n",
+				    dev->name, new_mtu, dev->max_mtu);
+		return -EINVAL;
+	}
 
 	if (!netif_device_present(dev))
 		return -ENODEV;
@@ -8559,65 +6960,19 @@ int dev_set_mtu_ext(struct net_device *dev, int new_mtu,
 	err = __dev_set_mtu(dev, new_mtu);
 
 	if (!err) {
-		err = call_netdevice_notifiers_mtu(NETDEV_CHANGEMTU, dev,
-						   orig_mtu);
+		err = call_netdevice_notifiers(NETDEV_CHANGEMTU, dev);
 		err = notifier_to_errno(err);
 		if (err) {
 			/* setting mtu back and notifying everyone again,
 			 * so that they have a chance to revert changes.
 			 */
 			__dev_set_mtu(dev, orig_mtu);
-			call_netdevice_notifiers_mtu(NETDEV_CHANGEMTU, dev,
-						     new_mtu);
+			call_netdevice_notifiers(NETDEV_CHANGEMTU, dev);
 		}
 	}
 	return err;
 }
-
-int dev_set_mtu(struct net_device *dev, int new_mtu)
-{
-	struct netlink_ext_ack extack;
-	int err;
-
-	memset(&extack, 0, sizeof(extack));
-	err = dev_set_mtu_ext(dev, new_mtu, &extack);
-	if (err && extack._msg)
-		net_err_ratelimited("%s: %s\n", dev->name, extack._msg);
-	return err;
-}
 EXPORT_SYMBOL(dev_set_mtu);
-
-/**
- *	dev_change_tx_queue_len - Change TX queue length of a netdevice
- *	@dev: device
- *	@new_len: new tx queue length
- */
-int dev_change_tx_queue_len(struct net_device *dev, unsigned long new_len)
-{
-	unsigned int orig_len = dev->tx_queue_len;
-	int res;
-
-	if (new_len != (unsigned int)new_len)
-		return -ERANGE;
-
-	if (new_len != orig_len) {
-		dev->tx_queue_len = new_len;
-		res = call_netdevice_notifiers(NETDEV_CHANGE_TX_QUEUE_LEN, dev);
-		res = notifier_to_errno(res);
-		if (res)
-			goto err_rollback;
-		res = dev_qdisc_change_tx_queue_len(dev);
-		if (res)
-			goto err_rollback;
-	}
-
-	return 0;
-
-err_rollback:
-	netdev_err(dev, "refused to change device tx_queue_len\n");
-	dev->tx_queue_len = orig_len;
-	return res;
-}
 
 /**
  *	dev_set_group - Change group this device belongs to
@@ -8631,36 +6986,13 @@ void dev_set_group(struct net_device *dev, int new_group)
 EXPORT_SYMBOL(dev_set_group);
 
 /**
- *	dev_pre_changeaddr_notify - Call NETDEV_PRE_CHANGEADDR.
- *	@dev: device
- *	@addr: new address
- *	@extack: netlink extended ack
- */
-int dev_pre_changeaddr_notify(struct net_device *dev, const char *addr,
-			      struct netlink_ext_ack *extack)
-{
-	struct netdev_notifier_pre_changeaddr_info info = {
-		.info.dev = dev,
-		.info.extack = extack,
-		.dev_addr = addr,
-	};
-	int rc;
-
-	rc = call_netdevice_notifiers_info(NETDEV_PRE_CHANGEADDR, &info.info);
-	return notifier_to_errno(rc);
-}
-EXPORT_SYMBOL(dev_pre_changeaddr_notify);
-
-/**
  *	dev_set_mac_address - Change Media Access Control Address
  *	@dev: device
  *	@sa: new address
- *	@extack: netlink extended ack
  *
  *	Change the hardware (MAC) address of the device
  */
-int dev_set_mac_address(struct net_device *dev, struct sockaddr *sa,
-			struct netlink_ext_ack *extack)
+int dev_set_mac_address(struct net_device *dev, struct sockaddr *sa)
 {
 	const struct net_device_ops *ops = dev->netdev_ops;
 	int err;
@@ -8671,9 +7003,6 @@ int dev_set_mac_address(struct net_device *dev, struct sockaddr *sa,
 		return -EINVAL;
 	if (!netif_device_present(dev))
 		return -ENODEV;
-	err = dev_pre_changeaddr_notify(dev, sa->sa_data, extack);
-	if (err)
-		return err;
 	err = ops->ndo_set_mac_address(dev, sa);
 	if (err)
 		return err;
@@ -8733,80 +7062,12 @@ int dev_get_phys_port_name(struct net_device *dev,
 			   char *name, size_t len)
 {
 	const struct net_device_ops *ops = dev->netdev_ops;
-	int err;
 
-	if (ops->ndo_get_phys_port_name) {
-		err = ops->ndo_get_phys_port_name(dev, name, len);
-		if (err != -EOPNOTSUPP)
-			return err;
-	}
-	return devlink_compat_phys_port_name_get(dev, name, len);
+	if (!ops->ndo_get_phys_port_name)
+		return -EOPNOTSUPP;
+	return ops->ndo_get_phys_port_name(dev, name, len);
 }
 EXPORT_SYMBOL(dev_get_phys_port_name);
-
-/**
- *	dev_get_port_parent_id - Get the device's port parent identifier
- *	@dev: network device
- *	@ppid: pointer to a storage for the port's parent identifier
- *	@recurse: allow/disallow recursion to lower devices
- *
- *	Get the devices's port parent identifier
- */
-int dev_get_port_parent_id(struct net_device *dev,
-			   struct netdev_phys_item_id *ppid,
-			   bool recurse)
-{
-	const struct net_device_ops *ops = dev->netdev_ops;
-	struct netdev_phys_item_id first = { };
-	struct net_device *lower_dev;
-	struct list_head *iter;
-	int err;
-
-	if (ops->ndo_get_port_parent_id) {
-		err = ops->ndo_get_port_parent_id(dev, ppid);
-		if (err != -EOPNOTSUPP)
-			return err;
-	}
-
-	err = devlink_compat_switch_id_get(dev, ppid);
-	if (!err || err != -EOPNOTSUPP)
-		return err;
-
-	if (!recurse)
-		return -EOPNOTSUPP;
-
-	netdev_for_each_lower_dev(dev, lower_dev, iter) {
-		err = dev_get_port_parent_id(lower_dev, ppid, recurse);
-		if (err)
-			break;
-		if (!first.id_len)
-			first = *ppid;
-		else if (memcmp(&first, ppid, sizeof(*ppid)))
-			return -EOPNOTSUPP;
-	}
-
-	return err;
-}
-EXPORT_SYMBOL(dev_get_port_parent_id);
-
-/**
- *	netdev_port_same_parent_id - Indicate if two network devices have
- *	the same port parent identifier
- *	@a: first network device
- *	@b: second network device
- */
-bool netdev_port_same_parent_id(struct net_device *a, struct net_device *b)
-{
-	struct netdev_phys_item_id a_id = { };
-	struct netdev_phys_item_id b_id = { };
-
-	if (dev_get_port_parent_id(a, &a_id, true) ||
-	    dev_get_port_parent_id(b, &b_id, true))
-		return false;
-
-	return netdev_phys_item_id_same(&a_id, &b_id);
-}
-EXPORT_SYMBOL(netdev_port_same_parent_id);
 
 /**
  *	dev_change_proto_down - update protocol port state information
@@ -8828,440 +7089,37 @@ int dev_change_proto_down(struct net_device *dev, bool proto_down)
 }
 EXPORT_SYMBOL(dev_change_proto_down);
 
-/**
- *	dev_change_proto_down_generic - generic implementation for
- * 	ndo_change_proto_down that sets carrier according to
- * 	proto_down.
- *
- *	@dev: device
- *	@proto_down: new value
- */
-int dev_change_proto_down_generic(struct net_device *dev, bool proto_down)
+u8 __dev_xdp_attached(struct net_device *dev, xdp_op_t xdp_op, u32 *prog_id)
 {
-	if (proto_down)
-		netif_carrier_off(dev);
-	else
-		netif_carrier_on(dev);
-	dev->proto_down = proto_down;
-	return 0;
-}
-EXPORT_SYMBOL(dev_change_proto_down_generic);
-
-struct bpf_xdp_link {
-	struct bpf_link link;
-	struct net_device *dev; /* protected by rtnl_lock, no refcnt held */
-	int flags;
-};
-
-static enum bpf_xdp_mode dev_xdp_mode(struct net_device *dev, u32 flags)
-{
-	if (flags & XDP_FLAGS_HW_MODE)
-		return XDP_MODE_HW;
-	if (flags & XDP_FLAGS_DRV_MODE)
-		return XDP_MODE_DRV;
-	if (flags & XDP_FLAGS_SKB_MODE)
-		return XDP_MODE_SKB;
-	return dev->netdev_ops->ndo_bpf ? XDP_MODE_DRV : XDP_MODE_SKB;
-}
-
-static bpf_op_t dev_xdp_bpf_op(struct net_device *dev, enum bpf_xdp_mode mode)
-{
-	switch (mode) {
-	case XDP_MODE_SKB:
-		return generic_xdp_install;
-	case XDP_MODE_DRV:
-	case XDP_MODE_HW:
-		return dev->netdev_ops->ndo_bpf;
-	default:
-		return NULL;
-	};
-}
-
-static struct bpf_xdp_link *dev_xdp_link(struct net_device *dev,
-					 enum bpf_xdp_mode mode)
-{
-	return dev->xdp_state[mode].link;
-}
-
-static struct bpf_prog *dev_xdp_prog(struct net_device *dev,
-				     enum bpf_xdp_mode mode)
-{
-	struct bpf_xdp_link *link = dev_xdp_link(dev, mode);
-
-	if (link)
-		return link->link.prog;
-	return dev->xdp_state[mode].prog;
-}
-
-u32 dev_xdp_prog_id(struct net_device *dev, enum bpf_xdp_mode mode)
-{
-	struct bpf_prog *prog = dev_xdp_prog(dev, mode);
-
-	return prog ? prog->aux->id : 0;
-}
-
-static void dev_xdp_set_link(struct net_device *dev, enum bpf_xdp_mode mode,
-			     struct bpf_xdp_link *link)
-{
-	dev->xdp_state[mode].link = link;
-	dev->xdp_state[mode].prog = NULL;
-}
-
-static void dev_xdp_set_prog(struct net_device *dev, enum bpf_xdp_mode mode,
-			     struct bpf_prog *prog)
-{
-	dev->xdp_state[mode].link = NULL;
-	dev->xdp_state[mode].prog = prog;
-}
-
-static int dev_xdp_install(struct net_device *dev, enum bpf_xdp_mode mode,
-			   bpf_op_t bpf_op, struct netlink_ext_ack *extack,
-			   u32 flags, struct bpf_prog *prog)
-{
-	struct netdev_bpf xdp;
-	int err;
+	struct netdev_xdp xdp;
 
 	memset(&xdp, 0, sizeof(xdp));
-	xdp.command = mode == XDP_MODE_HW ? XDP_SETUP_PROG_HW : XDP_SETUP_PROG;
+	xdp.command = XDP_QUERY_PROG;
+
+	/* Query must always succeed. */
+	WARN_ON(xdp_op(dev, &xdp) < 0);
+	if (prog_id)
+		*prog_id = xdp.prog_id;
+
+	return xdp.prog_attached;
+}
+
+static int dev_xdp_install(struct net_device *dev, xdp_op_t xdp_op,
+			   struct netlink_ext_ack *extack, u32 flags,
+			   struct bpf_prog *prog)
+{
+	struct netdev_xdp xdp;
+
+	memset(&xdp, 0, sizeof(xdp));
+	if (flags & XDP_FLAGS_HW_MODE)
+		xdp.command = XDP_SETUP_PROG_HW;
+	else
+		xdp.command = XDP_SETUP_PROG;
 	xdp.extack = extack;
 	xdp.flags = flags;
 	xdp.prog = prog;
 
-	/* Drivers assume refcnt is already incremented (i.e, prog pointer is
-	 * "moved" into driver), so they don't increment it on their own, but
-	 * they do decrement refcnt when program is detached or replaced.
-	 * Given net_device also owns link/prog, we need to bump refcnt here
-	 * to prevent drivers from underflowing it.
-	 */
-	if (prog)
-		bpf_prog_inc(prog);
-	err = bpf_op(dev, &xdp);
-	if (err) {
-		if (prog)
-			bpf_prog_put(prog);
-		return err;
-	}
-
-	if (mode != XDP_MODE_HW)
-		bpf_prog_change_xdp(dev_xdp_prog(dev, mode), prog);
-
-	return 0;
-}
-
-static void dev_xdp_uninstall(struct net_device *dev)
-{
-	struct bpf_xdp_link *link;
-	struct bpf_prog *prog;
-	enum bpf_xdp_mode mode;
-	bpf_op_t bpf_op;
-
-	ASSERT_RTNL();
-
-	for (mode = XDP_MODE_SKB; mode < __MAX_XDP_MODE; mode++) {
-		prog = dev_xdp_prog(dev, mode);
-		if (!prog)
-			continue;
-
-		bpf_op = dev_xdp_bpf_op(dev, mode);
-		if (!bpf_op)
-			continue;
-
-		WARN_ON(dev_xdp_install(dev, mode, bpf_op, NULL, 0, NULL));
-
-		/* auto-detach link from net device */
-		link = dev_xdp_link(dev, mode);
-		if (link)
-			link->dev = NULL;
-		else
-			bpf_prog_put(prog);
-
-		dev_xdp_set_link(dev, mode, NULL);
-	}
-}
-
-static int dev_xdp_attach(struct net_device *dev, struct netlink_ext_ack *extack,
-			  struct bpf_xdp_link *link, struct bpf_prog *new_prog,
-			  struct bpf_prog *old_prog, u32 flags)
-{
-	struct bpf_prog *cur_prog;
-	enum bpf_xdp_mode mode;
-	bpf_op_t bpf_op;
-	int err;
-
-	ASSERT_RTNL();
-
-	/* either link or prog attachment, never both */
-	if (link && (new_prog || old_prog))
-		return -EINVAL;
-	/* link supports only XDP mode flags */
-	if (link && (flags & ~XDP_FLAGS_MODES)) {
-		NL_SET_ERR_MSG(extack, "Invalid XDP flags for BPF link attachment");
-		return -EINVAL;
-	}
-	/* just one XDP mode bit should be set, zero defaults to SKB mode */
-	if (hweight32(flags & XDP_FLAGS_MODES) > 1) {
-		NL_SET_ERR_MSG(extack, "Only one XDP mode flag can be set");
-		return -EINVAL;
-	}
-	/* old_prog != NULL implies XDP_FLAGS_REPLACE is set */
-	if (old_prog && !(flags & XDP_FLAGS_REPLACE)) {
-		NL_SET_ERR_MSG(extack, "XDP_FLAGS_REPLACE is not specified");
-		return -EINVAL;
-	}
-
-	mode = dev_xdp_mode(dev, flags);
-	/* can't replace attached link */
-	if (dev_xdp_link(dev, mode)) {
-		NL_SET_ERR_MSG(extack, "Can't replace active BPF XDP link");
-		return -EBUSY;
-	}
-
-	cur_prog = dev_xdp_prog(dev, mode);
-	/* can't replace attached prog with link */
-	if (link && cur_prog) {
-		NL_SET_ERR_MSG(extack, "Can't replace active XDP program with BPF link");
-		return -EBUSY;
-	}
-	if ((flags & XDP_FLAGS_REPLACE) && cur_prog != old_prog) {
-		NL_SET_ERR_MSG(extack, "Active program does not match expected");
-		return -EEXIST;
-	}
-
-	/* put effective new program into new_prog */
-	if (link)
-		new_prog = link->link.prog;
-
-	if (new_prog) {
-		bool offload = mode == XDP_MODE_HW;
-		enum bpf_xdp_mode other_mode = mode == XDP_MODE_SKB
-					       ? XDP_MODE_DRV : XDP_MODE_SKB;
-
-		if ((flags & XDP_FLAGS_UPDATE_IF_NOEXIST) && cur_prog) {
-			NL_SET_ERR_MSG(extack, "XDP program already attached");
-			return -EBUSY;
-		}
-		if (!offload && dev_xdp_prog(dev, other_mode)) {
-			NL_SET_ERR_MSG(extack, "Native and generic XDP can't be active at the same time");
-			return -EEXIST;
-		}
-		if (!offload && bpf_prog_is_dev_bound(new_prog->aux)) {
-			NL_SET_ERR_MSG(extack, "Using device-bound program without HW_MODE flag is not supported");
-			return -EINVAL;
-		}
-		if (new_prog->expected_attach_type == BPF_XDP_DEVMAP) {
-			NL_SET_ERR_MSG(extack, "BPF_XDP_DEVMAP programs can not be attached to a device");
-			return -EINVAL;
-		}
-		if (new_prog->expected_attach_type == BPF_XDP_CPUMAP) {
-			NL_SET_ERR_MSG(extack, "BPF_XDP_CPUMAP programs can not be attached to a device");
-			return -EINVAL;
-		}
-	}
-
-	/* don't call drivers if the effective program didn't change */
-	if (new_prog != cur_prog) {
-		bpf_op = dev_xdp_bpf_op(dev, mode);
-		if (!bpf_op) {
-			NL_SET_ERR_MSG(extack, "Underlying driver does not support XDP in native mode");
-			return -EOPNOTSUPP;
-		}
-
-		err = dev_xdp_install(dev, mode, bpf_op, extack, flags, new_prog);
-		if (err)
-			return err;
-	}
-
-	if (link)
-		dev_xdp_set_link(dev, mode, link);
-	else
-		dev_xdp_set_prog(dev, mode, new_prog);
-	if (cur_prog)
-		bpf_prog_put(cur_prog);
-
-	return 0;
-}
-
-static int dev_xdp_attach_link(struct net_device *dev,
-			       struct netlink_ext_ack *extack,
-			       struct bpf_xdp_link *link)
-{
-	return dev_xdp_attach(dev, extack, link, NULL, NULL, link->flags);
-}
-
-static int dev_xdp_detach_link(struct net_device *dev,
-			       struct netlink_ext_ack *extack,
-			       struct bpf_xdp_link *link)
-{
-	enum bpf_xdp_mode mode;
-	bpf_op_t bpf_op;
-
-	ASSERT_RTNL();
-
-	mode = dev_xdp_mode(dev, link->flags);
-	if (dev_xdp_link(dev, mode) != link)
-		return -EINVAL;
-
-	bpf_op = dev_xdp_bpf_op(dev, mode);
-	WARN_ON(dev_xdp_install(dev, mode, bpf_op, NULL, 0, NULL));
-	dev_xdp_set_link(dev, mode, NULL);
-	return 0;
-}
-
-static void bpf_xdp_link_release(struct bpf_link *link)
-{
-	struct bpf_xdp_link *xdp_link = container_of(link, struct bpf_xdp_link, link);
-
-	rtnl_lock();
-
-	/* if racing with net_device's tear down, xdp_link->dev might be
-	 * already NULL, in which case link was already auto-detached
-	 */
-	if (xdp_link->dev) {
-		WARN_ON(dev_xdp_detach_link(xdp_link->dev, NULL, xdp_link));
-		xdp_link->dev = NULL;
-	}
-
-	rtnl_unlock();
-}
-
-static int bpf_xdp_link_detach(struct bpf_link *link)
-{
-	bpf_xdp_link_release(link);
-	return 0;
-}
-
-static void bpf_xdp_link_dealloc(struct bpf_link *link)
-{
-	struct bpf_xdp_link *xdp_link = container_of(link, struct bpf_xdp_link, link);
-
-	kfree(xdp_link);
-}
-
-static void bpf_xdp_link_show_fdinfo(const struct bpf_link *link,
-				     struct seq_file *seq)
-{
-	struct bpf_xdp_link *xdp_link = container_of(link, struct bpf_xdp_link, link);
-	u32 ifindex = 0;
-
-	rtnl_lock();
-	if (xdp_link->dev)
-		ifindex = xdp_link->dev->ifindex;
-	rtnl_unlock();
-
-	seq_printf(seq, "ifindex:\t%u\n", ifindex);
-}
-
-static int bpf_xdp_link_fill_link_info(const struct bpf_link *link,
-				       struct bpf_link_info *info)
-{
-	struct bpf_xdp_link *xdp_link = container_of(link, struct bpf_xdp_link, link);
-	u32 ifindex = 0;
-
-	rtnl_lock();
-	if (xdp_link->dev)
-		ifindex = xdp_link->dev->ifindex;
-	rtnl_unlock();
-
-	info->xdp.ifindex = ifindex;
-	return 0;
-}
-
-static int bpf_xdp_link_update(struct bpf_link *link, struct bpf_prog *new_prog,
-			       struct bpf_prog *old_prog)
-{
-	struct bpf_xdp_link *xdp_link = container_of(link, struct bpf_xdp_link, link);
-	enum bpf_xdp_mode mode;
-	bpf_op_t bpf_op;
-	int err = 0;
-
-	rtnl_lock();
-
-	/* link might have been auto-released already, so fail */
-	if (!xdp_link->dev) {
-		err = -ENOLINK;
-		goto out_unlock;
-	}
-
-	if (old_prog && link->prog != old_prog) {
-		err = -EPERM;
-		goto out_unlock;
-	}
-	old_prog = link->prog;
-	if (old_prog == new_prog) {
-		/* no-op, don't disturb drivers */
-		bpf_prog_put(new_prog);
-		goto out_unlock;
-	}
-
-	mode = dev_xdp_mode(xdp_link->dev, xdp_link->flags);
-	bpf_op = dev_xdp_bpf_op(xdp_link->dev, mode);
-	err = dev_xdp_install(xdp_link->dev, mode, bpf_op, NULL,
-			      xdp_link->flags, new_prog);
-	if (err)
-		goto out_unlock;
-
-	old_prog = xchg(&link->prog, new_prog);
-	bpf_prog_put(old_prog);
-
-out_unlock:
-	rtnl_unlock();
-	return err;
-}
-
-static const struct bpf_link_ops bpf_xdp_link_lops = {
-	.release = bpf_xdp_link_release,
-	.dealloc = bpf_xdp_link_dealloc,
-	.detach = bpf_xdp_link_detach,
-	.show_fdinfo = bpf_xdp_link_show_fdinfo,
-	.fill_link_info = bpf_xdp_link_fill_link_info,
-	.update_prog = bpf_xdp_link_update,
-};
-
-int bpf_xdp_link_attach(const union bpf_attr *attr, struct bpf_prog *prog)
-{
-	struct net *net = current->nsproxy->net_ns;
-	struct bpf_link_primer link_primer;
-	struct bpf_xdp_link *link;
-	struct net_device *dev;
-	int err, fd;
-
-	dev = dev_get_by_index(net, attr->link_create.target_ifindex);
-	if (!dev)
-		return -EINVAL;
-
-	link = kzalloc(sizeof(*link), GFP_USER);
-	if (!link) {
-		err = -ENOMEM;
-		goto out_put_dev;
-	}
-
-	bpf_link_init(&link->link, BPF_LINK_TYPE_XDP, &bpf_xdp_link_lops, prog);
-	link->dev = dev;
-	link->flags = attr->link_create.flags;
-
-	err = bpf_link_prime(&link->link, &link_primer);
-	if (err) {
-		kfree(link);
-		goto out_put_dev;
-	}
-
-	rtnl_lock();
-	err = dev_xdp_attach_link(dev, NULL, link);
-	rtnl_unlock();
-
-	if (err) {
-		bpf_link_cleanup(&link_primer);
-		goto out_put_dev;
-	}
-
-	fd = bpf_link_settle(&link_primer);
-	/* link itself doesn't hold dev's refcnt to not complicate shutdown */
-	dev_put(dev);
-	return fd;
-
-out_put_dev:
-	dev_put(dev);
-	return err;
+	return xdp_op(dev, &xdp);
 }
 
 /**
@@ -9269,44 +7127,44 @@ out_put_dev:
  *	@dev: device
  *	@extack: netlink extended ack
  *	@fd: new program fd or negative value to clear
- *	@expected_fd: old program fd that userspace expects to replace or clear
  *	@flags: xdp-related flags
  *
  *	Set or clear a bpf program for a device
  */
 int dev_change_xdp_fd(struct net_device *dev, struct netlink_ext_ack *extack,
-		      int fd, int expected_fd, u32 flags)
+		      int fd, u32 flags)
 {
-	enum bpf_xdp_mode mode = dev_xdp_mode(dev, flags);
-	struct bpf_prog *new_prog = NULL, *old_prog = NULL;
+	const struct net_device_ops *ops = dev->netdev_ops;
+	struct bpf_prog *prog = NULL;
+	xdp_op_t xdp_op, xdp_chk;
 	int err;
 
 	ASSERT_RTNL();
 
+	xdp_op = xdp_chk = ops->ndo_xdp;
+	if (!xdp_op && (flags & (XDP_FLAGS_DRV_MODE | XDP_FLAGS_HW_MODE)))
+		return -EOPNOTSUPP;
+	if (!xdp_op || (flags & XDP_FLAGS_SKB_MODE))
+		xdp_op = generic_xdp_install;
+	if (xdp_op == xdp_chk)
+		xdp_chk = generic_xdp_install;
+
 	if (fd >= 0) {
-		new_prog = bpf_prog_get_type_dev(fd, BPF_PROG_TYPE_XDP,
-						 mode != XDP_MODE_SKB);
-		if (IS_ERR(new_prog))
-			return PTR_ERR(new_prog);
+		if (xdp_chk && __dev_xdp_attached(dev, xdp_chk, NULL))
+			return -EEXIST;
+		if ((flags & XDP_FLAGS_UPDATE_IF_NOEXIST) &&
+		    __dev_xdp_attached(dev, xdp_op, NULL))
+			return -EBUSY;
+
+		prog = bpf_prog_get_type(fd, BPF_PROG_TYPE_XDP);
+		if (IS_ERR(prog))
+			return PTR_ERR(prog);
 	}
 
-	if (expected_fd >= 0) {
-		old_prog = bpf_prog_get_type_dev(expected_fd, BPF_PROG_TYPE_XDP,
-						 mode != XDP_MODE_SKB);
-		if (IS_ERR(old_prog)) {
-			err = PTR_ERR(old_prog);
-			old_prog = NULL;
-			goto err_out;
-		}
-	}
+	err = dev_xdp_install(dev, xdp_op, extack, flags, prog);
+	if (err < 0 && prog)
+		bpf_prog_put(prog);
 
-	err = dev_xdp_attach(dev, extack, NULL, new_prog, old_prog, flags);
-
-err_out:
-	if (err && new_prog)
-		bpf_prog_put(new_prog);
-	if (old_prog)
-		bpf_prog_put(old_prog);
 	return err;
 }
 
@@ -9386,7 +7244,6 @@ static void rollback_registered_many(struct list_head *head)
 		/* Shutdown queueing discipline. */
 		dev_shutdown(dev);
 
-		dev_xdp_uninstall(dev);
 
 		/* Notify protocols, that we are about to destroy
 		 * this device. They should clean all the things.
@@ -9396,16 +7253,13 @@ static void rollback_registered_many(struct list_head *head)
 		if (!dev->rtnl_link_ops ||
 		    dev->rtnl_link_state == RTNL_LINK_INITIALIZED)
 			skb = rtmsg_ifinfo_build_skb(RTM_DELLINK, dev, ~0U, 0,
-						     GFP_KERNEL, NULL, 0);
+						     GFP_KERNEL, NULL);
 
 		/*
 		 *	Flush the unicast and multicast chains
 		 */
 		dev_uc_flush(dev);
 		dev_mc_flush(dev);
-
-		netdev_name_node_alt_flush(dev);
-		netdev_name_node_free(dev->name_node);
 
 		if (dev->netdev_ops->ndo_uninit)
 			dev->netdev_ops->ndo_uninit(dev);
@@ -9447,7 +7301,7 @@ static netdev_features_t netdev_sync_upper_features(struct net_device *lower,
 	netdev_features_t feature;
 	int feature_bit;
 
-	for_each_netdev_feature(upper_disables, feature_bit) {
+	for_each_netdev_feature(&upper_disables, feature_bit) {
 		feature = __NETIF_F_BIT(feature_bit);
 		if (!(upper->wanted_features & feature)
 		    && (features & feature)) {
@@ -9467,19 +7321,17 @@ static void netdev_sync_lower_features(struct net_device *upper,
 	netdev_features_t feature;
 	int feature_bit;
 
-	for_each_netdev_feature(upper_disables, feature_bit) {
+	for_each_netdev_feature(&upper_disables, feature_bit) {
 		feature = __NETIF_F_BIT(feature_bit);
 		if (!(features & feature) && (lower->features & feature)) {
 			netdev_dbg(upper, "Disabling feature %pNF on lower dev %s.\n",
 				   &feature, lower->name);
 			lower->wanted_features &= ~feature;
-			__netdev_update_features(lower);
+			netdev_update_features(lower);
 
 			if (unlikely(lower->features & feature))
 				netdev_WARN(upper, "failed to disable %pNF on %s!\n",
 					    &feature, lower->name);
-			else
-				netdev_features_change(lower);
 		}
 	}
 }
@@ -9535,31 +7387,6 @@ static netdev_features_t netdev_fix_features(struct net_device *dev,
 		features &= ~dev->gso_partial_features;
 	}
 
-	if (!(features & NETIF_F_RXCSUM)) {
-		/* NETIF_F_GRO_HW implies doing RXCSUM since every packet
-		 * successfully merged by hardware must also have the
-		 * checksum verified by hardware.  If the user does not
-		 * want to enable RXCSUM, logically, we should disable GRO_HW.
-		 */
-		if (features & NETIF_F_GRO_HW) {
-			netdev_dbg(dev, "Dropping NETIF_F_GRO_HW since no RXCSUM feature.\n");
-			features &= ~NETIF_F_GRO_HW;
-		}
-	}
-
-	/* LRO/HW-GRO features cannot be combined with RX-FCS */
-	if (features & NETIF_F_RXFCS) {
-		if (features & NETIF_F_LRO) {
-			netdev_dbg(dev, "Dropping LRO feature since RX-FCS is requested.\n");
-			features &= ~NETIF_F_LRO;
-		}
-
-		if (features & NETIF_F_GRO_HW) {
-			netdev_dbg(dev, "Dropping HW-GRO feature since RX-FCS is requested.\n");
-			features &= ~NETIF_F_GRO_HW;
-		}
-	}
-
 	return features;
 }
 
@@ -9580,7 +7407,7 @@ int __netdev_update_features(struct net_device *dev)
 	/* driver might be less strict about feature dependencies */
 	features = netdev_fix_features(dev, features);
 
-	/* some features can't be enabled if they're off on an upper device */
+	/* some features can't be enabled if they're off an an upper device */
 	netdev_for_each_upper_dev_rcu(dev, upper, iter)
 		features = netdev_sync_upper_features(dev, upper, features);
 
@@ -9628,24 +7455,6 @@ sync_lower:
 				udp_tunnel_get_rx_info(dev);
 			} else {
 				udp_tunnel_drop_rx_info(dev);
-			}
-		}
-
-		if (diff & NETIF_F_HW_VLAN_CTAG_FILTER) {
-			if (features & NETIF_F_HW_VLAN_CTAG_FILTER) {
-				dev->features = features;
-				err |= vlan_get_rx_ctag_filter_info(dev);
-			} else {
-				vlan_drop_rx_ctag_filter_info(dev);
-			}
-		}
-
-		if (diff & NETIF_F_HW_VLAN_STAG_FILTER) {
-			if (features & NETIF_F_HW_VLAN_STAG_FILTER) {
-				dev->features = features;
-				err |= vlan_get_rx_stag_filter_info(dev);
-			} else {
-				vlan_drop_rx_stag_filter_info(dev);
 			}
 		}
 
@@ -9704,11 +7513,6 @@ void netif_stacked_transfer_operstate(const struct net_device *rootdev,
 	else
 		netif_dormant_off(dev);
 
-	if (rootdev->operstate == IF_OPER_TESTING)
-		netif_testing_on(dev);
-	else
-		netif_testing_off(dev);
-
 	if (netif_carrier_ok(rootdev))
 		netif_carrier_on(dev);
 	else
@@ -9716,12 +7520,12 @@ void netif_stacked_transfer_operstate(const struct net_device *rootdev,
 }
 EXPORT_SYMBOL(netif_stacked_transfer_operstate);
 
+#ifdef CONFIG_SYSFS
 static int netif_alloc_rx_queues(struct net_device *dev)
 {
 	unsigned int i, count = dev->num_rx_queues;
 	struct netdev_rx_queue *rx;
 	size_t sz = count * sizeof(*rx);
-	int err = 0;
 
 	BUG_ON(count < 1);
 
@@ -9731,38 +7535,11 @@ static int netif_alloc_rx_queues(struct net_device *dev)
 
 	dev->_rx = rx;
 
-	for (i = 0; i < count; i++) {
-		rx[i].dev = dev;
-
-		/* XDP RX-queue setup */
-		err = xdp_rxq_info_reg(&rx[i].xdp_rxq, dev, i);
-		if (err < 0)
-			goto err_rxq_info;
-	}
-	return 0;
-
-err_rxq_info:
-	/* Rollback successful reg's and free other resources */
-	while (i--)
-		xdp_rxq_info_unreg(&rx[i].xdp_rxq);
-	kvfree(dev->_rx);
-	dev->_rx = NULL;
-	return err;
-}
-
-static void netif_free_rx_queues(struct net_device *dev)
-{
-	unsigned int i, count = dev->num_rx_queues;
-
-	/* netif_alloc_rx_queues alloc failed, resources have been unreg'ed */
-	if (!dev->_rx)
-		return;
-
 	for (i = 0; i < count; i++)
-		xdp_rxq_info_unreg(&dev->_rx[i].xdp_rxq);
-
-	kvfree(dev->_rx);
+		rx[i].dev = dev;
+	return 0;
 }
+#endif
 
 static void netdev_init_one_queue(struct net_device *dev,
 				  struct netdev_queue *queue, void *_unused)
@@ -9838,8 +7615,6 @@ int register_netdevice(struct net_device *dev)
 	int ret;
 	struct net *net = dev_net(dev);
 
-	BUILD_BUG_ON(sizeof(netdev_features_t) * BITS_PER_BYTE <
-		     NETDEV_FEATURE_COUNT);
 	BUG_ON(dev_boot_phase);
 	ASSERT_RTNL();
 
@@ -9849,20 +7624,11 @@ int register_netdevice(struct net_device *dev)
 	BUG_ON(dev->reg_state != NETREG_UNINITIALIZED);
 	BUG_ON(!net);
 
-	ret = ethtool_check_ops(dev->ethtool_ops);
-	if (ret)
-		return ret;
-
 	spin_lock_init(&dev->addr_list_lock);
 	netdev_set_addr_lockdep_class(dev);
 
 	ret = dev_get_valid_name(net, dev, dev->name);
 	if (ret < 0)
-		goto out;
-
-	ret = -ENOMEM;
-	dev->name_node = netdev_name_node_head_alloc(dev);
-	if (!dev->name_node)
 		goto out;
 
 	/* Init, if this function is available */
@@ -9871,7 +7637,7 @@ int register_netdevice(struct net_device *dev)
 		if (ret) {
 			if (ret > 0)
 				ret = -EIO;
-			goto err_free_name;
+			goto out;
 		}
 	}
 
@@ -9893,7 +7659,7 @@ int register_netdevice(struct net_device *dev)
 	/* Transfer changeable features to wanted_features and enable
 	 * software offloads (GSO and GRO).
 	 */
-	dev->hw_features |= (NETIF_F_SOFT_FEATURES | NETIF_F_SOFT_FEATURES_OFF);
+	dev->hw_features |= NETIF_F_SOFT_FEATURES;
 	dev->features |= NETIF_F_SOFT_FEATURES;
 
 	if (dev->netdev_ops->ndo_udp_tunnel_add) {
@@ -9938,10 +7704,8 @@ int register_netdevice(struct net_device *dev)
 		goto err_uninit;
 
 	ret = netdev_register_kobject(dev);
-	if (ret) {
-		dev->reg_state = NETREG_UNREGISTERED;
+	if (ret)
 		goto err_uninit;
-	}
 	dev->reg_state = NETREG_REGISTERED;
 
 	__netdev_update_features(dev);
@@ -9972,16 +7736,7 @@ int register_netdevice(struct net_device *dev)
 	ret = notifier_to_errno(ret);
 	if (ret) {
 		rollback_registered(dev);
-		rcu_barrier();
-
 		dev->reg_state = NETREG_UNREGISTERED;
-		/* We should put the kobject that hold in
-		 * netdev_unregister_kobject(), otherwise
-		 * the net device cannot be freed when
-		 * driver calls free_netdev(), because the
-		 * kobject is being hold.
-		 */
-		kobject_put(&dev->dev.kobj);
 	}
 	/*
 	 *	Prevent userspace races by waiting until the network
@@ -9999,8 +7754,6 @@ err_uninit:
 		dev->netdev_ops->ndo_uninit(dev);
 	if (dev->priv_destructor)
 		dev->priv_destructor(dev);
-err_free_name:
-	netdev_name_node_free(dev->name_node);
 	goto out;
 }
 EXPORT_SYMBOL(register_netdevice);
@@ -10036,9 +7789,6 @@ int init_dummy_netdev(struct net_device *dev)
 	set_bit(__LINK_STATE_PRESENT, &dev->state);
 	set_bit(__LINK_STATE_START, &dev->state);
 
-	/* napi_busy_loop stats accounting wants this */
-	dev_net_set(dev, &init_net);
-
 	/* Note : We dont allocate pcpu_refcnt for dummy devices,
 	 * because users of this 'device' dont need to change
 	 * its refcount.
@@ -10066,8 +7816,7 @@ int register_netdev(struct net_device *dev)
 {
 	int err;
 
-	if (rtnl_lock_killable())
-		return -EINTR;
+	rtnl_lock();
 	err = register_netdevice(dev);
 	rtnl_unlock();
 	return err;
@@ -10084,8 +7833,6 @@ int netdev_refcnt_read(const struct net_device *dev)
 }
 EXPORT_SYMBOL(netdev_refcnt_read);
 
-#define WAIT_REFS_MIN_MSECS 1
-#define WAIT_REFS_MAX_MSECS 250
 /**
  * netdev_wait_allrefs - wait until all references are gone.
  * @dev: target net_device
@@ -10101,7 +7848,7 @@ EXPORT_SYMBOL(netdev_refcnt_read);
 static void netdev_wait_allrefs(struct net_device *dev)
 {
 	unsigned long rebroadcast_time, warning_time;
-	int wait = 0, refcnt;
+	int refcnt;
 
 	linkwatch_forget_dev(dev);
 
@@ -10119,6 +7866,7 @@ static void netdev_wait_allrefs(struct net_device *dev)
 			rcu_barrier();
 			rtnl_lock();
 
+			call_netdevice_notifiers(NETDEV_UNREGISTER_FINAL, dev);
 			if (test_bit(__LINK_STATE_LINKWATCH_PENDING,
 				     &dev->state)) {
 				/* We must not have linkwatch events
@@ -10135,17 +7883,11 @@ static void netdev_wait_allrefs(struct net_device *dev)
 			rebroadcast_time = jiffies;
 		}
 
-		if (!wait) {
-			rcu_barrier();
-			wait = WAIT_REFS_MIN_MSECS;
-		} else {
-			msleep(wait);
-			wait = min(wait << 1, WAIT_REFS_MAX_MSECS);
-		}
+		msleep(250);
 
 		refcnt = netdev_refcnt_read(dev);
 
-		if (refcnt && time_after(jiffies, warning_time + 10 * HZ)) {
+		if (time_after(jiffies, warning_time + 10 * HZ)) {
 			pr_emerg("unregister_netdevice: waiting for %s to become free. Usage count = %d\n",
 				 dev->name, refcnt);
 			warning_time = jiffies;
@@ -10180,19 +7922,6 @@ static void netdev_wait_allrefs(struct net_device *dev)
 void netdev_run_todo(void)
 {
 	struct list_head list;
-#ifdef CONFIG_LOCKDEP
-	struct list_head unlink_list;
-
-	list_replace_init(&net_unlink_list, &unlink_list);
-
-	while (!list_empty(&unlink_list)) {
-		struct net_device *dev = list_first_entry(&unlink_list,
-							  struct net_device,
-							  unlink_list);
-		list_del_init(&dev->unlink_list);
-		dev->nested_level = dev->lower_level - 1;
-	}
-#endif
 
 	/* Snapshot list, allow later requests */
 	list_replace_init(&net_todo_list, &list);
@@ -10208,6 +7937,10 @@ void netdev_run_todo(void)
 		struct net_device *dev
 			= list_first_entry(&list, struct net_device, todo_list);
 		list_del(&dev->todo_list);
+
+		rtnl_lock();
+		call_netdevice_notifiers(NETDEV_UNREGISTER_FINAL, dev);
+		__rtnl_unlock();
 
 		if (unlikely(dev->reg_state != NETREG_UNREGISTERING)) {
 			pr_err("network todo '%s' but state %d\n",
@@ -10226,9 +7959,8 @@ void netdev_run_todo(void)
 		BUG_ON(!list_empty(&dev->ptype_specific));
 		WARN_ON(rcu_access_pointer(dev->ip_ptr));
 		WARN_ON(rcu_access_pointer(dev->ip6_ptr));
-#if IS_ENABLED(CONFIG_DECNET)
 		WARN_ON(dev->dn_ptr);
-#endif
+
 		if (dev->priv_destructor)
 			dev->priv_destructor(dev);
 		if (dev->needs_free_netdev)
@@ -10304,40 +8036,6 @@ struct rtnl_link_stats64 *dev_get_stats(struct net_device *dev,
 }
 EXPORT_SYMBOL(dev_get_stats);
 
-/**
- *	dev_fetch_sw_netstats - get per-cpu network device statistics
- *	@s: place to store stats
- *	@netstats: per-cpu network stats to read from
- *
- *	Read per-cpu network statistics and populate the related fields in @s.
- */
-void dev_fetch_sw_netstats(struct rtnl_link_stats64 *s,
-			   const struct pcpu_sw_netstats __percpu *netstats)
-{
-	int cpu;
-
-	for_each_possible_cpu(cpu) {
-		const struct pcpu_sw_netstats *stats;
-		struct pcpu_sw_netstats tmp;
-		unsigned int start;
-
-		stats = per_cpu_ptr(netstats, cpu);
-		do {
-			start = u64_stats_fetch_begin_irq(&stats->syncp);
-			tmp.rx_packets = stats->rx_packets;
-			tmp.rx_bytes   = stats->rx_bytes;
-			tmp.tx_packets = stats->tx_packets;
-			tmp.tx_bytes   = stats->tx_bytes;
-		} while (u64_stats_fetch_retry_irq(&stats->syncp, start));
-
-		s->rx_packets += tmp.rx_packets;
-		s->rx_bytes   += tmp.rx_bytes;
-		s->tx_packets += tmp.tx_packets;
-		s->tx_bytes   += tmp.tx_bytes;
-	}
-}
-EXPORT_SYMBOL_GPL(dev_fetch_sw_netstats);
-
 struct netdev_queue *dev_ingress_queue_create(struct net_device *dev)
 {
 	struct netdev_queue *queue = dev_ingress_queue(dev);
@@ -10402,10 +8100,12 @@ struct net_device *alloc_netdev_mqs(int sizeof_priv, const char *name,
 		return NULL;
 	}
 
+#ifdef CONFIG_SYSFS
 	if (rxqs < 1) {
 		pr_err("alloc_netdev: Unable to allocate device with zero RX queues\n");
 		return NULL;
 	}
+#endif
 
 	alloc_size = sizeof(struct net_device);
 	if (sizeof_priv) {
@@ -10437,12 +8137,6 @@ struct net_device *alloc_netdev_mqs(int sizeof_priv, const char *name,
 
 	dev->gso_max_size = GSO_MAX_SIZE;
 	dev->gso_max_segs = GSO_MAX_SEGS;
-	dev->upper_level = 1;
-	dev->lower_level = 1;
-#ifdef CONFIG_LOCKDEP
-	dev->nested_level = 0;
-	INIT_LIST_HEAD(&dev->unlink_list);
-#endif
 
 	INIT_LIST_HEAD(&dev->napi_list);
 	INIT_LIST_HEAD(&dev->unreg_list);
@@ -10452,7 +8146,6 @@ struct net_device *alloc_netdev_mqs(int sizeof_priv, const char *name,
 	INIT_LIST_HEAD(&dev->adj_list.lower);
 	INIT_LIST_HEAD(&dev->ptype_all);
 	INIT_LIST_HEAD(&dev->ptype_specific);
-	INIT_LIST_HEAD(&dev->net_notifier_list);
 #ifdef CONFIG_NET_SCHED
 	hash_init(dev->qdisc_hash);
 #endif
@@ -10469,10 +8162,12 @@ struct net_device *alloc_netdev_mqs(int sizeof_priv, const char *name,
 	if (netif_alloc_netdev_queues(dev))
 		goto free_all;
 
+#ifdef CONFIG_SYSFS
 	dev->num_rx_queues = rxqs;
 	dev->real_num_rx_queues = rxqs;
 	if (netif_alloc_rx_queues(dev))
 		goto free_all;
+#endif
 
 	strcpy(dev->name, name);
 	dev->name_assign_type = name_assign_type;
@@ -10508,10 +8203,13 @@ EXPORT_SYMBOL(alloc_netdev_mqs);
 void free_netdev(struct net_device *dev)
 {
 	struct napi_struct *p, *n;
+	struct bpf_prog *prog;
 
 	might_sleep();
 	netif_free_tx_queues(dev);
-	netif_free_rx_queues(dev);
+#ifdef CONFIG_SYSFS
+	kvfree(dev->_rx);
+#endif
 
 	kfree(rcu_dereference_protected(dev->ingress_queue, 1));
 
@@ -10523,8 +8221,12 @@ void free_netdev(struct net_device *dev)
 
 	free_percpu(dev->pcpu_refcnt);
 	dev->pcpu_refcnt = NULL;
-	free_percpu(dev->xdp_bulkq);
-	dev->xdp_bulkq = NULL;
+
+	prog = rcu_dereference_protected(dev->xdp_prog, 1);
+	if (prog) {
+		bpf_prog_put(prog);
+		static_key_slow_dec(&generic_xdp_needed);
+	}
 
 	/*  Compatibility with error handling in drivers */
 	if (dev->reg_state == NETREG_UNINITIALIZED) {
@@ -10638,8 +8340,7 @@ EXPORT_SYMBOL(unregister_netdev);
 
 int dev_change_net_namespace(struct net_device *dev, struct net *net, const char *pat)
 {
-	struct net *net_old = dev_net(dev);
-	int err, new_nsid, new_ifindex;
+	int err, new_nsid;
 
 	ASSERT_RTNL();
 
@@ -10654,7 +8355,7 @@ int dev_change_net_namespace(struct net_device *dev, struct net *net, const char
 
 	/* Get out if there is nothing todo */
 	err = 0;
-	if (net_eq(net_old, net))
+	if (net_eq(dev_net(dev), net))
 		goto out;
 
 	/* Pick the destination device name, and ensure
@@ -10665,8 +8366,7 @@ int dev_change_net_namespace(struct net_device *dev, struct net *net, const char
 		/* We get here if we can't use the current device name */
 		if (!pat)
 			goto out;
-		err = dev_get_valid_name(net, dev, pat);
-		if (err < 0)
+		if (dev_get_valid_name(net, dev, pat) < 0)
 			goto out;
 	}
 
@@ -10678,6 +8378,7 @@ int dev_change_net_namespace(struct net_device *dev, struct net *net, const char
 	dev_close(dev);
 
 	/* And unlink it from device chain */
+	err = -ENODEV;
 	unlist_netdevice(dev);
 
 	synchronize_net();
@@ -10694,16 +8395,12 @@ int dev_change_net_namespace(struct net_device *dev, struct net *net, const char
 	 */
 	call_netdevice_notifiers(NETDEV_UNREGISTER, dev);
 	rcu_barrier();
-
-	new_nsid = peernet2id_alloc(dev_net(dev), net, GFP_KERNEL);
-	/* If there is an ifindex conflict assign a new one */
-	if (__dev_get_by_index(net, dev->ifindex))
-		new_ifindex = dev_new_index(net);
+	call_netdevice_notifiers(NETDEV_UNREGISTER_FINAL, dev);
+	if (dev->rtnl_link_ops && dev->rtnl_link_ops->get_link_net)
+		new_nsid = peernet2id_alloc(dev_net(dev), net);
 	else
-		new_ifindex = dev->ifindex;
-
-	rtmsg_ifinfo_newnet(RTM_DELLINK, dev, ~0U, GFP_KERNEL, &new_nsid,
-			    new_ifindex);
+		new_nsid = peernet2id(dev_net(dev), net);
+	rtmsg_ifinfo_newnet(RTM_DELLINK, dev, ~0U, GFP_KERNEL, &new_nsid);
 
 	/*
 	 *	Flush the unicast and multicast chains
@@ -10715,12 +8412,12 @@ int dev_change_net_namespace(struct net_device *dev, struct net *net, const char
 	kobject_uevent(&dev->dev.kobj, KOBJ_REMOVE);
 	netdev_adjacent_del_links(dev);
 
-	/* Move per-net netdevice notifiers that are following the netdevice */
-	move_netdevice_notifiers_dev_net(dev, net);
-
 	/* Actually switch the network namespace */
 	dev_net_set(dev, net);
-	dev->ifindex = new_ifindex;
+
+	/* If there is an ifindex conflict assign a new one */
+	if (__dev_get_by_index(net, dev->ifindex))
+		dev->ifindex = dev_new_index(net);
 
 	/* Send a netdev-add uevent to the new namespace */
 	kobject_uevent(&dev->dev.kobj, KOBJ_ADD);
@@ -10728,12 +8425,6 @@ int dev_change_net_namespace(struct net_device *dev, struct net *net, const char
 
 	/* Fixup kobjects */
 	err = device_rename(&dev->dev, dev->name);
-	WARN_ON(err);
-
-	/* Adapt owner in case owning user namespace of target network
-	 * namespace is different from the original one.
-	 */
-	err = netdev_change_owner(dev, net_old, net);
 	WARN_ON(err);
 
 	/* Add the device back in the hashes */
@@ -10854,7 +8545,7 @@ static struct hlist_head * __net_init netdev_create_hash(void)
 	int i;
 	struct hlist_head *hash;
 
-	hash = kmalloc_array(NETDEV_HASHENTRIES, sizeof(*hash), GFP_KERNEL);
+	hash = kmalloc(sizeof(*hash) * NETDEV_HASHENTRIES, GFP_KERNEL);
 	if (hash != NULL)
 		for (i = 0; i < NETDEV_HASHENTRIES; i++)
 			INIT_HLIST_HEAD(&hash[i]);
@@ -10865,9 +8556,6 @@ static struct hlist_head * __net_init netdev_create_hash(void)
 /* Initialize per network namespace state */
 static int __net_init netdev_init(struct net *net)
 {
-	BUILD_BUG_ON(GRO_HASH_BUCKETS >
-		     8 * sizeof_field(struct napi_struct, gro_bitmask));
-
 	if (net != &init_net)
 		INIT_LIST_HEAD(&net->dev_base_head);
 
@@ -10878,8 +8566,6 @@ static int __net_init netdev_init(struct net *net)
 	net->dev_index_head = netdev_create_hash();
 	if (net->dev_index_head == NULL)
 		goto err_idx;
-
-	RAW_INIT_NOTIFIER_HEAD(&net->netdev_chain);
 
 	return 0;
 
@@ -10976,8 +8662,6 @@ static void __net_exit netdev_exit(struct net *net)
 {
 	kfree(net->dev_name_head);
 	kfree(net->dev_index_head);
-	if (net != &init_net)
-		WARN_ON_ONCE(!list_empty(&net->dev_base_head));
 }
 
 static struct pernet_operations __net_initdata netdev_net_ops = {
@@ -11007,8 +8691,6 @@ static void __net_exit default_device_exit(struct net *net)
 
 		/* Push remaining network devices to init_net */
 		snprintf(fb_name, IFNAMSIZ, "dev%d", dev->ifindex);
-		if (__dev_get_by_name(&init_net, fb_name))
-			snprintf(fb_name, IFNAMSIZ, "dev%%d");
 		err = dev_change_net_namespace(dev, &init_net, fb_name);
 		if (err) {
 			pr_emerg("%s: failed to move %s to init_net: %d\n",
@@ -11131,9 +8813,6 @@ static int __init net_dev_init(void)
 
 		skb_queue_head_init(&sd->input_pkt_queue);
 		skb_queue_head_init(&sd->process_queue);
-#ifdef CONFIG_XFRM_OFFLOAD
-		skb_queue_head_init(&sd->xfrm_backlog);
-#endif
 		INIT_LIST_HEAD(&sd->poll_list);
 		sd->output_queue_tailp = &sd->output_queue;
 #ifdef CONFIG_RPS
@@ -11142,7 +8821,6 @@ static int __init net_dev_init(void)
 		sd->cpu = i;
 #endif
 
-		init_gro_hash(&sd->backlog);
 		sd->backlog.poll = process_backlog;
 		sd->backlog.weight = weight_p;
 	}
