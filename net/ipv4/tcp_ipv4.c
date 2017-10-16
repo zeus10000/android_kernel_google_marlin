@@ -1783,8 +1783,9 @@ do_time_wait:
 			sk = sk2;
 			goto process;
 		}
-		/* Fall through to ACK */
 	}
+		/* to ACK */
+		/* fall through */
 	case TCP_TW_ACK:
 		tcp_v4_timewait_ack(sk, skb);
 		break;
