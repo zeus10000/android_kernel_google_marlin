@@ -54,6 +54,9 @@ struct bpf_sock_progs {
 	struct bpf_prog *bpf_verdict;
 };
 
+#define SOCK_CREATE_FLAG_MASK \
+	(BPF_F_NUMA_NODE | BPF_F_RDONLY | BPF_F_WRONLY)
+
 struct bpf_stab {
 	struct bpf_map map;
 	struct sock **sock_map;
