@@ -20,6 +20,9 @@
 #define ARRAY_CREATE_FLAG_MASK \
 	(BPF_F_RDONLY | BPF_F_WRONLY)
 
+#define ARRAY_CREATE_FLAG_MASK \
+	(BPF_F_NUMA_NODE | BPF_F_RDONLY | BPF_F_WRONLY)
+
 static void bpf_array_free_percpu(struct bpf_array *array)
 {
 	int i;
