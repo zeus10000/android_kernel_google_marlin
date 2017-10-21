@@ -2798,9 +2798,11 @@ static void find_good_pkt_pointers(struct bpf_verifier_state *state,
 				   enum bpf_reg_type type)
 {
 	struct bpf_reg_state *regs = state->regs, *reg;
+	u16 new_range;
 	int i;
 
-	if (dst_reg->off < 0)
+	if (dst_reg->off < 0 ||
+	    (dst_reg->off == 0 && range_right_open))
 		/* This doesn't give us any range */
 		return;
 
@@ -2811,9 +2813,13 @@ static void find_good_pkt_pointers(struct bpf_verifier_state *state,
 		 */
 		return;
 
-	/* LLVM can generate four kind of checks:
+	new_range = dst_reg->off;
+	if (range_right_open)
+		new_range--;
+
+	/* Examples for register markings:
 	 *
-	 * Type 1/2:
+	 * pkt_data in dst register:
 	 *
 	 *   r2 = r3;
 	 *   r2 += 8;
@@ -2830,7 +2836,7 @@ static void find_good_pkt_pointers(struct bpf_verifier_state *state,
 	 *     r2=pkt(id=n,off=8,r=0)
 	 *     r3=pkt(id=n,off=0,r=0)
 	 *
-	 * Type 3/4:
+	 * pkt_data in src register:
 	 *
 	 *   r2 = r3;
 	 *   r2 += 8;
@@ -2848,7 +2854,9 @@ static void find_good_pkt_pointers(struct bpf_verifier_state *state,
 	 *     r3=pkt(id=n,off=0,r=0)
 	 *
 	 * Find register r3 and mark its range as r3=pkt(id=n,off=0,r=8)
-	 * so that range of bytes [r3, r3 + 8) is safe to access.
+	 * or r3=pkt(id=n,off=0,r=8-1), so that range of bytes [r3, r3 + 8)
+	 * and [r3, r3 + 8-1) respectively is safe to access depending on
+	 * the check.
 	 */
 
 	/* If our ids match, then we must have the same max_value.  And we
@@ -2859,7 +2867,7 @@ static void find_good_pkt_pointers(struct bpf_verifier_state *state,
 	for (i = 0; i < MAX_BPF_REG; i++)
 		if (regs[i].type == type && regs[i].id == dst_reg->id)
 			/* keep the maximum range already checked */
-			regs[i].range = max_t(u16, regs[i].range, dst_reg->off);
+			regs[i].range = max(regs[i].range, new_range);
 
 	for (i = 0; i < MAX_BPF_STACK; i += BPF_REG_SIZE) {
 		if (state->stack_slot_type[i] != STACK_SPILL)
