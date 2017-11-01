@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: LGPL-2.1+ WITH Linux-syscall-note */
 /*
  * nilfs2_fs.h - NILFS2 on-disk structures and common declarations.
  *
