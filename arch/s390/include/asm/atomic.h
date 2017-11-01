@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Copyright IBM Corp. 1999, 2009
  * Author(s): Martin Schwidefsky <schwidefsky@de.ibm.com>,

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 #include <linux/spinlock.h>
 #include <linux/list.h>
 #include <target/iscsi/iscsi_transport.h>

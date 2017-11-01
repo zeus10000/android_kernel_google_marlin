@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _XEN_SMP_H
 
 extern void xen_send_IPI_mask(const struct cpumask *mask,

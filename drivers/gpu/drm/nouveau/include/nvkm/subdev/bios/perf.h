@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __NVBIOS_PERF_H__
 #define __NVBIOS_PERF_H__
 u16 nvbios_perf_table(struct nvkm_bios *, u8 *ver, u8 *hdr,

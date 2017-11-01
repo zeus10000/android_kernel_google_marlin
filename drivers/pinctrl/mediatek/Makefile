@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0
 # Core
 obj-$(CONFIG_PINCTRL_MTK_COMMON)	+= pinctrl-mtk-common.o
 

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __NVBIOS_CSTEP_H__
 #define __NVBIOS_CSTEP_H__
 u16 nvbios_cstepTe(struct nvkm_bios *,

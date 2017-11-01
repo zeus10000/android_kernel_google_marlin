@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0
 obj-y := cpu.o system.o irq-common.o
 
 obj-$(CONFIG_SOC_IMX1) += mm-imx1.o

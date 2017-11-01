@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Code for tracing calls in Linux kernel.
  * Copyright (C) 2009 Helge Deller <deller@gmx.de>

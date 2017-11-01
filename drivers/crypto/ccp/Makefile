@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0
 obj-$(CONFIG_CRYPTO_DEV_CCP_DD) += ccp.o
 ccp-objs := ccp-dev.o ccp-ops.o ccp-platform.o
 ccp-$(CONFIG_PCI) += ccp-pci.o

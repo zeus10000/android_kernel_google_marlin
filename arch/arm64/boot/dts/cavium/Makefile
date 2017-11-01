@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0
 dtb-$(CONFIG_ARCH_THUNDER) += thunder-88xx.dtb
 
 always		:= $(dtb-y)

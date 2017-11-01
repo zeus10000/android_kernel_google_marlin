@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0
 # List of files in the vdso, has to be asm only for now
 
 obj-vdso32 = gettimeofday.o clock_getres.o clock_gettime.o note.o

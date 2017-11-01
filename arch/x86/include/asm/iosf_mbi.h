@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * iosf_mbi.h: Intel OnChip System Fabric MailBox access support
  */

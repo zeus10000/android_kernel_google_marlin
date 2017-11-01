@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0
 CFLAGS = -Wall
 BINARIES = execveat
 DEPS = execveat.symlink execveat.denatured script subdir

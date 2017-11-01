@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /* SandyBridge-EP/IvyTown uncore support */
 #include "perf_event_intel_uncore.h"
 
