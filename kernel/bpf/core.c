@@ -1721,6 +1721,8 @@ static void bpf_prog_free_deferred(struct work_struct *work)
 	struct bpf_prog_aux *aux;
 
 	aux = container_of(work, struct bpf_prog_aux, work);
+	if (bpf_prog_is_dev_bound(aux))
+		bpf_prog_offload_destroy(aux->prog);
 	bpf_jit_free(aux->prog);
 }
 
