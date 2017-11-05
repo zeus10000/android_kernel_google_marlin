@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 #include <linux/fs.h>
+#include <linux/bpf-cgroup.h>
 
 #ifdef CONFIG_CGROUP_DEVICE
 extern int __devcgroup_inode_permission(struct inode *inode, int mask);
