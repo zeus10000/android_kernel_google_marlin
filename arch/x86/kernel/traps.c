@@ -46,7 +46,6 @@
 #include <linux/edac.h>
 #endif
 
-#include <asm/kmemcheck.h>
 #include <asm/stacktrace.h>
 #include <asm/processor.h>
 #include <asm/debugreg.h>

@@ -15,7 +15,6 @@
 #define _LINUX_SKBUFF_H
 
 #include <linux/kernel.h>
-#include <linux/kmemcheck.h>
 #include <linux/compiler.h>
 #include <linux/time.h>
 #include <linux/bug.h>
@@ -599,7 +598,6 @@ struct sk_buff {
 	/* Following fields are _not_ copied in __copy_skb_header()
 	 * Note that queue_mapping is here mostly to fill a hole.
 	 */
-	kmemcheck_bitfield_begin(flags1);
 	__u16			queue_mapping;
 
 /* if you move cloned around you also must adapt those constants */

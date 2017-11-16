@@ -2971,8 +2971,6 @@ void lockdep_init_map(struct lockdep_map *lock, const char *name,
 {
 	int i;
 
-	kmemcheck_mark_initialized(lock, sizeof(*lock));
-
 	for (i = 0; i < NR_LOCKDEP_CACHING_CLASSES; i++)
 		lock->class_cache[i] = NULL;
 

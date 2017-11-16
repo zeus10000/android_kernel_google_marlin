@@ -22,7 +22,6 @@
 #include <linux/random.h>
 #include <linux/wait.h>
 #include <linux/fcntl.h>	/* For O_CLOEXEC and O_NONBLOCK */
-#include <linux/kmemcheck.h>
 #include <linux/rcupdate.h>
 #include <linux/once.h>
 
@@ -110,9 +109,7 @@ struct socket_wq {
 struct socket {
 	socket_state		state;
 
-	kmemcheck_bitfield_begin(type);
 	short			type;
-	kmemcheck_bitfield_end(type);
 
 	unsigned long		flags;
 
