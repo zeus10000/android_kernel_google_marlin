@@ -750,6 +750,8 @@ const struct bpf_verifier_ops perf_event_verifier_ops = {
 
 static DEFINE_MUTEX(bpf_event_mutex);
 
+#define BPF_TRACE_MAX_PROGS 64
+
 int perf_event_attach_bpf_prog(struct perf_event *event,
 			       struct bpf_prog *prog)
 {
