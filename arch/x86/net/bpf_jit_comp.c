@@ -1140,9 +1140,11 @@ struct bpf_prog *bpf_int_jit_compile(struct bpf_prog *prog)
 {
 	struct bpf_binary_header *header = NULL;
 	struct bpf_prog *tmp, *orig_prog = prog;
+	struct x64_jit_data *jit_data;
 	int proglen, oldproglen = 0;
 	struct jit_context ctx = {};
 	bool tmp_blinded = false;
+	bool extra_pass = false;
 	u8 *image = NULL;
 	int *addrs;
 	int pass;
@@ -1183,7 +1185,7 @@ struct bpf_prog *bpf_int_jit_compile(struct bpf_prog *prog)
 	addrs = kmalloc(prog->len * sizeof(*addrs), GFP_KERNEL);
 	if (!addrs) {
 		prog = orig_prog;
-		goto out;
+		goto out_addrs;
 	}
 
 	/* Before first pass, make a rough estimation of addrs[]
@@ -1252,8 +1254,12 @@ skip_init_addrs:
 		prog = orig_prog;
 	}
 
+	if (!prog->is_func || extra_pass) {
 out_addrs:
-	kfree(addrs);
+		kfree(addrs);
+		kfree(jit_data);
+		prog->aux->jit_data = NULL;
+	}
 out:
 	if (tmp_blinded)
 		bpf_jit_prog_release_other(prog, prog == orig_prog ?
