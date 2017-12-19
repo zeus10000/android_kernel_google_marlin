@@ -1651,9 +1651,7 @@ static int check_mem_access(struct bpf_verifier_env *env, int insn_idx, u32 regn
 	if (!err && size < BPF_REG_SIZE && value_regno >= 0 && t == BPF_READ &&
 	    regs[value_regno].type == SCALAR_VALUE) {
 		/* b/h/w load zero-extends, mark upper bits as known 0 */
-		regs[value_regno].var_off =
-			tnum_cast(regs[value_regno].var_off, size);
-		__update_reg_bounds(&regs[value_regno]);
+		coerce_reg_to_size(&regs[value_regno], size);
 	}
 	return err;
 }
@@ -2927,8 +2925,8 @@ static int adjust_scalar_min_max_vals(struct bpf_verifier_env *env,
 
 	if (BPF_CLASS(insn->code) != BPF_ALU64) {
 		/* 32-bit ALU ops are (32,32)->64 */
-		coerce_reg_to_32(dst_reg);
-		coerce_reg_to_32(&src_reg);
+		coerce_reg_to_size(dst_reg, 4);
+		coerce_reg_to_size(&src_reg, 4);
 	}
 	smin_val = src_reg.smin_value;
 	smax_val = src_reg.smax_value;
@@ -3276,10 +3274,7 @@ static int check_alu_op(struct bpf_verifier_env *env, struct bpf_insn *insn)
 					return -EACCES;
 				}
 				mark_reg_unknown(env, regs, insn->dst_reg);
-				/* high 32 bits are known zero. */
-				regs[insn->dst_reg].var_off = tnum_cast(
-						regs[insn->dst_reg].var_off, 4);
-				__update_reg_bounds(&regs[insn->dst_reg]);
+				coerce_reg_to_size(&regs[insn->dst_reg], 4);
 			}
 		} else {
 			/* case: R = imm
