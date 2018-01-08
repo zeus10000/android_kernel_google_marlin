@@ -7,6 +7,7 @@
  * Copyright (C) 2012 ARM Ltd.
  */
 
+#include <linux/arm_sdei.h>
 #include <linux/sched.h>
 #include <linux/mm.h>
 #include <linux/dma-mapping.h>
@@ -132,6 +133,10 @@ int main(void)
   BLANK();
 #ifdef CONFIG_UNMAP_KERNEL_AT_EL0
   DEFINE(TRAMP_VALIAS,		TRAMP_VALIAS);
+#endif
+#ifdef CONFIG_ARM_SDE_INTERFACE
+  DEFINE(SDEI_EVENT_INTREGS,	offsetof(struct sdei_registered_event, interrupted_regs));
+  DEFINE(SDEI_EVENT_PRIORITY,	offsetof(struct sdei_registered_event, priority));
 #endif
   return 0;
 }
