@@ -14,7 +14,7 @@
 #include <linux/uaccess.h>
 #include <linux/ctype.h>
 #include <linux/kprobes.h>
-#include <asm/kprobes.h>
+#include <linux/error-injection.h>
 
 #include "trace_probe.h"
 #include "trace.h"
