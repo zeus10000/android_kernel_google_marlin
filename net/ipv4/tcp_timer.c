@@ -263,6 +263,7 @@ static int tcp_write_timeout(struct sock *sk)
 		tcp_write_err(sk);
 		return 1;
 	}
+
 	return 0;
 }
 
