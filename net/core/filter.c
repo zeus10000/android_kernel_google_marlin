@@ -3256,6 +3256,22 @@ BPF_CALL_5(bpf_getsockopt, struct bpf_sock_ops_kern *, bpf_sock,
 		} else {
 			goto err_clear;
 		}
+#if IS_ENABLED(CONFIG_IPV6)
+	} else if (level == SOL_IPV6) {
+		struct ipv6_pinfo *np = inet6_sk(sk);
+
+		if (optlen != sizeof(int) || sk->sk_family != AF_INET6)
+			goto err_clear;
+
+		/* Only some options are supported */
+		switch (optname) {
+		case IPV6_TCLASS:
+			*((int *)optval) = (int)np->tclass;
+			break;
+		default:
+			goto err_clear;
+		}
+#endif
 	} else {
 		goto err_clear;
 	}
@@ -3726,6 +3742,7 @@ static bool sock_ops_is_valid_access(int off, int size,
 	if (type == BPF_WRITE) {
 		switch (off) {
 		case offsetof(struct bpf_sock_ops, reply):
+		case offsetof(struct bpf_sock_ops, sk_txhash):
 			if (size != size_default)
 				return false;
 			break;
@@ -4544,7 +4561,8 @@ static u32 sock_ops_convert_ctx_access(enum bpf_access_type type,
 		break;
 
 	case offsetof(struct bpf_sock_ops, sk_txhash):
-		SOCK_OPS_GET_FIELD(sk_txhash, sk_txhash, struct sock);
+		SOCK_OPS_GET_OR_SET_FIELD(sk_txhash, sk_txhash,
+					  struct sock, type);
 		break;
 
 	case offsetof(struct bpf_sock_ops, bytes_received):
@@ -4555,6 +4573,7 @@ static u32 sock_ops_convert_ctx_access(enum bpf_access_type type,
 	case offsetof(struct bpf_sock_ops, bytes_acked):
 		SOCK_OPS_GET_FIELD(bytes_acked, bytes_acked, struct tcp_sock);
 		break;
+
 	}
 	return insn - insn_buf;
 }
