@@ -264,7 +264,7 @@ static void put_cpu_map_entry(struct bpf_cpu_map_entry *rcpu)
 	if (atomic_dec_and_test(&rcpu->refcnt)) {
 		/* The queue should be empty at this point */
 		__cpu_map_ring_cleanup(rcpu->queue);
-		ptr_ring_cleanup(rcpu->queue);
+		ptr_ring_cleanup(rcpu->queue, NULL);
 		kfree(rcpu->queue);
 		kfree(rcpu);
 	}
@@ -412,7 +412,7 @@ static struct bpf_cpu_map_entry *__cpu_map_entry_alloc(u32 qsize, u32 cpu,
 	return rcpu;
 
 free_ptr_ring:
-	ptr_ring_cleanup(rcpu->queue);
+	ptr_ring_cleanup(rcpu->queue, NULL);
 free_queue:
 	kfree(rcpu->queue);
 free_bulkq:
