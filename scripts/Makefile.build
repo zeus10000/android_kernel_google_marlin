@@ -65,15 +65,6 @@ ifneq ($(hostprogs-y)$(hostprogs-m)$(hostlibs-y)$(hostlibs-m)$(hostcxxlibs-y)$(h
 include scripts/Makefile.host
 endif
 
-ifneq ($(KBUILD_SRC),)
-# Create output directory if not already present
-_dummy := $(shell [ -d $(obj) ] || mkdir -p $(obj))
-
-# Create directories for object files if directory does not exist
-# Needed when obj-y := dir/file.o syntax is used
-_dummy := $(foreach d,$(obj-dirs), $(shell [ -d $(d) ] || mkdir -p $(d)))
-endif
-
 ifndef obj
 $(warning kbuild: Makefile.build is included improperly)
 endif
@@ -85,8 +76,8 @@ lib-target := $(obj)/lib.a
 obj-y += $(obj)/lib-ksyms.o
 endif
 
-ifneq ($(strip $(obj-y) $(obj-m) $(obj-) $(subdir-m) $(lib-target)),)
-builtin-target := $(obj)/built-in.o
+ifneq ($(strip $(obj-y) $(need-builtin)),)
+builtin-target := $(obj)/built-in.a
 endif
 
 modorder-target := $(obj)/modules.order
@@ -109,7 +100,11 @@ ifneq ($(KBUILD_CHECKSRC),0)
   endif
 endif
 
-# Do section mismatch analysis for each module/built-in.o
+ifneq ($(KBUILD_ENABLE_EXTRA_GCC_CHECKS),)
+  cmd_checkdoc = $(srctree)/scripts/kernel-doc -none $< ;
+endif
+
+# Do section mismatch analysis for each module/built-in.a
 ifdef CONFIG_DEBUG_SECTION_MISMATCH
   cmd_secanalysis = ; scripts/mod/modpost $@
 endif
@@ -305,6 +300,7 @@ objtool_dep = $(objtool_obj)					\
 define rule_cc_o_c
 	$(call echo-cmd,checksrc) $(cmd_checksrc)			  \
 	$(call cmd_and_fixdep,cc_o_c)					  \
+	$(cmd_checkdoc)							  \
 	$(call echo-cmd,objtool) $(cmd_objtool)				  \
 	$(cmd_modversions_c)						  \
 	$(call echo-cmd,record_mcount) $(cmd_record_mcount)
@@ -462,15 +458,15 @@ $(sort $(subdir-obj-y)): $(subdir-ym) ;
 #
 ifdef builtin-target
 
-# built-in.o archives are made with no symbol table or index which
+# built-in.a archives are made with no symbol table or index which
 # makes them small and fast, but unable to be used by the linker.
-# scripts/link-vmlinux.sh builds an aggregate built-in.o with a symbol
+# scripts/link-vmlinux.sh builds an aggregate built-in.a with a symbol
 # table and index.
 cmd_make_builtin = rm -f $@; $(AR) rcSTP$(KBUILD_ARFLAGS)
 cmd_make_empty_builtin = rm -f $@; $(AR) rcSTP$(KBUILD_ARFLAGS)
 quiet_cmd_link_o_target = AR      $@
 
-# If the list of objects to link is empty, just create an empty built-in.o
+# If the list of objects to link is empty, just create an empty built-in.a
 cmd_link_o_target = $(if $(strip $(obj-y)),\
 		      $(cmd_make_builtin) $@ $(filter $(obj-y), $^) \
 		      $(cmd_secanalysis),\
@@ -567,14 +563,14 @@ $(multi-used-m): FORCE
 $(call multi_depend, $(multi-used-m), .o, -objs -y -m)
 
 targets += $(multi-used-y) $(multi-used-m)
-
+targets := $(filter-out $(PHONY), $(targets))
 
 # Descending
 # ---------------------------------------------------------------------------
 
 PHONY += $(subdir-ym)
 $(subdir-ym):
-	$(Q)$(MAKE) $(build)=$@
+	$(Q)$(MAKE) $(build)=$@ need-builtin=$(if $(findstring $@,$(subdir-obj-y)),1)
 
 # Add FORCE to the prequisites of a target to force it to be always rebuilt.
 # ---------------------------------------------------------------------------
@@ -588,11 +584,21 @@ FORCE:
 # optimization, we don't need to read them if the target does not
 # exist, we will rebuild anyway in that case.
 
-targets := $(wildcard $(sort $(targets)))
-cmd_files := $(wildcard $(foreach f,$(targets),$(dir $(f)).$(notdir $(f)).cmd))
+cmd_files := $(wildcard $(foreach f,$(sort $(targets)),$(dir $(f)).$(notdir $(f)).cmd))
 
 ifneq ($(cmd_files),)
   include $(cmd_files)
+endif
+
+ifneq ($(KBUILD_SRC),)
+# Create directories for object files if they do not exist
+obj-dirs := $(sort $(obj) $(patsubst %/,%, $(dir $(targets))))
+# If cmd_files exist, their directories apparently exist.  Skip mkdir.
+exist-dirs := $(sort $(patsubst %/,%, $(dir $(cmd_files))))
+obj-dirs := $(strip $(filter-out $(exist-dirs), $(obj-dirs)))
+ifneq ($(obj-dirs),)
+$(shell mkdir -p $(obj-dirs))
+endif
 endif
 
 # Declare the contents of the .PHONY variable as phony.  We keep that
