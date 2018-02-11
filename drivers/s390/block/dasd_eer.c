@@ -658,7 +658,7 @@ static unsigned int dasd_eer_poll(struct file *filp, poll_table *ptable)
 	poll_wait(filp, &dasd_eer_read_wait_queue, ptable);
 	spin_lock_irqsave(&bufferlock, flags);
 	if (eerb->head != eerb->tail)
-		mask = POLLIN | POLLRDNORM ;
+		mask = EPOLLIN | EPOLLRDNORM ;
 	else
 		mask = 0;
 	spin_unlock_irqrestore(&bufferlock, flags);

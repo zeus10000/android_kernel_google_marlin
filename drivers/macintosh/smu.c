@@ -1253,7 +1253,7 @@ static unsigned int smu_fpoll(struct file *file, poll_table *wait)
 
 		spin_lock_irqsave(&pp->lock, flags);
 		if (pp->busy && pp->cmd.status != 1)
-			mask |= POLLIN;
+			mask |= EPOLLIN;
 		spin_unlock_irqrestore(&pp->lock, flags);
 	}
 	if (pp->mode == smu_file_events) {

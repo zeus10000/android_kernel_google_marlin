@@ -493,14 +493,14 @@ static unsigned int cadet_poll(struct file *file, struct poll_table_struct *wait
 	unsigned int res = v4l2_ctrl_poll(file, wait);
 
 	poll_wait(file, &dev->read_queue, wait);
-	if (dev->rdsstat == 0 && (req_events & (POLLIN | POLLRDNORM))) {
+	if (dev->rdsstat == 0 && (req_events & (EPOLLIN | EPOLLRDNORM))) {
 		mutex_lock(&dev->lock);
 		if (dev->rdsstat == 0)
 			cadet_start_rds(dev);
 		mutex_unlock(&dev->lock);
 	}
 	if (cadet_has_rds_data(dev))
-		res |= POLLIN | POLLRDNORM;
+		res |= EPOLLIN | EPOLLRDNORM;
 	return res;
 }
 

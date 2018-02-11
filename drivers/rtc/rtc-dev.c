@@ -212,7 +212,7 @@ static unsigned int rtc_dev_poll(struct file *file, poll_table *wait)
 
 	data = rtc->irq_data;
 
-	return (data != 0) ? (POLLIN | POLLRDNORM) : 0;
+	return (data != 0) ? (EPOLLIN | EPOLLRDNORM) : 0;
 }
 
 static long rtc_dev_ioctl(struct file *file,

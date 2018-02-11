@@ -6077,7 +6077,7 @@ static unsigned int megasas_mgmt_poll(struct file *file, poll_table *wait)
 	poll_wait(file, &megasas_poll_wait, wait);
 	spin_lock_irqsave(&poll_aen_lock, flags);
 	if (megasas_poll_wait_aen)
-		mask = (POLLIN | POLLRDNORM);
+		mask = (EPOLLIN | EPOLLRDNORM);
 	else
 		mask = 0;
 	megasas_poll_wait_aen = 0;

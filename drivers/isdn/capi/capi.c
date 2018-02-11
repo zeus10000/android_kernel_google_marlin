@@ -739,12 +739,12 @@ capi_poll(struct file *file, poll_table *wait)
 	unsigned int mask = 0;
 
 	if (!cdev->ap.applid)
-		return POLLERR;
+		return EPOLLERR;
 
 	poll_wait(file, &(cdev->recvwait), wait);
-	mask = POLLOUT | POLLWRNORM;
+	mask = EPOLLOUT | EPOLLWRNORM;
 	if (!skb_queue_empty(&cdev->recvqueue))
-		mask |= POLLIN | POLLRDNORM;
+		mask |= EPOLLIN | EPOLLRDNORM;
 	return mask;
 }
 

@@ -800,7 +800,7 @@ static unsigned int rtc_poll(struct file *file, poll_table *wait)
 	spin_unlock_irq(&rtc_lock);
 
 	if (l != 0)
-		return POLLIN | POLLRDNORM;
+		return EPOLLIN | EPOLLRDNORM;
 	return 0;
 }
 #endif

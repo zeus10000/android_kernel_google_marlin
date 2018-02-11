@@ -787,7 +787,7 @@ static unsigned int spufs_ibox_poll(struct file *file, poll_table *wait)
 	 * that poll should not sleep.  Will be fixed later.
 	 */
 	mutex_lock(&ctx->state_mutex);
-	mask = ctx->ops->mbox_stat_poll(ctx, POLLIN | POLLRDNORM);
+	mask = ctx->ops->mbox_stat_poll(ctx, EPOLLIN | EPOLLRDNORM);
 	spu_release(ctx);
 
 	return mask;
@@ -937,7 +937,7 @@ static unsigned int spufs_wbox_poll(struct file *file, poll_table *wait)
 	 * that poll should not sleep.  Will be fixed later.
 	 */
 	mutex_lock(&ctx->state_mutex);
-	mask = ctx->ops->mbox_stat_poll(ctx, POLLOUT | POLLWRNORM);
+	mask = ctx->ops->mbox_stat_poll(ctx, EPOLLOUT | EPOLLWRNORM);
 	spu_release(ctx);
 
 	return mask;
@@ -1758,9 +1758,9 @@ static unsigned int spufs_mfc_poll(struct file *file,poll_table *wait)
 
 	mask = 0;
 	if (free_elements & 0xffff)
-		mask |= POLLOUT | POLLWRNORM;
+		mask |= EPOLLOUT | EPOLLWRNORM;
 	if (tagstatus & ctx->tagwait)
-		mask |= POLLIN | POLLRDNORM;
+		mask |= EPOLLIN | EPOLLRDNORM;
 
 	pr_debug("%s: free %d tagstatus %d tagwait %d\n", __func__,
 		free_elements, tagstatus, ctx->tagwait);
@@ -2562,7 +2562,7 @@ static unsigned int spufs_switch_log_poll(struct file *file, poll_table *wait)
 		return rc;
 
 	if (spufs_switch_log_used(ctx) > 0)
-		mask |= POLLIN;
+		mask |= EPOLLIN;
 
 	spu_release(ctx);
 

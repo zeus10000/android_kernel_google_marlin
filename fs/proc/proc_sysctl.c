@@ -617,7 +617,7 @@ static unsigned int proc_sys_poll(struct file *filp, poll_table *wait)
 
 	/* sysctl was unregistered */
 	if (IS_ERR(head))
-		return POLLERR | POLLHUP;
+		return EPOLLERR | EPOLLHUP;
 
 	if (!table->proc_handler)
 		goto out;
@@ -630,7 +630,7 @@ static unsigned int proc_sys_poll(struct file *filp, poll_table *wait)
 
 	if (event != atomic_read(&table->poll->event)) {
 		filp->private_data = proc_sys_poll_event(table->poll);
-		ret = POLLIN | POLLRDNORM | POLLERR | POLLPRI;
+		ret = EPOLLIN | EPOLLRDNORM | EPOLLERR | EPOLLPRI;
 	}
 
 out:

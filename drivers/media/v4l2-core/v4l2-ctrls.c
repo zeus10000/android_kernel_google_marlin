@@ -3454,7 +3454,7 @@ unsigned int v4l2_ctrl_poll(struct file *file, struct poll_table_struct *wait)
 	struct v4l2_fh *fh = file->private_data;
 
 	if (v4l2_event_pending(fh))
-		return POLLPRI;
+		return EPOLLPRI;
 	poll_wait(file, &fh->wait, wait);
 	return 0;
 }

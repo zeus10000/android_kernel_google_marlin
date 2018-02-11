@@ -281,7 +281,7 @@ static unsigned int usb_stream_hwdep_poll(struct snd_hwdep *hw,
 
 	poll_wait(file, &us122l->sk.sleep, wait);
 
-	mask = POLLIN | POLLOUT | POLLWRNORM | POLLERR;
+	mask = EPOLLIN | EPOLLOUT | EPOLLWRNORM | EPOLLERR;
 	if (mutex_trylock(&us122l->mutex)) {
 		struct usb_stream *s = us122l->sk.s;
 		if (s && s->state == usb_stream_ready) {
@@ -291,7 +291,7 @@ static unsigned int usb_stream_hwdep_poll(struct snd_hwdep *hw,
 				polled = &us122l->second_periods_polled;
 			if (*polled != s->periods_done) {
 				*polled = s->periods_done;
-				mask = POLLIN | POLLOUT | POLLWRNORM;
+				mask = EPOLLIN | EPOLLOUT | EPOLLWRNORM;
 			} else
 				mask = 0;
 		}

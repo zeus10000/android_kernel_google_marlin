@@ -2859,7 +2859,7 @@ unsigned fuse_file_poll(struct file *file, poll_table *wait)
 		fc->no_poll = 1;
 		return DEFAULT_POLLMASK;
 	}
-	return POLLERR;
+	return EPOLLERR;
 }
 EXPORT_SYMBOL_GPL(fuse_file_poll);
 

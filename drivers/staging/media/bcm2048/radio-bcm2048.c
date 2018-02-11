@@ -2205,7 +2205,7 @@ static unsigned int bcm2048_fops_poll(struct file *file,
 	poll_wait(file, &bdev->read_queue, pts);
 
 	if (bdev->rds_data_available)
-		retval = POLLIN | POLLRDNORM;
+		retval = EPOLLIN | EPOLLRDNORM;
 
 	return retval;
 }

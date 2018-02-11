@@ -519,7 +519,7 @@ static unsigned int hdpvr_poll(struct file *filp, poll_table *wait)
 	struct hdpvr_device *dev = video_drvdata(filp);
 	unsigned int mask = v4l2_ctrl_poll(filp, wait);
 
-	if (!(req_events & (POLLIN | POLLRDNORM)))
+	if (!(req_events & (EPOLLIN | EPOLLRDNORM)))
 		return mask;
 
 	mutex_lock(&dev->io_mutex);
@@ -544,7 +544,7 @@ static unsigned int hdpvr_poll(struct file *filp, poll_table *wait)
 		buf = hdpvr_get_next_buffer(dev);
 	}
 	if (buf && buf->status == BUFSTAT_READY)
-		mask |= POLLIN | POLLRDNORM;
+		mask |= EPOLLIN | EPOLLRDNORM;
 
 	return mask;
 }

@@ -62,7 +62,7 @@ static unsigned int hwdep_poll(struct snd_hwdep *hwdep, struct file *file,
 
 	spin_lock_irq(&oxfw->lock);
 	if (oxfw->dev_lock_changed)
-		events = POLLIN | POLLRDNORM;
+		events = EPOLLIN | EPOLLRDNORM;
 	else
 		events = 0;
 	spin_unlock_irq(&oxfw->lock);

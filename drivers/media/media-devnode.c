@@ -109,7 +109,7 @@ static unsigned int media_poll(struct file *filp,
 	struct media_devnode *devnode = media_devnode_data(filp);
 
 	if (!media_devnode_is_registered(devnode))
-		return POLLERR | POLLHUP;
+		return EPOLLERR | EPOLLHUP;
 	if (!devnode->fops->poll)
 		return DEFAULT_POLLMASK;
 	return devnode->fops->poll(filp, poll);

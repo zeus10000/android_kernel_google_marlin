@@ -1267,9 +1267,9 @@ static unsigned int viu_poll(struct file *file, struct poll_table_struct *wait)
 	unsigned int res = v4l2_ctrl_poll(file, wait);
 
 	if (V4L2_BUF_TYPE_VIDEO_CAPTURE != fh->type)
-		return POLLERR;
+		return EPOLLERR;
 
-	if (!(req_events & (POLLIN | POLLRDNORM)))
+	if (!(req_events & (EPOLLIN | EPOLLRDNORM)))
 		return res;
 
 	mutex_lock(&dev->lock);

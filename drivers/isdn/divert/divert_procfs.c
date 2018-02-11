@@ -125,9 +125,9 @@ isdn_divert_poll(struct file *file, poll_table *wait)
 	unsigned int mask = 0;
 
 	poll_wait(file, &(rd_queue), wait);
-	/* mask = POLLOUT | POLLWRNORM; */
+	/* mask = EPOLLOUT | EPOLLWRNORM; */
 	if (*((struct divert_info **) file->private_data)) {
-		mask |= POLLIN | POLLRDNORM;
+		mask |= EPOLLIN | EPOLLRDNORM;
 	}
 	return mask;
 }				/* isdn_divert_poll */

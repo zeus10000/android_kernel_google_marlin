@@ -240,10 +240,10 @@ static unsigned int dvb_ca_poll (struct file *file, poll_table *wait)
 	poll_wait(file, &wbuf->queue, wait);
 
 	if (!dvb_ringbuffer_empty(rbuf))
-		mask |= (POLLIN | POLLRDNORM);
+		mask |= (EPOLLIN | EPOLLRDNORM);
 
 	if (dvb_ringbuffer_free(wbuf) > 1024)
-		mask |= (POLLOUT | POLLWRNORM);
+		mask |= (EPOLLOUT | EPOLLWRNORM);
 
 	return mask;
 }

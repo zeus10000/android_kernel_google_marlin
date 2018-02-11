@@ -219,7 +219,7 @@ static unsigned int aim_vdev_poll(struct file *filp, poll_table *wait)
 	if (!data_ready(mdev))
 		poll_wait(filp, &mdev->wait_data, wait);
 	if (data_ready(mdev))
-		mask |= POLLIN | POLLRDNORM;
+		mask |= EPOLLIN | EPOLLRDNORM;
 
 	return mask;
 }

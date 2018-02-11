@@ -116,7 +116,7 @@ static u32 fm_v4l2_fops_poll(struct file *file, struct poll_table_struct *pts)
 	ret = fmc_is_rds_data_available(fmdev, file, pts);
 	mutex_unlock(&fmdev->mutex);
 	if (ret < 0)
-		return POLLIN | POLLRDNORM;
+		return EPOLLIN | EPOLLRDNORM;
 
 	return 0;
 }

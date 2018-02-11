@@ -244,9 +244,9 @@ static unsigned int serio_raw_poll(struct file *file, poll_table *wait)
 
 	poll_wait(file, &serio_raw->wait, wait);
 
-	mask = serio_raw->dead ? POLLHUP | POLLERR : POLLOUT | POLLWRNORM;
+	mask = serio_raw->dead ? EPOLLHUP | EPOLLERR : EPOLLOUT | EPOLLWRNORM;
 	if (serio_raw->head != serio_raw->tail)
-		mask |= POLLIN | POLLRDNORM;
+		mask |= EPOLLIN | EPOLLRDNORM;
 
 	return mask;
 }

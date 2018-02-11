@@ -657,7 +657,7 @@ static unsigned int usb_device_poll(struct file *file,
 	event_count = atomic_read(&device_event.count);
 	if (file->f_version != event_count) {
 		file->f_version = event_count;
-		return POLLIN | POLLRDNORM;
+		return EPOLLIN | EPOLLRDNORM;
 	}
 
 	return 0;

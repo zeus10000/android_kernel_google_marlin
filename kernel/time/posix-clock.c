@@ -70,7 +70,7 @@ static unsigned int posix_clock_poll(struct file *fp, poll_table *wait)
 	unsigned int result = 0;
 
 	if (!clk)
-		return POLLERR;
+		return EPOLLERR;
 
 	if (clk->ops.poll)
 		result = clk->ops.poll(clk, fp, wait);

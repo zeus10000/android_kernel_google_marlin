@@ -248,7 +248,7 @@ static unsigned int apm_poll(struct file *fp, poll_table * wait)
 	struct apm_user *as = fp->private_data;
 
 	poll_wait(fp, &apm_waitqueue, wait);
-	return queue_empty(&as->queue) ? 0 : POLLIN | POLLRDNORM;
+	return queue_empty(&as->queue) ? 0 : EPOLLIN | EPOLLRDNORM;
 }
 
 /*

@@ -931,7 +931,7 @@ static unsigned int cache_poll(struct file *filp, poll_table *wait,
 	poll_wait(filp, &queue_wait, wait);
 
 	/* alway allow write */
-	mask = POLLOUT | POLLWRNORM;
+	mask = EPOLLOUT | EPOLLWRNORM;
 
 	if (!rp)
 		return mask;
@@ -941,7 +941,7 @@ static unsigned int cache_poll(struct file *filp, poll_table *wait,
 	for (cq= &rp->q; &cq->list != &cd->queue;
 	     cq = list_entry(cq->list.next, struct cache_queue, list))
 		if (!cq->reader) {
-			mask |= POLLIN | POLLRDNORM;
+			mask |= EPOLLIN | EPOLLRDNORM;
 			break;
 		}
 	spin_unlock(&queue_lock);

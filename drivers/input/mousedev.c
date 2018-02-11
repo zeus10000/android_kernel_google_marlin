@@ -762,9 +762,9 @@ static unsigned int mousedev_poll(struct file *file, poll_table *wait)
 
 	poll_wait(file, &mousedev->wait, wait);
 
-	mask = mousedev->exist ? POLLOUT | POLLWRNORM : POLLHUP | POLLERR;
+	mask = mousedev->exist ? EPOLLOUT | EPOLLWRNORM : EPOLLHUP | EPOLLERR;
 	if (client->ready || client->buffer)
-		mask |= POLLIN | POLLRDNORM;
+		mask |= EPOLLIN | EPOLLRDNORM;
 
 	return mask;
 }

@@ -1756,15 +1756,15 @@ static unsigned int xillybus_poll(struct file *filp, poll_table *wait)
 
 		spin_lock_irqsave(&channel->wr_spinlock, flags);
 		if (!channel->wr_empty || channel->wr_ready)
-			mask |= POLLIN | POLLRDNORM;
+			mask |= EPOLLIN | EPOLLRDNORM;
 
 		if (channel->wr_hangup)
 			/*
-			 * Not POLLHUP, because its behavior is in the
-			 * mist, and POLLIN does what we want: Wake up
+			 * Not EPOLLHUP, because its behavior is in the
+			 * mist, and EPOLLIN does what we want: Wake up
 			 * the read file descriptor so it sees EOF.
 			 */
-			mask |=  POLLIN | POLLRDNORM;
+			mask |=  EPOLLIN | EPOLLRDNORM;
 		spin_unlock_irqrestore(&channel->wr_spinlock, flags);
 	}
 
@@ -1779,12 +1779,12 @@ static unsigned int xillybus_poll(struct file *filp, poll_table *wait)
 
 		spin_lock_irqsave(&channel->rd_spinlock, flags);
 		if (!channel->rd_full)
-			mask |= POLLOUT | POLLWRNORM;
+			mask |= EPOLLOUT | EPOLLWRNORM;
 		spin_unlock_irqrestore(&channel->rd_spinlock, flags);
 	}
 
 	if (channel->endpoint->fatal_error)
-		mask |= POLLERR;
+		mask |= EPOLLERR;
 
 	return mask;
 }

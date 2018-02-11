@@ -303,7 +303,7 @@ static unsigned int batadv_socket_poll(struct file *file, poll_table *wait)
 	poll_wait(file, &socket_client->queue_wait, wait);
 
 	if (socket_client->queue_len > 0)
-		return POLLIN | POLLRDNORM;
+		return EPOLLIN | EPOLLRDNORM;
 
 	return 0;
 }
