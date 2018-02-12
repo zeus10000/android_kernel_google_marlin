@@ -507,7 +507,7 @@ error:
 }
 
 static int llcp_sock_getname(struct socket *sock, struct sockaddr *uaddr,
-			     int *len, int peer)
+			     int peer)
 {
 	struct sock *sk = sock->sk;
 	struct nfc_llcp_sock *llcp_sock = nfc_llcp_sock(sk);
@@ -520,7 +520,6 @@ static int llcp_sock_getname(struct socket *sock, struct sockaddr *uaddr,
 		 llcp_sock->dsap, llcp_sock->ssap);
 
 	memset(llcp_addr, 0, sizeof(*llcp_addr));
-	*len = sizeof(struct sockaddr_nfc_llcp);
 
 	llcp_addr->sa_family = AF_NFC;
 	llcp_addr->dev_idx = llcp_sock->dev->idx;
@@ -532,7 +531,7 @@ static int llcp_sock_getname(struct socket *sock, struct sockaddr *uaddr,
 	memcpy(llcp_addr->service_name, llcp_sock->service_name,
 	       llcp_addr->service_name_len);
 
-	return 0;
+	return sizeof(struct sockaddr_nfc_llcp);
 }
 
 static inline unsigned int llcp_accept_poll(struct sock *parent)

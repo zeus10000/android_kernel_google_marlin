@@ -324,7 +324,7 @@ static int pn_socket_accept(struct socket *sock, struct socket *newsock,
 }
 
 static int pn_socket_getname(struct socket *sock, struct sockaddr *addr,
-				int *sockaddr_len, int peer)
+				int peer)
 {
 	struct sock *sk = sock->sk;
 	struct pn_sock *pn = pn_sk(sk);
@@ -335,8 +335,7 @@ static int pn_socket_getname(struct socket *sock, struct sockaddr *addr,
 		pn_sockaddr_set_object((struct sockaddr_pn *)addr,
 					pn->sobject);
 
-	*sockaddr_len = sizeof(struct sockaddr_pn);
-	return 0;
+	return sizeof(struct sockaddr_pn);
 }
 
 static unsigned int pn_socket_poll(struct file *file, struct socket *sock,
