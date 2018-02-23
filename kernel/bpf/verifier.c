@@ -1448,10 +1448,10 @@ static int check_generic_ptr_alignment(struct bpf_verifier_env *env,
 }
 
 static int check_ptr_alignment(struct bpf_verifier_env *env,
-			       const struct bpf_reg_state *reg,
-			       int off, int size)
+			       const struct bpf_reg_state *reg, int off,
+			       int size, bool strict_alignment_once)
 {
-	bool strict = env->strict_alignment;
+	bool strict = env->strict_alignment || strict_alignment_once;
 	const char *pointer_desc = "";
 
 	switch (reg->type) {
@@ -1583,9 +1583,9 @@ static int get_callee_stack_depth(struct bpf_verifier_env *env,
  * if t==write && value_regno==-1, some unknown value is stored into memory
  * if t==read && value_regno==-1, don't care what we read from memory
  */
-static int check_mem_access(struct bpf_verifier_env *env, int insn_idx, u32 regno, int off,
-			    int bpf_size, enum bpf_access_type t,
-			    int value_regno)
+static int check_mem_access(struct bpf_verifier_env *env, int insn_idx, u32 regno,
+			    int off, int bpf_size, enum bpf_access_type t,
+			    int value_regno, bool strict_alignment_once)
 {
 	struct bpf_reg_state *regs = cur_regs(env);
 	struct bpf_reg_state *reg = regs + regno;
@@ -1597,7 +1597,7 @@ static int check_mem_access(struct bpf_verifier_env *env, int insn_idx, u32 regn
 		return size;
 
 	/* alignment checks will add in reg->off themselves */
-	err = check_ptr_alignment(env, reg, off, size);
+	err = check_ptr_alignment(env, reg, off, size, strict_alignment_once);
 	if (err)
 		return err;
 
@@ -1749,13 +1749,13 @@ static int check_xadd(struct bpf_verifier_env *env, int insn_idx, struct bpf_ins
 
 	/* check whether atomic_add can read the memory */
 	err = check_mem_access(env, insn_idx, insn->dst_reg, insn->off,
-			       BPF_SIZE(insn->code), BPF_READ, -1);
+			       BPF_SIZE(insn->code), BPF_READ, -1, true);
 	if (err)
 		return err;
 
 	/* check whether atomic_add can write into the same memory */
 	return check_mem_access(env, insn_idx, insn->dst_reg, insn->off,
-				BPF_SIZE(insn->code), BPF_WRITE, -1);
+				BPF_SIZE(insn->code), BPF_WRITE, -1, true);
 }
 
 /* when register 'regno' is passed into function that will read 'access_size'
@@ -2403,7 +2403,8 @@ static int check_helper_call(struct bpf_verifier_env *env, int func_id, int insn
 	 * is inferred from register state.
 	 */
 	for (i = 0; i < meta.access_size; i++) {
-		err = check_mem_access(env, insn_idx, meta.regno, i, BPF_B, BPF_WRITE, -1);
+		err = check_mem_access(env, insn_idx, meta.regno, i, BPF_B,
+				       BPF_WRITE, -1, false);
 		if (err)
 			return err;
 	}
@@ -5276,7 +5277,7 @@ static int do_check(struct bpf_verifier_env *env)
 			 */
 			err = check_mem_access(env, insn_idx, insn->src_reg, insn->off,
 					       BPF_SIZE(insn->code), BPF_READ,
-					       insn->dst_reg);
+					       insn->dst_reg, false);
 			if (err)
 				return err;
 
@@ -5328,7 +5329,7 @@ static int do_check(struct bpf_verifier_env *env)
 			/* check that memory (dst_reg + off) is writeable */
 			err = check_mem_access(env, insn_idx, insn->dst_reg, insn->off,
 					       BPF_SIZE(insn->code), BPF_WRITE,
-					       insn->src_reg);
+					       insn->src_reg, false);
 			if (err)
 				return err;
 
@@ -5363,7 +5364,7 @@ static int do_check(struct bpf_verifier_env *env)
 			/* check that memory (dst_reg + off) is writeable */
 			err = check_mem_access(env, insn_idx, insn->dst_reg, insn->off,
 					       BPF_SIZE(insn->code), BPF_WRITE,
-					       -1);
+					       -1, false);
 			if (err)
 				return err;
 
