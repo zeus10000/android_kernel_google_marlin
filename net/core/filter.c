@@ -1909,6 +1909,44 @@ static const struct bpf_func_proto bpf_sk_redirect_map_proto = {
 	.arg4_type      = ARG_ANYTHING,
 };
 
+BPF_CALL_4(bpf_msg_redirect_map, struct sk_msg_buff *, msg,
+	   struct bpf_map *, map, u32, key, u64, flags)
+{
+	/* If user passes invalid input drop the packet. */
+	if (unlikely(flags))
+		return SK_DROP;
+
+	msg->key = key;
+	msg->flags = flags;
+	msg->map = map;
+
+	return SK_PASS;
+}
+
+struct sock *do_msg_redirect_map(struct sk_msg_buff *msg)
+{
+	struct sock *sk = NULL;
+
+	if (msg->map) {
+		sk = __sock_map_lookup_elem(msg->map, msg->key);
+
+		msg->key = 0;
+		msg->map = NULL;
+	}
+
+	return sk;
+}
+
+static const struct bpf_func_proto bpf_msg_redirect_map_proto = {
+	.func           = bpf_msg_redirect_map,
+	.gpl_only       = false,
+	.ret_type       = RET_INTEGER,
+	.arg1_type	= ARG_PTR_TO_CTX,
+	.arg2_type      = ARG_CONST_MAP_PTR,
+	.arg3_type      = ARG_ANYTHING,
+	.arg4_type      = ARG_ANYTHING,
+};
+
 BPF_CALL_1(bpf_get_cgroup_classid, const struct sk_buff *, skb)
 {
 	return task_get_classid(skb);
@@ -3807,6 +3845,32 @@ static bool sk_skb_is_valid_access(int off, int size,
 	}
 
 	return bpf_skb_is_valid_access(off, size, type, info);
+}
+
+static bool sk_msg_is_valid_access(int off, int size,
+				   enum bpf_access_type type,
+				   struct bpf_insn_access_aux *info)
+{
+	if (type == BPF_WRITE)
+		return false;
+
+	switch (off) {
+	case offsetof(struct sk_msg_md, data):
+		info->reg_type = PTR_TO_PACKET;
+		break;
+	case offsetof(struct sk_msg_md, data_end):
+		info->reg_type = PTR_TO_PACKET_END;
+		break;
+	}
+
+	if (off < 0 || off >= sizeof(struct sk_msg_md))
+		return false;
+	if (off % size != 0)
+		return false;
+	if (size != sizeof(__u64))
+		return false;
+
+	return true;
 }
 
 static u32 bpf_convert_ctx_access(enum bpf_access_type type,
