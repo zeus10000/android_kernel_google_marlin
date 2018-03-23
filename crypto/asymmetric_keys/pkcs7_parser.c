@@ -17,7 +17,7 @@
 #include <linux/oid_registry.h>
 #include "public_key.h"
 #include "pkcs7_parser.h"
-#include "pkcs7-asn1.h"
+#include "pkcs7.asn1.h"
 
 struct pkcs7_parse_context {
 	struct pkcs7_message	*msg;		/* Message being constructed */
