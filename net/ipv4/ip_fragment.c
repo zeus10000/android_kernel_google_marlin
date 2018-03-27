@@ -930,7 +930,6 @@ static void __net_exit ipv4_frags_exit_net(struct net *net)
 static struct pernet_operations ip4_frags_ops = {
 	.init = ipv4_frags_init_net,
 	.exit = ipv4_frags_exit_net,
-	.async = true,
 };
 
 

@@ -1252,7 +1252,6 @@ fail:
 static struct pernet_operations __net_initdata icmp_sk_ops = {
        .init = icmp_sk_init,
        .exit = icmp_sk_exit,
-       .async = true,
 };
 
 int __init icmp_init(void)
