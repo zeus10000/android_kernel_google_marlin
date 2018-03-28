@@ -93,6 +93,7 @@ enum bpf_cmd {
 	BPF_MAP_GET_FD_BY_ID,
 	BPF_OBJ_GET_INFO_BY_FD,
 	BPF_PROG_QUERY,
+	BPF_RAW_TRACEPOINT_OPEN,
 	BPF_BTF_LOAD,
 	BPF_BTF_GET_FD_BY_ID,
 };
@@ -121,6 +122,7 @@ enum bpf_prog_type {
 	BPF_PROG_TYPE_PERF_EVENT,
 	BPF_PROG_TYPE_CGROUP_SKB,
 	BPF_PROG_TYPE_CGROUP_SOCK,
+	BPF_PROG_TYPE_RAW_TRACEPOINT,
 };
 
 enum bpf_attach_type {
@@ -281,6 +283,10 @@ union bpf_attr {
 			__u32		repeat;
 			__u32		duration;
 		} test;
+		struct { /* anonymous struct used by BPF_RAW_TRACEPOINT_OPEN command */
+			__u64		name;
+			__u32		prog_fd;
+		} raw_tracepoint;
 } __attribute__((aligned(8)));
 
 /* integer value in 'imm' field of BPF_CALL instruction selects which helper
