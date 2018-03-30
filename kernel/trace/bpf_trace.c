@@ -521,7 +521,8 @@ static const struct bpf_func_proto bpf_probe_read_str_proto = {
 	.arg3_type	= ARG_ANYTHING,
 };
 
-static const struct bpf_func_proto *tracing_func_proto(enum bpf_func_id func_id)
+static const struct bpf_func_proto *
+tracing_func_proto(enum bpf_func_id func_id, const struct bpf_prog *prog)
 {
 	switch (func_id) {
 	case BPF_FUNC_map_lookup_elem:
@@ -567,7 +568,8 @@ static const struct bpf_func_proto *tracing_func_proto(enum bpf_func_id func_id)
 	}
 }
 
-static const struct bpf_func_proto *kprobe_prog_func_proto(enum bpf_func_id func_id)
+static const struct bpf_func_proto *
+kprobe_prog_func_proto(enum bpf_func_id func_id, const struct bpf_prog *prog)
 {
 	switch (func_id) {
 	case BPF_FUNC_perf_event_output:
@@ -581,12 +583,13 @@ static const struct bpf_func_proto *kprobe_prog_func_proto(enum bpf_func_id func
 		return &bpf_override_return_proto;
 #endif
 	default:
-		return tracing_func_proto(func_id);
+		return tracing_func_proto(func_id, prog);
 	}
 }
 
 /* bpf+kprobe programs can access fields of 'struct pt_regs' */
 static bool kprobe_prog_is_valid_access(int off, int size, enum bpf_access_type type,
+					const struct bpf_prog *prog,
 					struct bpf_insn_access_aux *info)
 {
 	if (off < 0 || off >= sizeof(struct pt_regs))
@@ -689,7 +692,7 @@ static const struct bpf_func_proto *tp_prog_func_proto(enum bpf_func_id func_id)
 	case BPF_FUNC_perf_prog_read_value:
 		return &bpf_perf_prog_read_value_proto_tp;
 	default:
-		return tracing_func_proto(func_id);
+		return tracing_func_proto(func_id, prog);
 	}
 }
 
@@ -714,6 +717,7 @@ const struct bpf_prog_ops tracepoint_prog_ops = {
 };
 
 static bool pe_prog_is_valid_access(int off, int size, enum bpf_access_type type,
+				    const struct bpf_prog *prog,
 				    struct bpf_insn_access_aux *info)
 {
 	const int size_sp = FIELD_SIZEOF(struct bpf_perf_event_data,
