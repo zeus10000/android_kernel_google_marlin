@@ -1291,7 +1291,7 @@ struct net_device_ops {
 	int			(*ndo_xdp)(struct net_device *dev,
 					   struct netdev_xdp *xdp);
 	int			(*ndo_xdp_xmit)(struct net_device *dev,
-						struct xdp_buff *xdp);
+						struct xdp_frame *xdp);
 	void			(*ndo_xdp_flush)(struct net_device *dev);
 };
 
