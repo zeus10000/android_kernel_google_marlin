@@ -36,12 +36,16 @@
 enum xdp_mem_type {
 	MEM_TYPE_PAGE_SHARED = 0, /* Split-page refcnt based model */
 	MEM_TYPE_PAGE_ORDER0,     /* Orig XDP full page model */
+	MEM_TYPE_PAGE_POOL,
 	MEM_TYPE_MAX,
 };
 
 struct xdp_mem_info {
 	u32 type; /* enum xdp_mem_type, but known size type */
+	u32 id;
 };
+
+struct page_pool;
 
 struct xdp_rxq_info {
 	struct net_device *dev;
@@ -99,18 +103,7 @@ struct xdp_frame *convert_to_xdp_frame(struct xdp_buff *xdp)
 	return xdp_frame;
 }
 
-static inline
-void xdp_return_frame(void *data, struct xdp_mem_info *mem)
-{
-	if (mem->type == MEM_TYPE_PAGE_SHARED)
-		page_frag_free(data);
-
-	if (mem->type == MEM_TYPE_PAGE_ORDER0) {
-		struct page *page = virt_to_page(data); /* Assumes order0 page*/
-
-		put_page(page);
-	}
-}
+void xdp_return_frame(struct xdp_frame *xdpf);
 
 int xdp_rxq_info_reg(struct xdp_rxq_info *xdp_rxq,
 		     struct net_device *dev, u32 queue_index);
