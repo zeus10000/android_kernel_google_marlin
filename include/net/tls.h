@@ -275,6 +275,7 @@ struct tls_context {
 			       * per-type TX fields
 			       */
 	unsigned long flags;
+	bool in_tcp_sendpages;
 
 	/* cache cold stuff */
 	struct proto *sk_proto;
