@@ -44,7 +44,7 @@
 # define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 #endif
 
-#define MAX_INSNS	512
+#define MAX_INSNS	BPF_MAXINSNS
 #define MAX_FIXUPS	8
 #define MAX_NR_MAPS	4
 
@@ -67,6 +67,8 @@ struct bpf_test {
 	} result, result_unpriv;
 	enum bpf_prog_type prog_type;
 	uint8_t flags;
+	__u8 data[TEST_DATA_LEN];
+	void (*fill_helper)(struct bpf_test *self);
 };
 
 /* Note we want this to be 64 bit aligned so that the end of our array is
@@ -5538,7 +5540,7 @@ static int create_map_in_map(void)
 	return outer_map_fd;
 }
 
-static char bpf_vlog[32768];
+static char bpf_vlog[UINT_MAX >> 8];
 
 static void do_test_fixup(struct bpf_test *test, struct bpf_insn *prog,
 			  int *map_fds)
@@ -5547,6 +5549,9 @@ static void do_test_fixup(struct bpf_test *test, struct bpf_insn *prog,
 	int *fixup_map2 = test->fixup_map2;
 	int *fixup_prog = test->fixup_prog;
 	int *fixup_map_in_map = test->fixup_map_in_map;
+
+	if (test->fill_helper)
+		test->fill_helper(test);
 
 	/* Allocating HTs with 1 elem is fine here, since we only test
 	 * for verifier and not do a runtime lookup, so the only thing
@@ -5589,6 +5594,7 @@ static void do_test_single(struct bpf_test *test, bool unpriv,
 			   int *passes, int *errors)
 {
 	int fd_prog, expected_ret, reject_from_alignment;
+	int prog_len, prog_type = test->prog_type;
 	struct bpf_insn *prog = test->insns;
 	int prog_len = probe_filter_length(prog);
 	int prog_type = test->prog_type;
@@ -5600,6 +5606,7 @@ static void do_test_single(struct bpf_test *test, bool unpriv,
 		map_fds[i] = -1;
 
 	do_test_fixup(test, prog, map_fds);
+	prog_len = probe_filter_length(prog);
 
 	fd_prog = bpf_verify_program(prog_type ? : BPF_PROG_TYPE_SOCKET_FILTER,
 				     prog, prog_len, test->flags & F_LOAD_WITH_STRICT_ALIGNMENT,

@@ -5283,6 +5283,53 @@ static struct bpf_test tests[] = {
 		{ {0x40, 0x05 } },
 	},
 	{
+		"LD_IND byte positive offset, all ff",
+		.u.insns = {
+			BPF_STMT(BPF_LDX | BPF_IMM, 0x3e),
+			BPF_STMT(BPF_LD | BPF_IND | BPF_B, 0x1),
+			BPF_STMT(BPF_RET | BPF_A, 0x0),
+		},
+		CLASSIC,
+		{ [0x3c] = 0xff, [0x3d] = 0xff,  [0x3e] = 0xff, [0x3f] = 0xff },
+		{ {0x40, 0xff } },
+	},
+	{
+		"LD_IND byte positive offset, out of bounds",
+		.u.insns = {
+			BPF_STMT(BPF_LDX | BPF_IMM, 0x3e),
+			BPF_STMT(BPF_LD | BPF_IND | BPF_B, 0x1),
+			BPF_STMT(BPF_RET | BPF_A, 0x0),
+		},
+		CLASSIC,
+		{ [0x3c] = 0x25, [0x3d] = 0x05,  [0x3e] = 0x19, [0x3f] = 0x82 },
+		{ {0x3f, 0 }, },
+	},
+	{
+		"LD_IND byte negative offset, out of bounds",
+		.u.insns = {
+			BPF_STMT(BPF_LDX | BPF_IMM, 0x3e),
+			BPF_STMT(BPF_LD | BPF_IND | BPF_B, -0x3f),
+			BPF_STMT(BPF_RET | BPF_A, 0x0),
+		},
+		CLASSIC,
+		{ [0x3c] = 0x25, [0x3d] = 0x05,  [0x3e] = 0x19, [0x3f] = 0x82 },
+		{ {0x3f, 0 } },
+	},
+	{
+		"LD_IND byte negative offset, multiple calls",
+		.u.insns = {
+			BPF_STMT(BPF_LDX | BPF_IMM, 0x3b),
+			BPF_STMT(BPF_LD | BPF_IND | BPF_B, SKF_LL_OFF + 1),
+			BPF_STMT(BPF_LD | BPF_IND | BPF_B, SKF_LL_OFF + 2),
+			BPF_STMT(BPF_LD | BPF_IND | BPF_B, SKF_LL_OFF + 3),
+			BPF_STMT(BPF_LD | BPF_IND | BPF_B, SKF_LL_OFF + 4),
+			BPF_STMT(BPF_RET | BPF_A, 0x0),
+		},
+		CLASSIC,
+		{ [0x3c] = 0x25, [0x3d] = 0x05,  [0x3e] = 0x19, [0x3f] = 0x82 },
+		{ {0x40, 0x82 }, },
+	},
+	{
 		"LD_IND halfword positive offset",
 		.u.insns = {
 			BPF_STMT(BPF_LDX | BPF_IMM, 0x20),
@@ -5329,6 +5376,39 @@ static struct bpf_test tests[] = {
 			[0x22] = 0xdd, [0x23] = 0x88,
 		},
 		{ {0x40, 0x66cc } },
+	},
+	{
+		"LD_IND halfword positive offset, all ff",
+		.u.insns = {
+			BPF_STMT(BPF_LDX | BPF_IMM, 0x3d),
+			BPF_STMT(BPF_LD | BPF_IND | BPF_H, 0x1),
+			BPF_STMT(BPF_RET | BPF_A, 0x0),
+		},
+		CLASSIC,
+		{ [0x3c] = 0xff, [0x3d] = 0xff,  [0x3e] = 0xff, [0x3f] = 0xff },
+		{ {0x40, 0xffff } },
+	},
+	{
+		"LD_IND halfword positive offset, out of bounds",
+		.u.insns = {
+			BPF_STMT(BPF_LDX | BPF_IMM, 0x3e),
+			BPF_STMT(BPF_LD | BPF_IND | BPF_H, 0x1),
+			BPF_STMT(BPF_RET | BPF_A, 0x0),
+		},
+		CLASSIC,
+		{ [0x3c] = 0x25, [0x3d] = 0x05,  [0x3e] = 0x19, [0x3f] = 0x82 },
+		{ {0x3f, 0 }, },
+	},
+	{
+		"LD_IND halfword negative offset, out of bounds",
+		.u.insns = {
+			BPF_STMT(BPF_LDX | BPF_IMM, 0x3e),
+			BPF_STMT(BPF_LD | BPF_IND | BPF_H, -0x3f),
+			BPF_STMT(BPF_RET | BPF_A, 0x0),
+		},
+		CLASSIC,
+		{ [0x3c] = 0x25, [0x3d] = 0x05,  [0x3e] = 0x19, [0x3f] = 0x82 },
+		{ {0x3f, 0 } },
 	},
 	{
 		"LD_IND word positive offset",
@@ -5421,6 +5501,39 @@ static struct bpf_test tests[] = {
 		{ {0x40, 0x66cc77dd } },
 	},
 	{
+		"LD_IND word positive offset, all ff",
+		.u.insns = {
+			BPF_STMT(BPF_LDX | BPF_IMM, 0x3b),
+			BPF_STMT(BPF_LD | BPF_IND | BPF_W, 0x1),
+			BPF_STMT(BPF_RET | BPF_A, 0x0),
+		},
+		CLASSIC,
+		{ [0x3c] = 0xff, [0x3d] = 0xff,  [0x3e] = 0xff, [0x3f] = 0xff },
+		{ {0x40, 0xffffffff } },
+	},
+	{
+		"LD_IND word positive offset, out of bounds",
+		.u.insns = {
+			BPF_STMT(BPF_LDX | BPF_IMM, 0x3e),
+			BPF_STMT(BPF_LD | BPF_IND | BPF_W, 0x1),
+			BPF_STMT(BPF_RET | BPF_A, 0x0),
+		},
+		CLASSIC,
+		{ [0x3c] = 0x25, [0x3d] = 0x05,  [0x3e] = 0x19, [0x3f] = 0x82 },
+		{ {0x3f, 0 }, },
+	},
+	{
+		"LD_IND word negative offset, out of bounds",
+		.u.insns = {
+			BPF_STMT(BPF_LDX | BPF_IMM, 0x3e),
+			BPF_STMT(BPF_LD | BPF_IND | BPF_W, -0x3f),
+			BPF_STMT(BPF_RET | BPF_A, 0x0),
+		},
+		CLASSIC,
+		{ [0x3c] = 0x25, [0x3d] = 0x05,  [0x3e] = 0x19, [0x3f] = 0x82 },
+		{ {0x3f, 0 } },
+	},
+	{
 		"LD_ABS byte",
 		.u.insns = {
 			BPF_STMT(BPF_LD | BPF_ABS | BPF_B, 0x20),
@@ -5436,6 +5549,68 @@ static struct bpf_test tests[] = {
 			[0x26] = 0xff, [0x27] = 0xaa,
 		},
 		{ {0x40, 0xcc } },
+	},
+	{
+		"LD_ABS byte positive offset, all ff",
+		.u.insns = {
+			BPF_STMT(BPF_LD | BPF_ABS | BPF_B, 0x3f),
+			BPF_STMT(BPF_RET | BPF_A, 0x0),
+		},
+		CLASSIC,
+		{ [0x3c] = 0xff, [0x3d] = 0xff,  [0x3e] = 0xff, [0x3f] = 0xff },
+		{ {0x40, 0xff } },
+	},
+	{
+		"LD_ABS byte positive offset, out of bounds",
+		.u.insns = {
+			BPF_STMT(BPF_LD | BPF_ABS | BPF_B, 0x3f),
+			BPF_STMT(BPF_RET | BPF_A, 0x0),
+		},
+		CLASSIC,
+		{ [0x3c] = 0x25, [0x3d] = 0x05,  [0x3e] = 0x19, [0x3f] = 0x82 },
+		{ {0x3f, 0 }, },
+	},
+	{
+		"LD_ABS byte negative offset, out of bounds load",
+		.u.insns = {
+			BPF_STMT(BPF_LD | BPF_ABS | BPF_B, -1),
+			BPF_STMT(BPF_RET | BPF_A, 0x0),
+		},
+		CLASSIC | FLAG_EXPECTED_FAIL,
+		.expected_errcode = -EINVAL,
+	},
+	{
+		"LD_ABS byte negative offset, in bounds",
+		.u.insns = {
+			BPF_STMT(BPF_LD | BPF_ABS | BPF_B, SKF_LL_OFF + 0x3f),
+			BPF_STMT(BPF_RET | BPF_A, 0x0),
+		},
+		CLASSIC,
+		{ [0x3c] = 0x25, [0x3d] = 0x05,  [0x3e] = 0x19, [0x3f] = 0x82 },
+		{ {0x40, 0x82 }, },
+	},
+	{
+		"LD_ABS byte negative offset, out of bounds",
+		.u.insns = {
+			BPF_STMT(BPF_LD | BPF_ABS | BPF_B, SKF_LL_OFF + 0x3f),
+			BPF_STMT(BPF_RET | BPF_A, 0x0),
+		},
+		CLASSIC,
+		{ [0x3c] = 0x25, [0x3d] = 0x05,  [0x3e] = 0x19, [0x3f] = 0x82 },
+		{ {0x3f, 0 }, },
+	},
+	{
+		"LD_ABS byte negative offset, multiple calls",
+		.u.insns = {
+			BPF_STMT(BPF_LD | BPF_ABS | BPF_B, SKF_LL_OFF + 0x3c),
+			BPF_STMT(BPF_LD | BPF_ABS | BPF_B, SKF_LL_OFF + 0x3d),
+			BPF_STMT(BPF_LD | BPF_ABS | BPF_B, SKF_LL_OFF + 0x3e),
+			BPF_STMT(BPF_LD | BPF_ABS | BPF_B, SKF_LL_OFF + 0x3f),
+			BPF_STMT(BPF_RET | BPF_A, 0x0),
+		},
+		CLASSIC,
+		{ [0x3c] = 0x25, [0x3d] = 0x05,  [0x3e] = 0x19, [0x3f] = 0x82 },
+		{ {0x40, 0x82 }, },
 	},
 	{
 		"LD_ABS halfword",
@@ -5470,6 +5645,55 @@ static struct bpf_test tests[] = {
 			[0x26] = 0xff, [0x27] = 0xaa,
 		},
 		{ {0x40, 0x99ff } },
+	},
+	{
+		"LD_ABS halfword positive offset, all ff",
+		.u.insns = {
+			BPF_STMT(BPF_LD | BPF_ABS | BPF_H, 0x3e),
+			BPF_STMT(BPF_RET | BPF_A, 0x0),
+		},
+		CLASSIC,
+		{ [0x3c] = 0xff, [0x3d] = 0xff,  [0x3e] = 0xff, [0x3f] = 0xff },
+		{ {0x40, 0xffff } },
+	},
+	{
+		"LD_ABS halfword positive offset, out of bounds",
+		.u.insns = {
+			BPF_STMT(BPF_LD | BPF_ABS | BPF_H, 0x3f),
+			BPF_STMT(BPF_RET | BPF_A, 0x0),
+		},
+		CLASSIC,
+		{ [0x3c] = 0x25, [0x3d] = 0x05,  [0x3e] = 0x19, [0x3f] = 0x82 },
+		{ {0x3f, 0 }, },
+	},
+	{
+		"LD_ABS halfword negative offset, out of bounds load",
+		.u.insns = {
+			BPF_STMT(BPF_LD | BPF_ABS | BPF_H, -1),
+			BPF_STMT(BPF_RET | BPF_A, 0x0),
+		},
+		CLASSIC | FLAG_EXPECTED_FAIL,
+		.expected_errcode = -EINVAL,
+	},
+	{
+		"LD_ABS halfword negative offset, in bounds",
+		.u.insns = {
+			BPF_STMT(BPF_LD | BPF_ABS | BPF_H, SKF_LL_OFF + 0x3e),
+			BPF_STMT(BPF_RET | BPF_A, 0x0),
+		},
+		CLASSIC,
+		{ [0x3c] = 0x25, [0x3d] = 0x05,  [0x3e] = 0x19, [0x3f] = 0x82 },
+		{ {0x40, 0x1982 }, },
+	},
+	{
+		"LD_ABS halfword negative offset, out of bounds",
+		.u.insns = {
+			BPF_STMT(BPF_LD | BPF_ABS | BPF_H, SKF_LL_OFF + 0x3e),
+			BPF_STMT(BPF_RET | BPF_A, 0x0),
+		},
+		CLASSIC,
+		{ [0x3c] = 0x25, [0x3d] = 0x05,  [0x3e] = 0x19, [0x3f] = 0x82 },
+		{ {0x3f, 0 }, },
 	},
 	{
 		"LD_ABS word",
@@ -5538,6 +5762,140 @@ static struct bpf_test tests[] = {
 			[0x26] = 0xff, [0x27] = 0xaa,
 		},
 		{ {0x40, 0x88ee99ff } },
+	},
+	{
+		"LD_ABS word positive offset, all ff",
+		.u.insns = {
+			BPF_STMT(BPF_LD | BPF_ABS | BPF_W, 0x3c),
+			BPF_STMT(BPF_RET | BPF_A, 0x0),
+		},
+		CLASSIC,
+		{ [0x3c] = 0xff, [0x3d] = 0xff,  [0x3e] = 0xff, [0x3f] = 0xff },
+		{ {0x40, 0xffffffff } },
+	},
+	{
+		"LD_ABS word positive offset, out of bounds",
+		.u.insns = {
+			BPF_STMT(BPF_LD | BPF_ABS | BPF_W, 0x3f),
+			BPF_STMT(BPF_RET | BPF_A, 0x0),
+		},
+		CLASSIC,
+		{ [0x3c] = 0x25, [0x3d] = 0x05,  [0x3e] = 0x19, [0x3f] = 0x82 },
+		{ {0x3f, 0 }, },
+	},
+	{
+		"LD_ABS word negative offset, out of bounds load",
+		.u.insns = {
+			BPF_STMT(BPF_LD | BPF_ABS | BPF_W, -1),
+			BPF_STMT(BPF_RET | BPF_A, 0x0),
+		},
+		CLASSIC | FLAG_EXPECTED_FAIL,
+		.expected_errcode = -EINVAL,
+	},
+	{
+		"LD_ABS word negative offset, in bounds",
+		.u.insns = {
+			BPF_STMT(BPF_LD | BPF_ABS | BPF_W, SKF_LL_OFF + 0x3c),
+			BPF_STMT(BPF_RET | BPF_A, 0x0),
+		},
+		CLASSIC,
+		{ [0x3c] = 0x25, [0x3d] = 0x05,  [0x3e] = 0x19, [0x3f] = 0x82 },
+		{ {0x40, 0x25051982 }, },
+	},
+	{
+		"LD_ABS word negative offset, out of bounds",
+		.u.insns = {
+			BPF_STMT(BPF_LD | BPF_ABS | BPF_W, SKF_LL_OFF + 0x3c),
+			BPF_STMT(BPF_RET | BPF_A, 0x0),
+		},
+		CLASSIC,
+		{ [0x3c] = 0x25, [0x3d] = 0x05,  [0x3e] = 0x19, [0x3f] = 0x82 },
+		{ {0x3f, 0 }, },
+	},
+	{
+		"LDX_MSH standalone, preserved A",
+		.u.insns = {
+			BPF_STMT(BPF_LD | BPF_IMM, 0xffeebbaa),
+			BPF_STMT(BPF_LDX | BPF_B | BPF_MSH, 0x3c),
+			BPF_STMT(BPF_RET | BPF_A, 0x0),
+		},
+		CLASSIC,
+		{ [0x3c] = 0x25, [0x3d] = 0x05,  [0x3e] = 0x19, [0x3f] = 0x82 },
+		{ {0x40, 0xffeebbaa }, },
+	},
+	{
+		"LDX_MSH standalone, preserved A 2",
+		.u.insns = {
+			BPF_STMT(BPF_LD | BPF_IMM, 0x175e9d63),
+			BPF_STMT(BPF_LDX | BPF_B | BPF_MSH, 0x3c),
+			BPF_STMT(BPF_LDX | BPF_B | BPF_MSH, 0x3d),
+			BPF_STMT(BPF_LDX | BPF_B | BPF_MSH, 0x3e),
+			BPF_STMT(BPF_LDX | BPF_B | BPF_MSH, 0x3f),
+			BPF_STMT(BPF_RET | BPF_A, 0x0),
+		},
+		CLASSIC,
+		{ [0x3c] = 0x25, [0x3d] = 0x05,  [0x3e] = 0x19, [0x3f] = 0x82 },
+		{ {0x40, 0x175e9d63 }, },
+	},
+	{
+		"LDX_MSH standalone, test result 1",
+		.u.insns = {
+			BPF_STMT(BPF_LD | BPF_IMM, 0xffeebbaa),
+			BPF_STMT(BPF_LDX | BPF_B | BPF_MSH, 0x3c),
+			BPF_STMT(BPF_MISC | BPF_TXA, 0),
+			BPF_STMT(BPF_RET | BPF_A, 0x0),
+		},
+		CLASSIC,
+		{ [0x3c] = 0x25, [0x3d] = 0x05,  [0x3e] = 0x19, [0x3f] = 0x82 },
+		{ {0x40, 0x14 }, },
+	},
+	{
+		"LDX_MSH standalone, test result 2",
+		.u.insns = {
+			BPF_STMT(BPF_LD | BPF_IMM, 0xffeebbaa),
+			BPF_STMT(BPF_LDX | BPF_B | BPF_MSH, 0x3e),
+			BPF_STMT(BPF_MISC | BPF_TXA, 0),
+			BPF_STMT(BPF_RET | BPF_A, 0x0),
+		},
+		CLASSIC,
+		{ [0x3c] = 0x25, [0x3d] = 0x05,  [0x3e] = 0x19, [0x3f] = 0x82 },
+		{ {0x40, 0x24 }, },
+	},
+	{
+		"LDX_MSH standalone, negative offset",
+		.u.insns = {
+			BPF_STMT(BPF_LD | BPF_IMM, 0xffeebbaa),
+			BPF_STMT(BPF_LDX | BPF_B | BPF_MSH, -1),
+			BPF_STMT(BPF_MISC | BPF_TXA, 0),
+			BPF_STMT(BPF_RET | BPF_A, 0x0),
+		},
+		CLASSIC,
+		{ [0x3c] = 0x25, [0x3d] = 0x05,  [0x3e] = 0x19, [0x3f] = 0x82 },
+		{ {0x40, 0 }, },
+	},
+	{
+		"LDX_MSH standalone, negative offset 2",
+		.u.insns = {
+			BPF_STMT(BPF_LD | BPF_IMM, 0xffeebbaa),
+			BPF_STMT(BPF_LDX | BPF_B | BPF_MSH, SKF_LL_OFF + 0x3e),
+			BPF_STMT(BPF_MISC | BPF_TXA, 0),
+			BPF_STMT(BPF_RET | BPF_A, 0x0),
+		},
+		CLASSIC,
+		{ [0x3c] = 0x25, [0x3d] = 0x05,  [0x3e] = 0x19, [0x3f] = 0x82 },
+		{ {0x40, 0x24 }, },
+	},
+	{
+		"LDX_MSH standalone, out of bounds",
+		.u.insns = {
+			BPF_STMT(BPF_LD | BPF_IMM, 0xffeebbaa),
+			BPF_STMT(BPF_LDX | BPF_B | BPF_MSH, 0x40),
+			BPF_STMT(BPF_MISC | BPF_TXA, 0),
+			BPF_STMT(BPF_RET | BPF_A, 0x0),
+		},
+		CLASSIC,
+		{ [0x3c] = 0x25, [0x3d] = 0x05,  [0x3e] = 0x19, [0x3f] = 0x82 },
+		{ {0x40, 0 }, },
 	},
 	/*
 	 * verify that the interpreter or JIT correctly sets A and X
