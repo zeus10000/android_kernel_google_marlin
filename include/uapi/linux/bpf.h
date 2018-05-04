@@ -93,6 +93,7 @@ enum bpf_cmd {
 	BPF_OBJ_GET_INFO_BY_FD,
 	BPF_PROG_QUERY,
 	BPF_BTF_LOAD,
+	BPF_BTF_GET_FD_BY_ID,
 };
 
 enum bpf_map_type {
@@ -241,6 +242,7 @@ union bpf_attr {
 			__u32		start_id;
 			__u32		prog_id;
 			__u32		map_id;
+			__u32		btf_id;
 		};
 		__u32		next_id;
 	};
@@ -738,6 +740,9 @@ struct bpf_map_info {
 	__u32 max_entries;
 	__u32 map_flags;
 	__u8  name[BPF_OBJ_NAME_LEN];
+	__u32 btf_id;
+	__u32 btf_key_id;
+	__u32 btf_value_id;
 } __attribute__((aligned(8)));
 
 #endif /* _UAPI__LINUX_BPF_H__ */

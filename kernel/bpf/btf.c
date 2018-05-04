@@ -10,8 +10,8 @@
 #include <linux/file.h>
 #include <linux/uaccess.h>
 #include <linux/kernel.h>
-#include <linux/vmalloc.h>
-#include <linux/atomic.h>
+#include <linux/idr.h>
+#include <linux/bpf_verifier.h>
 #include <linux/btf.h>
 
 /* BTF (BPF Type Format) is the meta data format which describes
@@ -130,6 +130,14 @@
 	     i < btf_type_vlen(struct_type);			\
 	     i++, member++)
 
+#define for_each_member_from(i, from, struct_type, member)		\
+	for (i = from, member = btf_type_member(struct_type) + from;	\
+	     i < btf_type_vlen(struct_type);				\
+	     i++, member++)
+
+static DEFINE_IDR(btf_idr);
+static DEFINE_SPINLOCK(btf_idr_lock);
+
 struct btf {
 	union {
 		struct btf_header *hdr;
@@ -142,6 +150,8 @@ struct btf {
 	u32 types_size;
 	u32 data_size;
 	atomic_t refcnt;
+	u32 id;
+	struct rcu_head rcu;
 };
 
 /* 4.4-compatible log state (replaces struct bpf_verifier_log) */
@@ -400,7 +410,7 @@ static int btf_add_type(struct btf_verifier_env *env, struct btf_type *t)
 		new_size = min_t(u32, BTF_MAX_NR_TYPES,
 				 btf->types_size + expand_by);
 
-		new_types = kvzalloc(new_size * sizeof(*new_types),
+		new_types = kzalloc(new_size * sizeof(*new_types),
 				     GFP_KERNEL | __GFP_NOWARN);
 		if (!new_types)
 			return -ENOMEM;
@@ -421,11 +431,54 @@ static int btf_add_type(struct btf_verifier_env *env, struct btf_type *t)
 	return 0;
 }
 
+static int btf_alloc_id(struct btf *btf)
+{
+	int id;
+
+	idr_preload(GFP_KERNEL);
+	spin_lock_bh(&btf_idr_lock);
+	id = idr_alloc_cyclic(&btf_idr, btf, 1, INT_MAX, GFP_ATOMIC);
+	if (id > 0)
+		btf->id = id;
+	spin_unlock_bh(&btf_idr_lock);
+	idr_preload_end();
+
+	if (WARN_ON_ONCE(!id))
+		return -ENOSPC;
+
+	return id > 0 ? 0 : id;
+}
+
+static void btf_free_id(struct btf *btf)
+{
+	unsigned long flags;
+
+	/*
+	 * In map-in-map, calling map_delete_elem() on outer
+	 * map will call bpf_map_put on the inner map.
+	 * It will then eventually call btf_free_id()
+	 * on the inner map.  Some of the map_delete_elem()
+	 * implementation may have irq disabled, so
+	 * we need to use the _irqsave() version instead
+	 * of the _bh() version.
+	 */
+	spin_lock_irqsave(&btf_idr_lock, flags);
+	idr_remove(&btf_idr, btf->id);
+	spin_unlock_irqrestore(&btf_idr_lock, flags);
+}
+
 static void btf_free(struct btf *btf)
 {
 	kvfree(btf->types);
 	vfree(btf->data);
 	kfree(btf);
+}
+
+static void btf_free_rcu(struct rcu_head *rcu)
+{
+	struct btf *btf = container_of(rcu, struct btf, rcu);
+
+	btf_free(btf);
 }
 
 static void btf_get(struct btf *btf)
@@ -435,8 +488,10 @@ static void btf_get(struct btf *btf)
 
 void btf_put(struct btf *btf)
 {
-	if (btf && atomic_dec_and_test(&btf->refcnt))
-		btf_free(btf);
+	if (btf && atomic_dec_and_test(&btf->refcnt)) {
+		btf_free_id(btf);
+		call_rcu(&btf->rcu, btf_free_rcu);
+	}
 }
 
 
@@ -972,10 +1027,15 @@ static const struct file_operations btf_fops = {
 	.release	= btf_release,
 };
 
+static int __btf_new_fd(struct btf *btf)
+{
+	return anon_inode_getfd("btf", &btf_fops, btf, O_RDONLY | O_CLOEXEC);
+}
+
 int btf_new_fd(const union bpf_attr *attr)
 {
 	struct btf *btf;
-	int fd;
+	int ret;
 
 	btf = btf_parse(u64_to_user_ptr(attr->btf),
 			attr->btf_size, attr->btf_log_level,
@@ -984,12 +1044,23 @@ int btf_new_fd(const union bpf_attr *attr)
 	if (IS_ERR(btf))
 		return PTR_ERR(btf);
 
-	fd = anon_inode_getfd("btf", &btf_fops, btf,
-			      O_RDONLY | O_CLOEXEC);
-	if (fd < 0)
+	ret = btf_alloc_id(btf);
+	if (ret) {
+		btf_free(btf);
+		return ret;
+	}
+
+	/*
+	 * The BTF ID is published to the userspace.
+	 * All BTF free must go through call_rcu() from
+	 * now on (i.e. free by calling btf_put()).
+	 */
+
+	ret = __btf_new_fd(btf);
+	if (ret < 0)
 		btf_put(btf);
 
-	return fd;
+	return ret;
 }
 
 struct btf *btf_get_by_fd(int fd)
@@ -1008,7 +1079,7 @@ struct btf *btf_get_by_fd(int fd)
 	}
 
 	btf = f.file->private_data;
-	btf_get(btf);
+	atomic_inc(&btf->refcnt);
 	fdput(f);
 
 	return btf;
@@ -1029,4 +1100,30 @@ void btf_type_seq_show(const struct btf *btf, u32 type_id, void *obj,
 		       struct seq_file *m)
 {
 	/* stub: second-pass verifier not yet implemented */
+}
+
+int btf_get_fd_by_id(u32 id)
+{
+	struct btf *btf;
+	int fd;
+
+	rcu_read_lock();
+	btf = idr_find(&btf_idr, id);
+	if (!btf || !atomic_inc_not_zero(&btf->refcnt))
+		btf = ERR_PTR(-ENOENT);
+	rcu_read_unlock();
+
+	if (IS_ERR(btf))
+		return PTR_ERR(btf);
+
+	fd = __btf_new_fd(btf);
+	if (fd < 0)
+		btf_put(btf);
+
+	return fd;
+}
+
+u32 btf_id(const struct btf *btf)
+{
+	return btf->id;
 }
