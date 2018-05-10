@@ -1824,6 +1824,33 @@ union bpf_attr {
  * 	Return
  * 		0 on success, or a negative error in case of failure.
  *
+ *
+ * int bpf_fib_lookup(void *ctx, struct bpf_fib_lookup *params, int plen, u32 flags)
+ *	Description
+ *		Do FIB lookup in kernel tables using parameters in *params*.
+ *		If lookup is successful and result shows packet is to be
+ *		forwarded, the neighbor tables are searched for the nexthop.
+ *		If successful (ie., FIB lookup shows forwarding and nexthop
+ *		is resolved), the nexthop address is returned in ipv4_dst,
+ *		ipv6_dst or mpls_out based on family, smac is set to mac
+ *		address of egress device, dmac is set to nexthop mac address,
+ *		rt_metric is set to metric from route.
+ *
+ *             *plen* argument is the size of the passed in struct.
+ *             *flags* argument can be one or more BPF_FIB_LOOKUP_ flags:
+ *
+ *             **BPF_FIB_LOOKUP_DIRECT** means do a direct table lookup vs
+ *             full lookup using FIB rules
+ *             **BPF_FIB_LOOKUP_OUTPUT** means do lookup from an egress
+ *             perspective (default is ingress)
+ *
+ *             *ctx* is either **struct xdp_md** for XDP programs or
+ *             **struct sk_buff** tc cls_act programs.
+ *
+ *     Return
+ *             Egress device index on success, 0 if packet needs to continue
+ *             up the stack for further processing or a negative error in case
+ *             of failure.
  */
 #define __BPF_FUNC_MAPPER(FN)		\
 	FN(unspec),			\
@@ -1894,7 +1921,8 @@ union bpf_attr {
 	FN(xdp_adjust_tail),		\
 	FN(skb_get_xfrm_state),		\
 	FN(get_stack),			\
-	FN(skb_load_bytes_relative),
+	FN(skb_load_bytes_relative),	\
+	FN(fib_lookup),
 
 /* integer value in 'imm' field of BPF_CALL instruction selects which helper
  * function eBPF program intends to call
