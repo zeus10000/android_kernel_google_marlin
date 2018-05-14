@@ -121,6 +121,7 @@ enum bpf_map_type {
 	BPF_MAP_TYPE_SOCKMAP,
 	BPF_MAP_TYPE_CPUMAP,
 	BPF_MAP_TYPE_XSKMAP,
+	BPF_MAP_TYPE_SOCKHASH,
 };
 
 enum bpf_prog_type {
