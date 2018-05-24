@@ -622,7 +622,8 @@ struct xdp_buff;
 struct bpf_dtab_netdev;
 
 static inline
-int dev_map_enqueue(struct bpf_dtab_netdev *dst, struct xdp_buff *xdp)
+int dev_map_enqueue(struct bpf_dtab_netdev *dst, struct xdp_buff *xdp,
+		    struct net_device *dev_rx)
 {
 	return 0;
 }
