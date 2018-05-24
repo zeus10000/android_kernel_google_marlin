@@ -96,6 +96,7 @@ enum bpf_cmd {
 	BPF_RAW_TRACEPOINT_OPEN,
 	BPF_BTF_LOAD,
 	BPF_BTF_GET_FD_BY_ID,
+	BPF_TASK_FD_QUERY,
 };
 
 enum bpf_map_type {
@@ -287,6 +288,17 @@ union bpf_attr {
 			__u64		name;
 			__u32		prog_fd;
 		} raw_tracepoint;
+		struct { /* anonymous struct used by BPF_TASK_FD_QUERY command */
+			__u32		pid;
+			__u32		fd;
+			__u32		flags;
+			__u32		buf_len;
+			__aligned_u64	buf;
+			__u32		prog_id;
+			__u32		fd_type;
+			__u64		probe_offset;
+			__u64		probe_addr;
+		} task_fd_query;
 } __attribute__((aligned(8)));
 
 /* integer value in 'imm' field of BPF_CALL instruction selects which helper
