@@ -840,6 +840,8 @@ void perf_event_detach_bpf_prog(struct perf_event *event)
 					      lockdep_is_held(&bpf_event_mutex));
 
 	ret = bpf_prog_array_copy(old_array, event->prog, NULL, &new_array);
+	if (ret == -ENOENT)
+		goto unlock;
 	if (ret < 0) {
 		bpf_prog_array_delete_safe(old_array, event->prog);
 	} else {
