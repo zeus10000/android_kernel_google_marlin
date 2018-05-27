@@ -27,7 +27,7 @@
 static LIST_HEAD(ir_raw_client_list);
 
 /* Used to handle IR raw handler extensions */
-static DEFINE_MUTEX(ir_raw_handler_lock);
+DEFINE_MUTEX(ir_raw_handler_lock);
 static LIST_HEAD(ir_raw_handler_list);
 static u64 available_protocols;
 
@@ -307,7 +307,8 @@ void ir_raw_event_unregister(struct rc_dev *dev)
 	list_for_each_entry(handler, &ir_raw_handler_list, list)
 		if (handler->raw_unregister)
 			handler->raw_unregister(dev);
-	mutex_unlock(&ir_raw_handler_lock);
+
+	lirc_bpf_free(dev);
 
 	kfifo_free(&dev->raw->kfifo);
 	kfree(dev->raw);

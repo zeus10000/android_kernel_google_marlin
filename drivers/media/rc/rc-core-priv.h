@@ -43,6 +43,11 @@ struct ir_raw_event_ctrl {
 	/* raw decoder state follows */
 	struct ir_raw_event prev_ev;
 	struct ir_raw_event this_ev;
+
+#ifdef CONFIG_BPF_LIRC_MODE2
+	u32				bpf_sample;
+	struct bpf_prog_array __rcu	*progs;
+#endif
 	struct nec_dec {
 		int state;
 		unsigned count;
@@ -116,6 +121,9 @@ struct ir_raw_event_ctrl {
 		u32 durations[16];
 	} xmp;
 };
+
+/* Mutex for locking raw IR processing and handler change */
+extern struct mutex ir_raw_handler_lock;
 
 /* macros for IR decoders */
 static inline bool geq_margin(unsigned d1, unsigned d2, unsigned margin)
