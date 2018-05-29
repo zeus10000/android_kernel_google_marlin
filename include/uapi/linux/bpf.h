@@ -1847,10 +1847,10 @@ union bpf_attr {
  *		If lookup is successful and result shows packet is to be
  *		forwarded, the neighbor tables are searched for the nexthop.
  *		If successful (ie., FIB lookup shows forwarding and nexthop
- *		is resolved), the nexthop address is returned in ipv4_dst,
- *		ipv6_dst or mpls_out based on family, smac is set to mac
- *		address of egress device, dmac is set to nexthop mac address,
- *		rt_metric is set to metric from route.
+ *		is resolved), the nexthop address is returned in ipv4_dst
+ *		or ipv6_dst based on family, smac is set to mac address of
+ *		egress device, dmac is set to nexthop mac address, rt_metric
+ *		is set to metric from route (IPv4/IPv6 only).
  *
  *             *plen* argument is the size of the passed in struct.
  *             *flags* argument can be a combination of one or more of the
