@@ -1431,7 +1431,7 @@ static int vhost_scsi_open(struct inode *inode, struct file *f)
 			goto err_vs;
 	}
 
-	vqs = kmalloc(VHOST_SCSI_MAX_VQ * sizeof(*vqs), GFP_KERNEL);
+	vqs = kmalloc_array(VHOST_SCSI_MAX_VQ, sizeof(*vqs), GFP_KERNEL);
 	if (!vqs)
 		goto err_vqs;
 
