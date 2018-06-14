@@ -628,6 +628,15 @@ int dev_map_enqueue(struct bpf_dtab_netdev *dst, struct xdp_buff *xdp,
 	return 0;
 }
 
+struct sk_buff;
+
+static inline int dev_map_generic_redirect(struct bpf_dtab_netdev *dst,
+					   struct sk_buff *skb,
+					   struct bpf_prog *xdp_prog)
+{
+	return 0;
+}
+
 static inline
 struct bpf_cpu_map_entry *__cpu_map_lookup_elem(struct bpf_map *map, u32 key)
 {

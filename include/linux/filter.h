@@ -806,6 +806,21 @@ bool bpf_helper_changes_skb_data(void *func);
 struct bpf_prog *bpf_patch_insn_single(struct bpf_prog *prog, u32 off,
 				       const struct bpf_insn *patch, u32 len);
 
+static inline int __xdp_generic_ok_fwd_dev(struct sk_buff *skb,
+					   struct net_device *fwd)
+{
+	unsigned int len;
+
+	if (unlikely(!(fwd->flags & IFF_UP)))
+		return -ENETDOWN;
+
+	len = fwd->mtu + fwd->hard_header_len + VLAN_HLEN;
+	if (skb->len > len)
+		return -EMSGSIZE;
+
+	return 0;
+}
+
 /* The pair of xdp_do_redirect and xdp_do_flush_map MUST be called in the
  * same cpu context. Further for best results no more than a single map
  * for the do_redirect/do_flush pair should be used. This limitation is
