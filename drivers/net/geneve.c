@@ -212,7 +212,8 @@ static void geneve_rx(struct geneve_sock *gs, struct sk_buff *skb)
 			goto drop;
 		/* Update tunnel dst according to Geneve options. */
 		ip_tunnel_info_opts_set(&tun_dst->u.tun_info,
-					gnvh->options, gnvh->opt_len * 4);
+					gnvh->options, gnvh->opt_len * 4,
+					TUNNEL_GENEVE_OPT);
 	} else {
 		/* Drop packets w/ critical options,
 		 * since we don't support any...
