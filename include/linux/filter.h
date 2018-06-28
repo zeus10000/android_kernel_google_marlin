@@ -737,22 +737,6 @@ bpf_jit_binary_hdr(const struct bpf_prog *fp)
 	return (void *)addr;
 }
 
-#ifdef CONFIG_ARCH_HAS_SET_MEMORY
-static inline int bpf_prog_check_pages_ro_single(const struct bpf_prog *fp)
-{
-	if (!fp->locked)
-		return -ENOLCK;
-	if (fp->jited) {
-		const struct bpf_binary_header *hdr = bpf_jit_binary_hdr(fp);
-
-		if (!hdr->locked)
-			return -ENOLCK;
-	}
-
-	return 0;
-}
-#endif
-
 int sk_filter_trim_cap(struct sock *sk, struct sk_buff *skb, unsigned int cap);
 static inline int sk_filter(struct sock *sk, struct sk_buff *skb)
 {
