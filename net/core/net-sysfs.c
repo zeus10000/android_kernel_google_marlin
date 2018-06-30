@@ -1200,13 +1200,13 @@ static ssize_t show_xps_map(struct netdev_queue *queue,
 	}
 
 	rcu_read_lock();
-	dev_maps = rcu_dereference(dev->xps_maps);
+	dev_maps = rcu_dereference(dev->xps_cpus_map);
 	if (dev_maps) {
 		for_each_possible_cpu(cpu) {
 			int i, tci = cpu * num_tc + tc;
 			struct xps_map *map;
 
-			map = rcu_dereference(dev_maps->cpu_map[tci]);
+			map = rcu_dereference(dev_maps->attr_map[tci]);
 			if (!map)
 				continue;
 
