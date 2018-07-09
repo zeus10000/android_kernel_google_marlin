@@ -306,9 +306,10 @@ static bool packet_use_direct_xmit(const struct packet_sock *po)
 	return po->xmit == packet_direct_xmit;
 }
 
-static u16 __packet_pick_tx_queue(struct net_device *dev, struct sk_buff *skb)
+static u16 __packet_pick_tx_queue(struct net_device *dev, struct sk_buff *skb,
+				  struct net_device *sb_dev)
 {
-	return dev_pick_tx_cpu_id(dev, skb, NULL, NULL);
+	return dev_pick_tx_cpu_id(dev, skb, sb_dev, NULL);
 }
 
 static void packet_pick_tx_queue(struct net_device *dev, struct sk_buff *skb)
@@ -321,7 +322,7 @@ static void packet_pick_tx_queue(struct net_device *dev, struct sk_buff *skb)
 						    __packet_pick_tx_queue);
 		queue_index = netdev_cap_txqueue(dev, queue_index);
 	} else {
-		queue_index = __packet_pick_tx_queue(dev, skb);
+		queue_index = __packet_pick_tx_queue(dev, skb, NULL);
 	}
 
 	skb_set_queue_mapping(skb, queue_index);
