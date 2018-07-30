@@ -428,7 +428,7 @@ nf_ct_frag6_reasm(struct frag_queue *fq, struct net_device *dev)
 	sub_frag_mem_limit(fq->q.net, head->truesize);
 
 	head->ignore_df = 1;
-	head->next = NULL;
+	skb_mark_not_on_list(head);
 	head->dev = dev;
 	head->tstamp = fq->q.stamp;
 	ipv6_hdr(head)->payload_len = htons(payload_len);

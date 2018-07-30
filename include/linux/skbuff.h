@@ -1201,6 +1201,11 @@ static inline struct skb_shared_hwtstamps *skb_hwtstamps(struct sk_buff *skb)
 	for ((skb) = (first), (next_skb) = (skb) ? (skb)->next : NULL; (skb);  \
 	     (skb) = (next_skb), (next_skb) = (skb) ? (skb)->next : NULL)
 
+static inline void skb_mark_not_on_list(struct sk_buff *skb)
+{
+	skb->next = NULL;
+}
+
 /**
  *	skb_queue_empty - check if a queue is empty
  *	@list: queue head
