@@ -193,9 +193,9 @@ void reuseport_detach_sock(struct sock *sk)
 }
 EXPORT_SYMBOL(reuseport_detach_sock);
 
-static struct sock *run_bpf(struct sock_reuseport *reuse, u16 socks,
-			    struct bpf_prog *prog, struct sk_buff *skb,
-			    int hdr_len)
+static struct sock *run_bpf_filter(struct sock_reuseport *reuse, u16 socks,
+				   struct bpf_prog *prog, struct sk_buff *skb,
+				   int hdr_len)
 {
 	struct sk_buff *nskb = NULL;
 	u32 index;
@@ -268,11 +268,20 @@ out:
 }
 EXPORT_SYMBOL(reuseport_select_sock);
 
-struct bpf_prog *
-reuseport_attach_prog(struct sock *sk, struct bpf_prog *prog)
+int reuseport_attach_prog(struct sock *sk, struct bpf_prog *prog)
 {
 	struct sock_reuseport *reuse;
 	struct bpf_prog *old_prog;
+
+	if (sk_unhashed(sk) && sk->sk_reuseport) {
+		int err = reuseport_alloc(sk, false);
+
+		if (err)
+			return err;
+	} else if (!rcu_access_pointer(sk->sk_reuseport_cb)) {
+		/* The socket wasn't bound with SO_REUSEPORT */
+		return -EINVAL;
+	}
 
 	spin_lock_bh(&reuseport_lock);
 	reuse = rcu_dereference_protected(sk->sk_reuseport_cb,
@@ -282,6 +291,7 @@ reuseport_attach_prog(struct sock *sk, struct bpf_prog *prog)
 	rcu_assign_pointer(reuse->prog, prog);
 	spin_unlock_bh(&reuseport_lock);
 
-	return old_prog;
+	sk_reuseport_prog_free(old_prog);
+	return 0;
 }
 EXPORT_SYMBOL(reuseport_attach_prog);
