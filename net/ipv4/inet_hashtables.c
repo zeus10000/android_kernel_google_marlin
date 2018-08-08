@@ -487,7 +487,7 @@ static int inet_reuseport_add_sock(struct sock *sk,
 			return reuseport_add_sock(sk, sk2);
 	}
 
-	return reuseport_alloc(sk);
+	return reuseport_alloc(sk, inet_rcv_saddr_any(sk));
 }
 
 int __inet_hash(struct sock *sk, struct sock *osk,
