@@ -681,6 +681,7 @@ out:
 
 static int icmpv6_rcv(struct sk_buff *skb)
 {
+	struct net *net = dev_net(skb->dev);
 	struct net_device *dev = skb->dev;
 	struct inet6_dev *idev = __in6_dev_get(dev);
 	const struct in6_addr *saddr, *daddr;
@@ -730,7 +731,8 @@ static int icmpv6_rcv(struct sk_buff *skb)
 
 	switch (type) {
 	case ICMPV6_ECHO_REQUEST:
-		icmpv6_echo_reply(skb);
+		if (!net->ipv6.sysctl.icmpv6_echo_ignore_all)
+			icmpv6_echo_reply(skb);
 		break;
 
 	case ICMPV6_ECHO_REPLY:
@@ -993,6 +995,13 @@ static struct ctl_table ipv6_icmp_table_template[] = {
 		.mode		= 0644,
 		.proc_handler	= proc_dointvec_ms_jiffies,
 	},
+	{
+		.procname	= "echo_ignore_all",
+		.data		= &init_net.ipv6.sysctl.icmpv6_echo_ignore_all,
+		.maxlen		= sizeof(int),
+		.mode		= 0644,
+		.proc_handler = proc_dointvec,
+	},
 	{ },
 };
 
@@ -1004,9 +1013,10 @@ struct ctl_table * __net_init ipv6_icmp_sysctl_init(struct net *net)
 			sizeof(ipv6_icmp_table_template),
 			GFP_KERNEL);
 
-	if (table)
+	if (table) {
 		table[0].data = &net->ipv6.sysctl.icmpv6_time;
-
+		table[1].data = &net->ipv6.sysctl.icmpv6_echo_ignore_all;
+	}
 	return table;
 }
 #endif
