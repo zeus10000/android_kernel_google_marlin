@@ -159,6 +159,7 @@ enum bpf_attach_type {
 	BPF_CGROUP_UDP4_SENDMSG,
 	BPF_CGROUP_UDP6_SENDMSG,
 	BPF_LIRC_MODE2,
+	BPF_FLOW_DISSECTOR,
 	__MAX_BPF_ATTACH_TYPE
 };
 
@@ -2668,6 +2669,7 @@ struct __sk_buff {
 	/* ... here. */
 
 	__u32 data_meta;
+	struct bpf_flow_keys *flow_keys;
 };
 
 struct bpf_tunnel_key {
