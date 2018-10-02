@@ -2702,7 +2702,7 @@ static struct bpf_test tests[] = {
 			BPF_MOV64_IMM(BPF_REG_0, 0),
 			BPF_EXIT_INSN(),
 		},
-		.errstr = "R3 pointer arithmetic on PTR_TO_PACKET_END",
+		.errstr = "R3 pointer arithmetic on pkt_end",
 		.result = REJECT,
 		.prog_type = BPF_PROG_TYPE_SCHED_CLS,
 	},
@@ -3474,7 +3474,7 @@ static struct bpf_test tests[] = {
 			BPF_EXIT_INSN(),
 		},
 		.fixup_map1 = { 4 },
-		.errstr = "R4 pointer arithmetic on PTR_TO_MAP_VALUE_OR_NULL",
+		.errstr = "R4 pointer arithmetic on map_value_or_null",
 		.result = REJECT,
 		.prog_type = BPF_PROG_TYPE_SCHED_CLS
 	},
@@ -3495,7 +3495,7 @@ static struct bpf_test tests[] = {
 			BPF_EXIT_INSN(),
 		},
 		.fixup_map1 = { 4 },
-		.errstr = "R4 pointer arithmetic on PTR_TO_MAP_VALUE_OR_NULL",
+		.errstr = "R4 pointer arithmetic on map_value_or_null",
 		.result = REJECT,
 		.prog_type = BPF_PROG_TYPE_SCHED_CLS
 	},
@@ -3516,7 +3516,7 @@ static struct bpf_test tests[] = {
 			BPF_EXIT_INSN(),
 		},
 		.fixup_map1 = { 4 },
-		.errstr = "R4 pointer arithmetic on PTR_TO_MAP_VALUE_OR_NULL",
+		.errstr = "R4 pointer arithmetic on map_value_or_null",
 		.result = REJECT,
 		.prog_type = BPF_PROG_TYPE_SCHED_CLS
 	},
