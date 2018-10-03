@@ -1098,7 +1098,7 @@ include/config/kernel.release: include/config/auto.conf FORCE
 # version.h and scripts_basic is processed / created.
 
 # Listed in dependency order
-PHONY += prepare archprepare prepare0 prepare1 prepare2 prepare3
+PHONY += prepare archprepare macroprepare prepare0 prepare1 prepare2 prepare3
 
 # prepare3 is used to check if we are building in a separate output directory,
 # and if so do:
@@ -1120,7 +1120,9 @@ prepare1: prepare2 $(version_h) include/generated/utsrelease.h \
                    include/config/auto.conf
 	$(cmd_crmodverdir)
 
-archprepare: archheaders archscripts prepare1 scripts_basic
+macroprepare: prepare1 archmacros
+
+archprepare: archheaders archscripts macroprepare scripts_basic
 
 prepare0: archprepare
 	$(Q)$(MAKE) $(build)=.
@@ -1204,6 +1206,9 @@ archheaders:
 
 PHONY += archscripts
 archscripts:
+
+PHONY += archmacros
+archmacros:
 
 PHONY += __headers
 __headers: $(version_h) scripts_basic asm-generic archheaders archscripts
