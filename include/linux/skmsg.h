@@ -176,7 +176,6 @@ static inline void sk_msg_xfer(struct sk_msg *dst, struct sk_msg *src,
 {
 	dst->sg.data[which] = src->sg.data[which];
 	dst->sg.data[which].length  = size;
-	dst->sg.size		   += size;
 	src->sg.data[which].length -= size;
 	src->sg.data[which].offset += size;
 }
@@ -187,29 +186,21 @@ static inline void sk_msg_xfer_full(struct sk_msg *dst, struct sk_msg *src)
 	sk_msg_init(src);
 }
 
-static inline bool sk_msg_full(const struct sk_msg *msg)
-{
-	return (msg->sg.end == msg->sg.start) && msg->sg.size;
-}
-
 static inline u32 sk_msg_elem_used(const struct sk_msg *msg)
 {
-	if (sk_msg_full(msg))
-		return MAX_MSG_FRAGS;
-
 	return msg->sg.end >= msg->sg.start ?
 		msg->sg.end - msg->sg.start :
 		msg->sg.end + (MAX_MSG_FRAGS - msg->sg.start);
 }
 
+static inline bool sk_msg_full(const struct sk_msg *msg)
+{
+	return (msg->sg.end == msg->sg.start) && msg->sg.size;
+}
+
 static inline struct scatterlist *sk_msg_elem(struct sk_msg *msg, int which)
 {
 	return &msg->sg.data[which];
-}
-
-static inline struct scatterlist sk_msg_elem_cpy(struct sk_msg *msg, int which)
-{
-	return msg->sg.data[which];
 }
 
 static inline struct page *sk_msg_page(struct sk_msg *msg, int which)
@@ -273,6 +264,11 @@ static inline void sk_msg_sg_copy_clear(struct sk_msg *msg, u32 start)
 static inline struct sk_psock *sk_psock(const struct sock *sk)
 {
 	return rcu_dereference_sk_user_data(sk);
+}
+
+static inline bool sk_has_psock(struct sock *sk)
+{
+	return sk_psock(sk) != NULL && sk->sk_prot->recvmsg == tcp_bpf_recvmsg;
 }
 
 static inline void sk_psock_queue_msg(struct sk_psock *psock,
@@ -351,13 +347,7 @@ static inline void sk_psock_restore_proto(struct sock *sk,
 					  struct sk_psock *psock)
 {
 	if (psock->sk_proto) {
-		struct inet_connection_sock *icsk = inet_csk(sk);
-		bool has_ulp = !!icsk->icsk_ulp_data;
-
-		if (has_ulp)
-			tcp_update_ulp(sk, psock->sk_proto);
-		else
-			sk->sk_prot = psock->sk_proto;
+		sk->sk_prot = psock->sk_proto;
 		psock->sk_proto = NULL;
 	}
 }
@@ -380,26 +370,6 @@ static inline bool sk_psock_test_state(const struct sk_psock *psock,
 	return test_bit(bit, &psock->state);
 }
 
-static inline struct sk_psock *sk_psock_get_checked(struct sock *sk)
-{
-	struct sk_psock *psock;
-
-	rcu_read_lock();
-	psock = sk_psock(sk);
-	if (psock) {
-		if (sk->sk_prot->recvmsg != tcp_bpf_recvmsg) {
-			psock = ERR_PTR(-EBUSY);
-			goto out;
-		}
-
-		if (!refcount_inc_not_zero(&psock->refcnt))
-			psock = ERR_PTR(-EBUSY);
-	}
-out:
-	rcu_read_unlock();
-	return psock;
-}
-
 static inline struct sk_psock *sk_psock_get(struct sock *sk)
 {
 	struct sk_psock *psock;
@@ -420,14 +390,6 @@ static inline void sk_psock_put(struct sock *sk, struct sk_psock *psock)
 {
 	if (refcount_dec_and_test(&psock->refcnt))
 		sk_psock_drop(sk, psock);
-}
-
-static inline void sk_psock_data_ready(struct sock *sk, struct sk_psock *psock)
-{
-	if (psock->parser.enabled)
-		psock->parser.saved_data_ready(sk);
-	else
-		sk->sk_data_ready(sk);
 }
 
 static inline void psock_set_prog(struct bpf_prog **pprog,
