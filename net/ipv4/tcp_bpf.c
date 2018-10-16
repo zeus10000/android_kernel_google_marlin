@@ -1,9 +1,3 @@
-#ifndef MSG_SENDPAGE_DECRYPTED
-#define MSG_SENDPAGE_DECRYPTED 0
-#endif
-#ifndef MSG_NO_SHARED_FRAGS
-#define MSG_NO_SHARED_FRAGS 0
-#endif
 // SPDX-License-Identifier: GPL-2.0
 /* Copyright (c) 2017 - 2018 Covalent IO, Inc. http://covalent.io */
 
@@ -14,7 +8,6 @@
 #include <linux/wait.h>
 
 #include <net/inet_common.h>
-#include <net/tls.h>
 
 static bool tcp_bpf_stream_read(const struct sock *sk)
 {
@@ -33,10 +26,7 @@ static int tcp_bpf_wait_data(struct sock *sk, struct sk_psock *psock,
 			     int flags, long timeo, int *err)
 {
 	DEFINE_WAIT_FUNC(wait, woken_wake_function);
-	int ret = 0;
-
-	if (!timeo)
-		return ret;
+	int ret;
 
 	add_wait_queue(sk_sleep(sk), &wait);
 	sk_set_bit(SOCKWQ_ASYNC_WAITDATA, sk);
@@ -49,19 +39,17 @@ static int tcp_bpf_wait_data(struct sock *sk, struct sk_psock *psock,
 }
 
 int __tcp_bpf_recvmsg(struct sock *sk, struct sk_psock *psock,
-		      struct msghdr *msg, int len, int flags)
+		      struct msghdr *msg, int len)
 {
 	struct iov_iter *iter = &msg->msg_iter;
-	int peek = flags & MSG_PEEK;
 	int i, ret, copied = 0;
-	struct sk_msg *msg_rx;
-
-	msg_rx = list_first_entry_or_null(&psock->ingress_msg,
-					  struct sk_msg, list);
 
 	while (copied != len) {
 		struct scatterlist *sge;
+		struct sk_msg *msg_rx;
 
+		msg_rx = list_first_entry_or_null(&psock->ingress_msg,
+						  struct sk_msg, list);
 		if (unlikely(!msg_rx))
 			break;
 
@@ -82,29 +70,21 @@ int __tcp_bpf_recvmsg(struct sock *sk, struct sk_psock *psock,
 			}
 
 			copied += copy;
-			if (likely(!peek)) {
-				sge->offset += copy;
-				sge->length -= copy;
-				sk_mem_uncharge(sk, copy);
-				msg_rx->sg.size -= copy;
-
-				if (!sge->length) {
-					sk_msg_iter_var_next(i);
-					if (!msg_rx->skb)
-						put_page(page);
-				}
-			} else {
-				sk_msg_iter_var_next(i);
+			sge->offset += copy;
+			sge->length -= copy;
+			sk_mem_uncharge(sk, copy);
+			msg_rx->sg.size -= copy;
+			if (!sge->length) {
+				i++;
+				if (i == MAX_SKB_FRAGS)
+					i = 0;
+				if (!msg_rx->skb)
+					put_page(page);
 			}
 
 			if (copied == len)
 				break;
 		} while (i != msg_rx->sg.end);
-
-		if (unlikely(peek)) {
-			msg_rx = list_next_entry(msg_rx, list);
-			continue;
-		}
 
 		msg_rx->sg.start = i;
 		if (!sge->length && msg_rx->sg.start == msg_rx->sg.end) {
@@ -113,8 +93,6 @@ int __tcp_bpf_recvmsg(struct sock *sk, struct sk_psock *psock,
 				consume_skb(msg_rx->skb);
 			kfree(msg_rx);
 		}
-		msg_rx = list_first_entry_or_null(&psock->ingress_msg,
-						  struct sk_msg, list);
 	}
 
 	return copied;
@@ -137,7 +115,7 @@ int tcp_bpf_recvmsg(struct sock *sk, struct msghdr *msg, size_t len,
 		return tcp_recvmsg(sk, msg, len, nonblock, flags, addr_len);
 	lock_sock(sk);
 msg_bytes_ready:
-	copied = __tcp_bpf_recvmsg(sk, psock, msg, len, flags);
+	copied = __tcp_bpf_recvmsg(sk, psock, msg, len);
 	if (!copied) {
 		int data, err = 0;
 		long timeo;
@@ -155,7 +133,6 @@ msg_bytes_ready:
 			ret = err;
 			goto out;
 		}
-		copied = -EAGAIN;
 	}
 	ret = copied;
 out:
@@ -228,8 +205,6 @@ static int tcp_bpf_push(struct sock *sk, struct sk_msg *msg, u32 apply_bytes,
 	u32 off;
 
 	while (1) {
-		bool has_tx_ulp;
-
 		sge = sk_msg_elem(msg, msg->sg.start);
 		size = (apply && apply_bytes < sge->length) ?
 			apply_bytes : sge->length;
@@ -238,15 +213,7 @@ static int tcp_bpf_push(struct sock *sk, struct sk_msg *msg, u32 apply_bytes,
 
 		tcp_rate_check_app_limited(sk);
 retry:
-		has_tx_ulp = tls_sw_has_ctx_tx(sk);
-		if (has_tx_ulp) {
-			flags |= MSG_SENDPAGE_NOPOLICY;
-			ret = kernel_sendpage(sk,
-						     page, off, size, flags);
-		} else {
-			ret = do_tcp_sendpages(sk, page, off, size, flags);
-		}
-
+		ret = do_tcp_sendpages(sk, page, off, size, flags);
 		if (ret <= 0)
 			return ret;
 		if (apply)
@@ -309,23 +276,12 @@ static int tcp_bpf_send_verdict(struct sock *sk, struct sk_psock *psock,
 {
 	bool cork = false, enospc = msg->sg.start == msg->sg.end;
 	struct sock *sk_redir;
-	u32 tosend, delta = 0;
+	u32 tosend;
 	int ret;
 
 more_data:
-	if (psock->eval == __SK_NONE) {
-		/* Track delta in msg size to add/subtract it on SK_DROP from
-		 * returned to user copied size. This ensures user doesn't
-		 * get a positive return code with msg_cut_data and SK_DROP
-		 * verdict.
-		 */
-		delta = msg->sg.size;
+	if (psock->eval == __SK_NONE)
 		psock->eval = sk_psock_msg_verdict(sk, psock, msg);
-		if (msg->sg.size < delta)
-			delta -= msg->sg.size;
-		else
-			delta = 0;
-	}
 
 	if (msg->cork_bytes &&
 	    msg->cork_bytes > msg->sg.size && !enospc) {
@@ -381,7 +337,7 @@ more_data:
 	default:
 		sk_msg_free_partial(sk, msg, tosend);
 		sk_msg_apply_bytes(psock, tosend);
-		*copied -= (tosend + delta);
+		*copied -= tosend;
 		return -EACCES;
 	}
 
@@ -404,14 +360,10 @@ more_data:
 static int tcp_bpf_sendmsg(struct sock *sk, struct msghdr *msg, size_t size)
 {
 	struct sk_msg tmp, *msg_tx = NULL;
+	int flags = msg->msg_flags | MSG_NO_SHARED_FRAGS;
 	int copied = 0, err = 0;
 	struct sk_psock *psock;
 	long timeo;
-	int flags;
-
-	/* Don't let internal do_tcp_sendpages() flags through */
-	flags = (msg->msg_flags & ~MSG_SENDPAGE_DECRYPTED);
-	flags |= MSG_NO_SHARED_FRAGS;
 
 	psock = sk_psock_get(sk);
 	if (unlikely(!psock))
@@ -541,6 +493,8 @@ static void tcp_bpf_remove(struct sock *sk, struct sk_psock *psock)
 {
 	struct sk_psock_link *link;
 
+	sk_psock_cork_free(psock);
+	__sk_psock_purge_ingress_msg(psock);
 	while ((link = sk_psock_link_pop(psock))) {
 		sk_psock_unlink(sk, link);
 		sk_psock_free_link(link);
