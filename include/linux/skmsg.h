@@ -29,10 +29,13 @@ struct sk_msg_sg {
 	u32				size;
 	u32				copybreak;
 	bool				copy[MAX_MSG_FRAGS];
-	struct scatterlist		data[MAX_MSG_FRAGS];
+	/* The extra element is used for chaining the front and sections when
+	 * the list becomes partitioned (e.g. end < start). The crypto APIs
+	 * require the chaining.
+	 */
+	struct scatterlist		data[MAX_MSG_FRAGS + 1];
 };
 
-/* UAPI in filter.c depends on struct sk_msg_sg being first element. */
 struct sk_msg {
 	struct sk_msg_sg		sg;
 	void				*data;
@@ -103,6 +106,8 @@ struct sk_psock {
 
 int sk_msg_alloc(struct sock *sk, struct sk_msg *msg, int len,
 		 int elem_first_coalesce);
+int sk_msg_clone(struct sock *sk, struct sk_msg *dst, struct sk_msg *src,
+		 u32 off, u32 len);
 void sk_msg_trim(struct sock *sk, struct sk_msg *msg, int len);
 int sk_msg_free(struct sock *sk, struct sk_msg *msg);
 int sk_msg_free_nocharge(struct sock *sk, struct sk_msg *msg);
@@ -111,6 +116,7 @@ void sk_msg_free_partial_nocharge(struct sock *sk, struct sk_msg *msg,
 				  u32 bytes);
 
 void sk_msg_return(struct sock *sk, struct sk_msg *msg, int bytes);
+void sk_msg_return_zero(struct sock *sk, struct sk_msg *msg, int bytes);
 
 int sk_msg_zerocopy_from_iter(struct sock *sk, struct iov_iter *from,
 			      struct sk_msg *msg, u32 bytes);
@@ -160,8 +166,9 @@ static inline void sk_msg_clear_meta(struct sk_msg *msg)
 
 static inline void sk_msg_init(struct sk_msg *msg)
 {
+	BUILD_BUG_ON(ARRAY_SIZE(msg->sg.data) - 1 != MAX_MSG_FRAGS);
 	memset(msg, 0, sizeof(*msg));
-	sg_init_marker(msg->sg.data, ARRAY_SIZE(msg->sg.data));
+	sg_init_marker(msg->sg.data, MAX_MSG_FRAGS);
 }
 
 static inline void sk_msg_xfer(struct sk_msg *dst, struct sk_msg *src,
@@ -169,15 +176,15 @@ static inline void sk_msg_xfer(struct sk_msg *dst, struct sk_msg *src,
 {
 	dst->sg.data[which] = src->sg.data[which];
 	dst->sg.data[which].length  = size;
+	dst->sg.size		   += size;
 	src->sg.data[which].length -= size;
 	src->sg.data[which].offset += size;
 }
 
-static inline u32 sk_msg_elem_used(const struct sk_msg *msg)
+static inline void sk_msg_xfer_full(struct sk_msg *dst, struct sk_msg *src)
 {
-	return msg->sg.end >= msg->sg.start ?
-		msg->sg.end - msg->sg.start :
-		msg->sg.end + (MAX_MSG_FRAGS - msg->sg.start);
+	memcpy(dst, src, sizeof(*src));
+	sk_msg_init(src);
 }
 
 static inline bool sk_msg_full(const struct sk_msg *msg)
@@ -185,14 +192,19 @@ static inline bool sk_msg_full(const struct sk_msg *msg)
 	return (msg->sg.end == msg->sg.start) && msg->sg.size;
 }
 
+static inline u32 sk_msg_elem_used(const struct sk_msg *msg)
+{
+	if (sk_msg_full(msg))
+		return MAX_MSG_FRAGS;
+
+	return msg->sg.end >= msg->sg.start ?
+		msg->sg.end - msg->sg.start :
+		msg->sg.end + (MAX_MSG_FRAGS - msg->sg.start);
+}
+
 static inline struct scatterlist *sk_msg_elem(struct sk_msg *msg, int which)
 {
 	return &msg->sg.data[which];
-}
-
-static inline struct scatterlist sk_msg_elem_cpy(struct sk_msg *msg, int which)
-{
-	return msg->sg.data[which];
 }
 
 static inline struct page *sk_msg_page(struct sk_msg *msg, int which)
@@ -233,20 +245,40 @@ static inline void sk_msg_page_add(struct sk_msg *msg, struct page *page,
 	sk_msg_iter_next(msg, end);
 }
 
+static inline void sk_msg_sg_copy(struct sk_msg *msg, u32 i, bool copy_state)
+{
+	do {
+		msg->sg.copy[i] = copy_state;
+		sk_msg_iter_var_next(i);
+		if (i == msg->sg.end)
+			break;
+	} while (1);
+}
+
+static inline void sk_msg_sg_copy_set(struct sk_msg *msg, u32 start)
+{
+	sk_msg_sg_copy(msg, start, true);
+}
+
+static inline void sk_msg_sg_copy_clear(struct sk_msg *msg, u32 start)
+{
+	sk_msg_sg_copy(msg, start, false);
+}
+
 static inline struct sk_psock *sk_psock(const struct sock *sk)
 {
 	return rcu_dereference_sk_user_data(sk);
-}
-
-static inline bool sk_has_psock(struct sock *sk)
-{
-	return sk_psock(sk) != NULL;  /* tcp_bpf.c not backported */
 }
 
 static inline void sk_psock_queue_msg(struct sk_psock *psock,
 				      struct sk_msg *msg)
 {
 	list_add_tail(&msg->list, &psock->ingress_msg);
+}
+
+static inline bool sk_psock_queue_empty(const struct sk_psock *psock)
+{
+	return psock ? list_empty(&psock->ingress_msg) : true;
 }
 
 static inline void sk_psock_report_error(struct sk_psock *psock, int err)
@@ -337,6 +369,26 @@ static inline bool sk_psock_test_state(const struct sk_psock *psock,
 	return test_bit(bit, &psock->state);
 }
 
+static inline struct sk_psock *sk_psock_get_checked(struct sock *sk)
+{
+	struct sk_psock *psock;
+
+	rcu_read_lock();
+	psock = sk_psock(sk);
+	if (psock) {
+		if (sk->sk_prot->recvmsg != tcp_bpf_recvmsg) {
+			psock = ERR_PTR(-EBUSY);
+			goto out;
+		}
+
+		if (!refcount_inc_not_zero(&psock->refcnt))
+			psock = ERR_PTR(-EBUSY);
+	}
+out:
+	rcu_read_unlock();
+	return psock;
+}
+
 static inline struct sk_psock *sk_psock_get(struct sock *sk)
 {
 	struct sk_psock *psock;
@@ -372,46 +424,6 @@ static inline void psock_progs_drop(struct sk_psock_progs *progs)
 	psock_set_prog(&progs->msg_parser, NULL);
 	psock_set_prog(&progs->skb_parser, NULL);
 	psock_set_prog(&progs->skb_verdict, NULL);
-}
-
-
-#ifdef CONFIG_BPF_STREAM_PARSER
-int tcp_bpf_init(struct sock *sk);
-void tcp_bpf_reinit(struct sock *sk);
-#ifdef CONFIG_BPF_STREAM_PARSER
-int tcp_bpf_sendmsg_redir(struct sock *sk, struct sk_msg *msg, u32 bytes, int flags);
-int __tcp_bpf_recvmsg(struct sock *sk, struct sk_psock *psock, struct msghdr *msg, int len, int flags);
-#endif
-#endif
-static inline bool sk_psock_queue_empty(const struct sk_psock *psock)
-{
-	return psock ? list_empty(&psock->ingress_msg) : true;
-}
-int sk_msg_clone(struct sock *sk, struct sk_msg *dst, struct sk_msg *src,
-		 u32 off, u32 len);
-void sk_msg_return_zero(struct sock *sk, struct sk_msg *msg, int bytes);
-static inline void sk_msg_xfer_full(struct sk_msg *dst, struct sk_msg *src)
-{
-	memcpy(dst, src, sizeof(*src));
-	sk_msg_init(src);
-}
-static inline void sk_msg_sg_copy(struct sk_msg *msg, u32 i, bool copy_state)
-{
-	do {
-		if (msg->sg.copy)
-			msg->sg.copy[i] = copy_state;
-		sk_msg_iter_var_next(i);
-		if (i == msg->sg.end)
-			break;
-	} while (1);
-}
-static inline void sk_msg_sg_copy_set(struct sk_msg *msg, u32 start)
-{
-	sk_msg_sg_copy(msg, start, true);
-}
-static inline void sk_msg_sg_copy_clear(struct sk_msg *msg, u32 start)
-{
-	sk_msg_sg_copy(msg, start, false);
 }
 
 #endif /* _LINUX_SKMSG_H */
