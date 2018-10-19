@@ -6697,7 +6697,7 @@ const struct bpf_prog_ops xdp_prog_ops = {
 
 const struct bpf_verifier_ops cg_skb_verifier_ops = {
 	.get_func_proto		= cg_skb_func_proto,
-	.is_valid_access	= sk_filter_is_valid_access,
+	.is_valid_access	= cg_skb_is_valid_access,
 	.convert_ctx_access	= bpf_convert_ctx_access,
 };
 
