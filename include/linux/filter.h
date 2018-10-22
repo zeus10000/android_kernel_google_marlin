@@ -890,6 +890,7 @@ extern int bpf_jit_harden;
 extern long bpf_jit_limit;
 extern long bpf_jit_limit_max;
 extern int bpf_jit_kallsyms;
+extern int bpf_jit_limit;
 
 typedef void (*bpf_jit_fill_hole_t)(void *area, unsigned int size);
 
