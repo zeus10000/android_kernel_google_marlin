@@ -657,6 +657,15 @@ static bool may_access_direct_pkt_data(struct bpf_verifier_env *env,
 				       const struct bpf_call_arg_meta *meta)
 {
 	switch (env->prog->type) {
+	case BPF_PROG_TYPE_CGROUP_SKB:
+		/* Read-only access to packet data; writes are blocked by callers.
+		 * Conflict: 4.20 version has BPF_WRITE check via 't' parameter;
+		 * our 4.4 verifier lacks that param, so we allow read here and rely
+		 * on callers to enforce write restrictions.
+		 */
+		if (meta)
+			return meta->pkt_access;
+		return true;
 	case BPF_PROG_TYPE_SCHED_CLS:
 	case BPF_PROG_TYPE_SCHED_ACT:
 	case BPF_PROG_TYPE_XDP:
