@@ -1462,6 +1462,17 @@ static int check_packet_access(struct bpf_verifier_env *env, u32 regno, int off,
 		verbose(env, "R%d offset is outside of the packet\n", regno);
 		return err;
 	}
+
+	/* __check_packet_access has made sure "off + size - 1" is within u16.
+	 * reg->umax_value can't be bigger than MAX_PACKET_OFF which is 0xffff,
+	 * otherwise find_good_pkt_pointers would have refused to set range info
+	 * that __check_packet_access would have rejected this pkt access.
+	 * Therefore, "off + reg->umax_value + size - 1" won't overflow u32.
+	 */
+	env->prog->aux->max_pkt_offset =
+		max_t(u32, env->prog->aux->max_pkt_offset,
+		      off + reg->umax_value + size - 1);
+
 	return err;
 }
 
