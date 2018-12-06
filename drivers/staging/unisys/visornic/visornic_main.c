@@ -2072,7 +2072,7 @@ static int visornic_resume(struct visor_device *dev,
 	init_rcv_bufs(netdev, devdata);
 
 	rtnl_lock();
-	dev_open(netdev);
+	dev_open(netdev, NULL);
 	rtnl_unlock();
 
 	complete_func(dev, 0);

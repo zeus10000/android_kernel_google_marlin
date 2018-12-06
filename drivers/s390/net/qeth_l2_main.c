@@ -1237,7 +1237,7 @@ static int __qeth_l2_set_online(struct ccwgroup_device *gdev, int recovery_mode)
 			__qeth_l2_open(card->dev);
 		} else {
 			rtnl_lock();
-			dev_open(card->dev);
+			dev_open(card->dev, NULL);
 			rtnl_unlock();
 		}
 		/* this also sets saved unicast addresses */
