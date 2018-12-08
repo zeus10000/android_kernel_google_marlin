@@ -494,6 +494,8 @@ struct bpf_prog *bpf_patch_insn_single(struct bpf_prog *prog, u32 off,
 
 	bpf_adj_linfo(prog_adj, off, insn_delta);
 
+	bpf_adj_linfo(prog_adj, off, insn_delta);
+
 	return prog_adj;
 }
 
