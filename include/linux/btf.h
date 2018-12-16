@@ -7,6 +7,7 @@
 #include <linux/types.h>
 
 struct btf;
+struct btf_member;
 struct btf_type;
 union bpf_attr;
 
