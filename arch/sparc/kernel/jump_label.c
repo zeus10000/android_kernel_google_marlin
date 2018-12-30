@@ -9,8 +9,6 @@
 
 #include <asm/cacheflush.h>
 
-#ifdef HAVE_JUMP_LABEL
-
 void arch_jump_label_transform(struct jump_entry *entry,
 			       enum jump_label_type type)
 {
@@ -49,5 +47,3 @@ void arch_jump_label_transform(struct jump_entry *entry,
 	mutex_unlock(&text_mutex);
 	put_online_cpus();
 }
-
-#endif

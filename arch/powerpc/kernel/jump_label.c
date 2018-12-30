@@ -7,7 +7,6 @@
 #include <linux/jump_label.h>
 #include <asm/code-patching.h>
 
-#ifdef HAVE_JUMP_LABEL
 void arch_jump_label_transform(struct jump_entry *entry,
 			       enum jump_label_type type)
 {
@@ -18,4 +17,3 @@ void arch_jump_label_transform(struct jump_entry *entry,
 	else
 		patch_instruction(addr, PPC_INST_NOP);
 }
-#endif
