@@ -12,8 +12,7 @@ raid6_pq-$(CONFIG_TILEGX) += tilegx8.o
 hostprogs	+= mktables
 
 quiet_cmd_unroll = UNROLL  $@
-      cmd_unroll = $(AWK) -f$(srctree)/$(src)/unroll.awk -vN=$(UNROLL) \
-                   < $< > $@ || ( rm -f $@ && exit 1 )
+      cmd_unroll = $(AWK) -f$(srctree)/$(src)/unroll.awk -vN=$(UNROLL) < $< > $@
 
 ifeq ($(CONFIG_ALTIVEC),y)
 altivec_flags := -maltivec $(call cc-option,-mabi=altivec)
@@ -118,7 +117,7 @@ $(obj)/tilegx8.c:   $(src)/tilegx.uc $(src)/unroll.awk FORCE
 	$(call if_changed,unroll)
 
 quiet_cmd_mktable = TABLE   $@
-      cmd_mktable = $(obj)/mktables > $@ || ( rm -f $@ && exit 1 )
+      cmd_mktable = $(obj)/mktables > $@
 
 targets += tables.c
 $(obj)/tables.c: $(obj)/mktables FORCE
