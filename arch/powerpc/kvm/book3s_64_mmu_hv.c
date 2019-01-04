@@ -1245,7 +1245,7 @@ static ssize_t kvm_htab_read(struct file *file, char __user *buf,
 	int first_pass;
 	unsigned long hpte[2];
 
-	if (!access_ok(VERIFY_WRITE, buf, count))
+	if (!access_ok(buf, count))
 		return -EFAULT;
 
 	first_pass = ctx->first_pass;
@@ -1342,7 +1342,7 @@ static ssize_t kvm_htab_write(struct file *file, const char __user *buf,
 	long int err, ret;
 	int hpte_setup;
 
-	if (!access_ok(VERIFY_READ, buf, count))
+	if (!access_ok(buf, count))
 		return -EFAULT;
 
 	/* lock out vcpus from running while we're doing this */

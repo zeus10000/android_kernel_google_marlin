@@ -128,28 +128,28 @@ COMPAT_SYSCALL_DEFINE2(settimeofday, struct compat_timeval __user *, tv,
 
 static int __compat_get_timeval(struct timeval *tv, const struct compat_timeval __user *ctv)
 {
-	return (!access_ok(VERIFY_READ, ctv, sizeof(*ctv)) ||
+	return (!access_ok(ctv, sizeof(*ctv)) ||
 			__get_user(tv->tv_sec, &ctv->tv_sec) ||
 			__get_user(tv->tv_usec, &ctv->tv_usec)) ? -EFAULT : 0;
 }
 
 static int __compat_put_timeval(const struct timeval *tv, struct compat_timeval __user *ctv)
 {
-	return (!access_ok(VERIFY_WRITE, ctv, sizeof(*ctv)) ||
+	return (!access_ok(ctv, sizeof(*ctv)) ||
 			__put_user(tv->tv_sec, &ctv->tv_sec) ||
 			__put_user(tv->tv_usec, &ctv->tv_usec)) ? -EFAULT : 0;
 }
 
 static int __compat_get_timespec(struct timespec *ts, const struct compat_timespec __user *cts)
 {
-	return (!access_ok(VERIFY_READ, cts, sizeof(*cts)) ||
+	return (!access_ok(cts, sizeof(*cts)) ||
 			__get_user(ts->tv_sec, &cts->tv_sec) ||
 			__get_user(ts->tv_nsec, &cts->tv_nsec)) ? -EFAULT : 0;
 }
 
 static int __compat_put_timespec(const struct timespec *ts, struct compat_timespec __user *cts)
 {
-	return (!access_ok(VERIFY_WRITE, cts, sizeof(*cts)) ||
+	return (!access_ok(cts, sizeof(*cts)) ||
 			__put_user(ts->tv_sec, &cts->tv_sec) ||
 			__put_user(ts->tv_nsec, &cts->tv_nsec)) ? -EFAULT : 0;
 }
@@ -877,7 +877,7 @@ int get_compat_sigevent(struct sigevent *event,
 		const struct compat_sigevent __user *u_event)
 {
 	memset(event, 0, sizeof(*event));
-	return (!access_ok(VERIFY_READ, u_event, sizeof(*u_event)) ||
+	return (!access_ok(u_event, sizeof(*u_event)) ||
 		__get_user(event->sigev_value.sival_int,
 			&u_event->sigev_value.sival_int) ||
 		__get_user(event->sigev_signo, &u_event->sigev_signo) ||
@@ -898,7 +898,7 @@ long compat_get_bitmap(unsigned long *mask, const compat_ulong_t __user *umask,
 	/* align bitmap up to nearest compat_long_t boundary */
 	bitmap_size = ALIGN(bitmap_size, BITS_PER_COMPAT_LONG);
 
-	if (!access_ok(VERIFY_READ, umask, bitmap_size / 8))
+	if (!access_ok(umask, bitmap_size / 8))
 		return -EFAULT;
 
 	nr_compat_longs = BITS_TO_COMPAT_LONGS(bitmap_size);
@@ -940,7 +940,7 @@ long compat_put_bitmap(compat_ulong_t __user *umask, unsigned long *mask,
 	/* align bitmap up to nearest compat_long_t boundary */
 	bitmap_size = ALIGN(bitmap_size, BITS_PER_COMPAT_LONG);
 
-	if (!access_ok(VERIFY_WRITE, umask, bitmap_size / 8))
+	if (!access_ok(umask, bitmap_size / 8))
 		return -EFAULT;
 
 	nr_compat_longs = BITS_TO_COMPAT_LONGS(bitmap_size);
@@ -1168,7 +1168,7 @@ void __user *compat_alloc_user_space(unsigned long len)
 
 	ptr = arch_compat_alloc_user_space(len);
 
-	if (unlikely(!access_ok(VERIFY_WRITE, ptr, len)))
+	if (unlikely(!access_ok(ptr, len)))
 		return NULL;
 
 	return ptr;

@@ -15,7 +15,7 @@
 #define VERIFY_WRITE	1
 
 /* We let the MMU do all checking */
-static inline int access_ok(int type, const void __user *addr,
+static inline int access_ok(const void __user *addr,
 			    unsigned long size)
 {
 	return 1;

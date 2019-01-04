@@ -691,8 +691,7 @@ i915_gem_pread_ioctl(struct drm_device *dev, void *data,
 	if (args->size == 0)
 		return 0;
 
-	if (!access_ok(VERIFY_WRITE,
-		       u64_to_user_ptr(args->data_ptr),
+	if (!access_ok(u64_to_user_ptr(args->data_ptr),
 		       args->size))
 		return -EFAULT;
 
@@ -1035,9 +1034,7 @@ i915_gem_pwrite_ioctl(struct drm_device *dev, void *data,
 	if (args->size == 0)
 		return 0;
 
-	if (!access_ok(VERIFY_READ,
-		       u64_to_user_ptr(args->data_ptr),
-		       args->size))
+	if (!access_ok(u64_to_user_ptr(args->data_ptr), args->size))
 		return -EFAULT;
 
 	if (likely(!i915.prefault_disable)) {

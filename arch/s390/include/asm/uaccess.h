@@ -60,7 +60,7 @@ static inline int __range_ok(unsigned long addr, unsigned long size)
 	__range_ok((unsigned long)(addr), (size));	\
 })
 
-#define access_ok(type, addr, size) __access_ok(addr, size)
+#define access_ok(addr, size) __access_ok(addr, size)
 
 /*
  * The exception table consists of pairs of addresses: the first is the

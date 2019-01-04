@@ -72,7 +72,7 @@ static struct msm_gem_submit *submit_create(struct drm_device *dev,
 static inline unsigned long __must_check
 copy_from_user_inatomic(void *to, const void __user *from, unsigned long n)
 {
-	if (access_ok(VERIFY_READ, from, n))
+	if (access_ok(from, n))
 		return __copy_from_user_inatomic(to, from, n);
 	return -EFAULT;
 }

@@ -1064,7 +1064,7 @@ emul:
 				     MIPSInst_SIMM(ir));
 		MIPS_FPU_EMU_INC_STATS(loads);
 
-		if (!access_ok(VERIFY_READ, dva, sizeof(u64))) {
+		if (!access_ok(dva, sizeof(u64))) {
 			MIPS_FPU_EMU_INC_STATS(errors);
 			*fault_addr = dva;
 			return SIGBUS;
@@ -1082,7 +1082,7 @@ emul:
 				      MIPSInst_SIMM(ir));
 		MIPS_FPU_EMU_INC_STATS(stores);
 		DIFROMREG(dval, MIPSInst_RT(ir));
-		if (!access_ok(VERIFY_WRITE, dva, sizeof(u64))) {
+		if (!access_ok(dva, sizeof(u64))) {
 			MIPS_FPU_EMU_INC_STATS(errors);
 			*fault_addr = dva;
 			return SIGBUS;
@@ -1098,7 +1098,7 @@ emul:
 		wva = (u32 __user *) (xcp->regs[MIPSInst_RS(ir)] +
 				      MIPSInst_SIMM(ir));
 		MIPS_FPU_EMU_INC_STATS(loads);
-		if (!access_ok(VERIFY_READ, wva, sizeof(u32))) {
+		if (!access_ok(wva, sizeof(u32))) {
 			MIPS_FPU_EMU_INC_STATS(errors);
 			*fault_addr = wva;
 			return SIGBUS;
@@ -1116,7 +1116,7 @@ emul:
 				      MIPSInst_SIMM(ir));
 		MIPS_FPU_EMU_INC_STATS(stores);
 		SIFROMREG(wval, MIPSInst_RT(ir));
-		if (!access_ok(VERIFY_WRITE, wva, sizeof(u32))) {
+		if (!access_ok(wva, sizeof(u32))) {
 			MIPS_FPU_EMU_INC_STATS(errors);
 			*fault_addr = wva;
 			return SIGBUS;
@@ -1494,7 +1494,7 @@ static int fpux_emu(struct pt_regs *xcp, struct mips_fpu_struct *ctx,
 				xcp->regs[MIPSInst_FT(ir)]);
 
 			MIPS_FPU_EMU_INC_STATS(loads);
-			if (!access_ok(VERIFY_READ, va, sizeof(u32))) {
+			if (!access_ok(va, sizeof(u32))) {
 				MIPS_FPU_EMU_INC_STATS(errors);
 				*fault_addr = va;
 				return SIGBUS;
@@ -1514,7 +1514,7 @@ static int fpux_emu(struct pt_regs *xcp, struct mips_fpu_struct *ctx,
 			MIPS_FPU_EMU_INC_STATS(stores);
 
 			SIFROMREG(val, MIPSInst_FS(ir));
-			if (!access_ok(VERIFY_WRITE, va, sizeof(u32))) {
+			if (!access_ok(va, sizeof(u32))) {
 				MIPS_FPU_EMU_INC_STATS(errors);
 				*fault_addr = va;
 				return SIGBUS;
@@ -1591,7 +1591,7 @@ static int fpux_emu(struct pt_regs *xcp, struct mips_fpu_struct *ctx,
 				xcp->regs[MIPSInst_FT(ir)]);
 
 			MIPS_FPU_EMU_INC_STATS(loads);
-			if (!access_ok(VERIFY_READ, va, sizeof(u64))) {
+			if (!access_ok(va, sizeof(u64))) {
 				MIPS_FPU_EMU_INC_STATS(errors);
 				*fault_addr = va;
 				return SIGBUS;
@@ -1610,7 +1610,7 @@ static int fpux_emu(struct pt_regs *xcp, struct mips_fpu_struct *ctx,
 
 			MIPS_FPU_EMU_INC_STATS(stores);
 			DIFROMREG(val, MIPSInst_FS(ir));
-			if (!access_ok(VERIFY_WRITE, va, sizeof(u64))) {
+			if (!access_ok(va, sizeof(u64))) {
 				MIPS_FPU_EMU_INC_STATS(errors);
 				*fault_addr = va;
 				return SIGBUS;
