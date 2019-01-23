@@ -817,6 +817,7 @@ bool bpf_helper_changes_skb_data(void *func);
 
 struct bpf_prog *bpf_patch_insn_single(struct bpf_prog *prog, u32 off,
 				       const struct bpf_insn *patch, u32 len);
+int bpf_remove_insns(struct bpf_prog *prog, u32 off, u32 cnt);
 
 static inline int xdp_ok_fwd_dev(const struct net_device *fwd,
 				 unsigned int pktlen)
