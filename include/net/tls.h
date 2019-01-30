@@ -223,6 +223,7 @@ enum tls_context_flags {
 struct cipher_context {
 	char *iv;
 	char *rec_seq;
+	u16 aad_size;
 };
 
 union tls_crypto_context {
