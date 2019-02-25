@@ -791,6 +791,7 @@ void bpf_prog_free_jited_linfo(struct bpf_prog *prog);
 void bpf_prog_free_unused_jited_linfo(struct bpf_prog *prog);
 
 struct bpf_prog *bpf_prog_alloc(unsigned int size, gfp_t gfp_extra_flags);
+struct bpf_prog *bpf_prog_alloc_no_stats(unsigned int size, gfp_t gfp_extra_flags);
 struct bpf_prog *bpf_prog_realloc(struct bpf_prog *fp_old, unsigned int size,
 				  gfp_t gfp_extra_flags);
 void __bpf_prog_free(struct bpf_prog *fp);

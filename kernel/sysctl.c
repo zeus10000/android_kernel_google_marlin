@@ -3321,6 +3321,28 @@ int proc_doulongvec_ms_jiffies_minmax(struct ctl_table *table, int write,
 
 #endif /* CONFIG_PROC_SYSCTL */
 
+static int proc_dointvec_minmax_bpf_stats(struct ctl_table *table, int write,
+					  void __user *buffer, size_t *lenp,
+					  loff_t *ppos)
+{
+	int ret, bpf_stats = *(int *)table->data;
+	struct ctl_table tmp = *table;
+
+	if (write && !capable(CAP_SYS_ADMIN))
+		return -EPERM;
+
+	tmp.data = &bpf_stats;
+	ret = proc_dointvec_minmax(&tmp, write, buffer, lenp, ppos);
+	if (write && !ret) {
+		*(int *)table->data = bpf_stats;
+		if (bpf_stats)
+			static_branch_enable(&bpf_stats_enabled_key);
+		else
+			static_branch_disable(&bpf_stats_enabled_key);
+	}
+	return ret;
+}
+
 /*
  * No sense putting this after each symbol definition, twice,
  * exception granted :-)
