@@ -566,6 +566,10 @@ static void icmpv6_echo_reply(struct sk_buff *skb)
 	u8 tclass;
 	u32 mark = IP6_REPLY_MARK(net, skb->mark);
 
+	if (ipv6_addr_is_multicast(&ipv6_hdr(skb)->daddr) &&
+	    net->ipv6.sysctl.icmpv6_echo_ignore_multicast)
+		return;
+
 	saddr = &ipv6_hdr(skb)->daddr;
 
 	if (!ipv6_unicast_destination(skb) &&
@@ -1002,6 +1006,13 @@ static struct ctl_table ipv6_icmp_table_template[] = {
 		.mode		= 0644,
 		.proc_handler = proc_dointvec,
 	},
+	{
+		.procname	= "echo_ignore_multicast",
+		.data		= &init_net.ipv6.sysctl.icmpv6_echo_ignore_multicast,
+		.maxlen		= sizeof(int),
+		.mode		= 0644,
+		.proc_handler = proc_dointvec,
+	},
 	{ },
 };
 
@@ -1016,6 +1027,7 @@ struct ctl_table * __net_init ipv6_icmp_sysctl_init(struct net *net)
 	if (table) {
 		table[0].data = &net->ipv6.sysctl.icmpv6_time;
 		table[1].data = &net->ipv6.sysctl.icmpv6_echo_ignore_all;
+		table[2].data = &net->ipv6.sysctl.icmpv6_echo_ignore_multicast;
 	}
 	return table;
 }
