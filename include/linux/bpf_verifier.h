@@ -213,6 +213,7 @@ struct bpf_verifier_state {
 struct bpf_verifier_state_list {
 	struct bpf_verifier_state state;
 	struct bpf_verifier_state_list *next;
+	int miss_cnt, hit_cnt;
 };
 
 /* Possible states for alu_state member. */
