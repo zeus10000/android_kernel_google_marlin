@@ -291,6 +291,21 @@ struct bpf_verifier_env {
 	struct bpf_verifier_log log;
 	struct bpf_subprog_info subprog_info[BPF_MAX_SUBPROGS + 1];
 	u32 subprog_cnt;
+	/* number of instructions analyzed by the verifier */
+	u32 insn_processed;
+	/* total verification time */
+	u64 verification_time;
+	/* maximum number of verifier states kept in 'branching' instructions */
+	u32 max_states_per_insn;
+	/* total number of allocated verifier states */
+	u32 total_states;
+	/* some states are freed during program analysis.
+	 * this is peak number of states. this number dominates kernel
+	 * memory consumption during verification
+	 */
+	u32 peak_states;
+	/* longest register parentage chain walked for liveness marking */
+	u32 longest_mark_read_walk;
 };
 
 void bpf_verifier_vlog(struct bpf_verifier_log *log, const char *fmt,
