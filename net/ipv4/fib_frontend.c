@@ -304,7 +304,7 @@ __be32 fib_compute_spec_dst(struct sk_buff *skb)
 			.flowi4_mark = vmark ? skb->mark : 0,
 		};
 		if (!fib_lookup(net, &fl4, &res, 0))
-			return FIB_RES_PREFSRC(net, res);
+			return fib_result_prefsrc(net, &res);
 	} else {
 		scope = RT_SCOPE_LINK;
 	}

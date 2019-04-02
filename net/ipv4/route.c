@@ -796,8 +796,10 @@ static void __ip_do_redirect(struct rtable *rt, struct sk_buff *skb, struct flow
 			neigh_event_send(n, NULL);
 		} else {
 			if (fib_lookup(net, fl4, &res, 0) == 0) {
-				struct fib_nh *nh = &FIB_RES_NH(res);
+				struct fib_nh_common *nhc = FIB_RES_NHC(res);
+				struct fib_nh *nh;
 
+				nh = container_of(nhc, struct fib_nh, nh_common);
 				update_or_create_fnhe(nh, fl4->daddr, new_gw,
 						0, false,
 						jiffies + ip_rt_gc_timeout);
@@ -1028,8 +1030,10 @@ static void __ip_rt_update_pmtu(struct rtable *rt, struct flowi4 *fl4, u32 mtu)
 
 	rcu_read_lock();
 	if (fib_lookup(dev_net(dst->dev), fl4, &res, 0) == 0) {
-		struct fib_nh *nh = &FIB_RES_NH(res);
+		struct fib_nh_common *nhc = FIB_RES_NHC(res);
+		struct fib_nh *nh;
 
+		nh = container_of(nhc, struct fib_nh, nh_common);
 		update_or_create_fnhe(nh, fl4->daddr, 0, mtu, lock,
 				      jiffies + ip_rt_mtu_expires);
 	}
@@ -1269,7 +1273,7 @@ void ip_rt_get_source(u8 *addr, struct sk_buff *skb, struct rtable *rt)
 
 		rcu_read_lock();
 		if (fib_lookup(dev_net(rt->dst.dev), &fl4, &res, 0) == 0)
-			src = FIB_RES_PREFSRC(dev_net(rt->dst.dev), res);
+			src = fib_result_prefsrc(dev_net(rt->dst.dev), &res);
 		else
 			src = inet_select_addr(rt->dst.dev,
 					       rt_nexthop(rt, iph->daddr),
@@ -1681,15 +1685,18 @@ static int __mkroute_input(struct sk_buff *skb,
 			   struct in_device *in_dev,
 			   __be32 daddr, __be32 saddr, u32 tos)
 {
+	struct fib_nh_common *nhc = FIB_RES_NHC(*res);
+	struct net_device *dev = nhc->nhc_dev;
 	struct fib_nh_exception *fnhe;
 	struct rtable *rth;
+	struct fib_nh *nh;
 	int err;
 	struct in_device *out_dev;
 	bool do_cache;
 	u32 itag = 0;
 
 	/* get a working reference to the output device */
-	out_dev = __in_dev_get_rcu(FIB_RES_DEV(*res));
+	out_dev = __in_dev_get_rcu(dev);
 	if (!out_dev) {
 		net_crit_ratelimited("Bug in ip_route_input_slow(). Please report.\n");
 		return -EINVAL;
@@ -1706,10 +1713,13 @@ static int __mkroute_input(struct sk_buff *skb,
 
 	do_cache = res->fi && !itag;
 	if (out_dev == in_dev && err && IN_DEV_TX_REDIRECTS(out_dev) &&
-	    skb->protocol == htons(ETH_P_IP) &&
-	    (IN_DEV_SHARED_MEDIA(out_dev) ||
-	     inet_addr_onlink(out_dev, saddr, FIB_RES_GW(*res))))
-		IPCB(skb)->flags |= IPSKB_DOREDIRECT;
+	    skb->protocol == htons(ETH_P_IP)) {
+		__be32 gw = nhc->nhc_family == AF_INET ? nhc->nhc_gw.ipv4 : 0;
+
+		if (IN_DEV_SHARED_MEDIA(out_dev) ||
+		    inet_addr_onlink(out_dev, saddr, gw))
+			IPCB(skb)->flags |= IPSKB_DOREDIRECT;
+	}
 
 	if (skb->protocol != htons(ETH_P_IP)) {
 		/* Not IP (i.e. ARP). Do not create route, if it is
@@ -1726,7 +1736,8 @@ static int __mkroute_input(struct sk_buff *skb,
 		}
 	}
 
-	fnhe = find_exception(&FIB_RES_NH(*res), daddr);
+	nh = container_of(nhc, struct fib_nh, nh_common);
+	fnhe = find_exception(nh, daddr);
 	if (do_cache) {
 		if (fnhe) {
 			rth = rcu_dereference(fnhe->fnhe_rth_input);
@@ -2152,7 +2163,6 @@ static struct rtable *__mkroute_output(const struct fib_result *res,
 	do_cache &= fi != NULL;
 	if (do_cache) {
 		struct rtable __rcu **prth;
-		struct fib_nh *nh = &FIB_RES_NH(*res);
 
 		fnhe = find_exception(nh, fl4->daddr);
 		if (fnhe) {
