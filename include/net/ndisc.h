@@ -2,6 +2,8 @@
 #ifndef _NDISC_H
 #define _NDISC_H
 
+#include <net/ipv6_stubs.h>
+
 /*
  *	ICMP codes for neighbour discovery messages
  */
@@ -159,6 +161,14 @@ static inline u32 ndisc_hashfn(const void *pkey, const struct net_device *dev, _
 static inline struct neighbour *__ipv6_neigh_lookup_noref(struct net_device *dev, const void *pkey)
 {
 	return ___neigh_lookup_noref(&nd_tbl, neigh_key_eq128, ndisc_hashfn, pkey, dev);
+}
+
+static inline
+struct neighbour *__ipv6_neigh_lookup_noref_stub(struct net_device *dev,
+						 const void *pkey)
+{
+	return ___neigh_lookup_noref(ipv6_stub->nd_tbl, neigh_key_eq128,
+				     ndisc_hashfn, pkey, dev);
 }
 
 static inline struct neighbour *__ipv6_neigh_lookup(struct net_device *dev, const void *pkey)
