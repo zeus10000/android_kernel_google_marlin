@@ -78,7 +78,8 @@ struct bpf_map {
 	int spin_lock_off; /* >=0 valid offset, <0 error */
 	u32 id;
 	bool unpriv_array;
-	/* 51 bytes hole */
+	bool frozen; /* write-once */
+	/* 48 bytes hole */
 
 	/* The 3rd and 4th cacheline with misc members to avoid false sharing
 	 * particularly with refcounting.
