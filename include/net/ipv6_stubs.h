@@ -35,8 +35,9 @@ struct ipv6_stub {
 	void (*fib6_select_path)(const struct net *net, struct fib6_result *res,
 				 struct flowi6 *fl6, int oif, bool oif_match,
 				 const struct sk_buff *skb, int strict);
-	u32 (*ip6_mtu_from_fib6)(struct fib6_info *f6i, struct in6_addr *daddr,
-				 struct in6_addr *saddr);
+	u32 (*ip6_mtu_from_fib6)(const struct fib6_result *res,
+				 const struct in6_addr *daddr,
+				 const struct in6_addr *saddr);
 
 	void (*udpv6_encap_enable)(void);
 	void (*ndisc_send_na)(struct net_device *dev, const struct in6_addr *daddr,
