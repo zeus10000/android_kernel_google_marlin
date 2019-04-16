@@ -32,11 +32,9 @@ struct ipv6_stub {
 					      struct fib6_table *table,
 					      int oif, struct flowi6 *fl6,
 					      int flags);
-	struct fib6_info *(*fib6_multipath_select)(const struct net *net,
-						   struct fib6_info *f6i,
-						   struct flowi6 *fl6, int oif,
-						   const struct sk_buff *skb,
-						   int strict);
+	void (*fib6_select_path)(const struct net *net, struct fib6_result *res,
+				 struct flowi6 *fl6, int oif, bool oif_match,
+				 const struct sk_buff *skb, int strict);
 	u32 (*ip6_mtu_from_fib6)(struct fib6_info *f6i, struct in6_addr *daddr,
 				 struct in6_addr *saddr);
 
