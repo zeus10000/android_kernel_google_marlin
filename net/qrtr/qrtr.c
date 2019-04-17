@@ -958,9 +958,6 @@ static int qrtr_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg)
 			break;
 		}
 		break;
-	case SIOCGSTAMP:
-		rc = sock_get_timestamp(sk, argp);
-		break;
 	case SIOCADDRT:
 	case SIOCDELRT:
 	case SIOCSIFADDR:
@@ -1023,6 +1020,7 @@ static const struct proto_ops qrtr_proto_ops = {
 	.recvmsg	= qrtr_recvmsg,
 	.getname	= qrtr_getname,
 	.ioctl		= qrtr_ioctl,
+	.gettstamp	= sock_gettstamp,
 	.poll		= datagram_poll,
 	.shutdown	= sock_no_shutdown,
 	.setsockopt	= sock_no_setsockopt,
