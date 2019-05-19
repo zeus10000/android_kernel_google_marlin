@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0-only
 CFLAGS += -I../../../../usr/include/
 
 all: kcmp_test

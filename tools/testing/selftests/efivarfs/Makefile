@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0-only
 CFLAGS = -Wall
 
 test_objs = open-unlink create-read

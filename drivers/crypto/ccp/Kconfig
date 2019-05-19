@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0-only
 config CRYPTO_DEV_CCP_DD
 	tristate "Cryptographic Coprocessor device driver"
 	depends on CRYPTO_DEV_CCP

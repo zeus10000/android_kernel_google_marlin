@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0-only
 CFLAGS += -I$(CURDIR)
 
 TEST_PROGS := load_unaligned_zeropad
