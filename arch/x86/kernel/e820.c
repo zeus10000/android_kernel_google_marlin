@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Handle the memory map.
  * The functions here do the job until bootmem takes over.

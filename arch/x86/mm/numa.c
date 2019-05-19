@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /* Common code for 32 and 64-bit NUMA */
 #include <linux/kernel.h>
 #include <linux/mm.h>
