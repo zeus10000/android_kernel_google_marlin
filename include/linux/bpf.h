@@ -63,6 +63,11 @@ struct bpf_map_ops {
 				     u64 imm, u32 *off);
 };
 
+struct bpf_map_memory {
+	u32 pages;
+	struct user_struct *user;
+};
+
 struct bpf_map {
 	/* The first two cachelines with read-mostly members of which some
 	 * are also accessed in fast-path (e.g. ops, max_entries).
@@ -82,8 +87,7 @@ struct bpf_map {
 	/* The 3rd and 4th cacheline with misc members to avoid false sharing
 	 * particularly with refcounting.
 	 */
-	struct user_struct *user ____cacheline_aligned;
-	atomic_t refcnt;
+	atomic_t refcnt ____cacheline_aligned;
 	atomic_t usercnt;
 	struct work_struct work;
 #ifdef CONFIG_SECURITY
