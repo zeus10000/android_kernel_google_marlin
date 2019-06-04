@@ -220,6 +220,10 @@ enum tls_context_flags {
 	TLS_TX_SYNC_SCHED = 1,
 };
 
+enum tls_context_flags {
+	TLS_RX_SYNC_RUNNING = 0,
+};
+
 struct cipher_context {
 	char *iv;
 	char *rec_seq;
