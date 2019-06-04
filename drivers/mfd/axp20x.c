@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * axp20x.c - MFD core driver for the X-Powers' Power Management ICs
  *
@@ -6,10 +7,6 @@
  * as well as configurable GPIOs.
  *
  * Author: Carlo Caione <carlo@caione.org>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
  */
 
 #include <linux/err.h>
