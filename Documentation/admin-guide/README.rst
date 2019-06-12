@@ -219,7 +219,7 @@ Configuring the kernel
                            all module options to built in (=y) options.
 
    You can find more information on using the Linux kernel config tools
-   in Documentation/kbuild/kconfig.txt.
+   in Documentation/kbuild/kconfig.rst.
 
  - NOTES on ``make config``:
 
