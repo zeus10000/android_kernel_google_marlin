@@ -3326,21 +3326,30 @@ static int proc_dointvec_minmax_bpf_stats(struct ctl_table *table, int write,
 					  void __user *buffer, size_t *lenp,
 					  loff_t *ppos)
 {
-	int ret, bpf_stats = *(int *)table->data;
-	struct ctl_table tmp = *table;
+	struct static_key *key = (struct static_key *)table->data;
+	static DEFINE_MUTEX(static_key_mutex);
+	int val, ret;
+	struct ctl_table tmp = {
+		.data   = &val,
+		.maxlen = sizeof(val),
+		.mode   = table->mode,
+		.extra1 = &zero,
+		.extra2 = &one,
+	};
 
 	if (write && !capable(CAP_SYS_ADMIN))
 		return -EPERM;
 
-	tmp.data = &bpf_stats;
+	mutex_lock(&static_key_mutex);
+	val = static_key_enabled(key);
 	ret = proc_dointvec_minmax(&tmp, write, buffer, lenp, ppos);
 	if (write && !ret) {
-		*(int *)table->data = bpf_stats;
-		if (bpf_stats)
-			static_branch_enable(&bpf_stats_enabled_key);
+		if (val)
+			static_key_enable(key);
 		else
-			static_branch_disable(&bpf_stats_enabled_key);
+			static_key_disable(key);
 	}
+	mutex_unlock(&static_key_mutex);
 	return ret;
 }
 
