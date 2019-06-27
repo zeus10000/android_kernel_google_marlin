@@ -58,10 +58,14 @@ job placement on large systems.
 
 Cpusets use the generic cgroup subsystem described in
 <<<<<<<< HEAD:Documentation/cgroup-legacy/cpusets.txt
+<<<<<<<< HEAD:Documentation/cgroup-legacy/cpusets.txt
 Documentation/cgroups/cgroups.txt.
 ========
 Documentation/cgroup-v1/cgroups.rst.
 >>>>>>>> 99c8b231ae6c (docs: cgroup-v1: convert docs to ReST and rename to *.rst):Documentation/cgroup-legacy/cpusets.rst
+========
+Documentation/admin-guide/cgroup-v1/cgroups.rst.
+>>>>>>>> da82c92f1150 (docs: cgroup-v1: add it to the admin-guide book):Documentation/admin-guide/cgroup-v1/cpusets.rst
 
 Requests by a task, using the sched_setaffinity(2) system call to
 include CPUs in its CPU affinity mask, and using the mbind(2) and
