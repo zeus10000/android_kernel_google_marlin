@@ -1,8 +1,5 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
 /* Copyright (c) 2011-2014 PLUMgrid, http://plumgrid.com
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of version 2 of the GNU General Public
- * License as published by the Free Software Foundation.
  */
 #ifndef _LINUX_BPF_H
 #define _LINUX_BPF_H 1
@@ -280,6 +277,7 @@ enum bpf_reg_type {
 	PTR_TO_TCP_SOCK,	 /* reg points to struct tcp_sock */
 	PTR_TO_TCP_SOCK_OR_NULL, /* reg points to struct tcp_sock or NULL */
 	PTR_TO_TP_BUFFER,	 /* reg points to a writable raw tp's buffer */
+	PTR_TO_XDP_SOCK,	 /* reg points to struct xdp_sock */
 };
 
 /* The information passed from prog-specific *_is_valid_access
@@ -520,6 +518,7 @@ struct bpf_prog_array {
 struct bpf_prog_array *bpf_prog_array_alloc(u32 prog_cnt, gfp_t flags);
 void bpf_prog_array_free(struct bpf_prog_array *progs);
 int bpf_prog_array_length(struct bpf_prog_array *progs);
+bool bpf_prog_array_is_empty(struct bpf_prog_array *array);
 int bpf_prog_array_copy_to_user(struct bpf_prog_array *progs,
 				__u32 __user *prog_ids, u32 cnt);
 
@@ -661,7 +660,6 @@ void bpf_map_area_free(void *base);
 void bpf_map_init_from_attr(struct bpf_map *map, union bpf_attr *attr);
 
 extern int sysctl_unprivileged_bpf_disabled;
-extern int sysctl_bpf_stats_enabled;
 
 int bpf_map_new_fd(struct bpf_map *map, int flags);
 int bpf_prog_new_fd(struct bpf_prog *prog);
@@ -715,7 +713,7 @@ struct xdp_buff;
 struct sk_buff;
 
 struct bpf_dtab_netdev *__dev_map_lookup_elem(struct bpf_map *map, u32 key);
-void __dev_map_insert_ctx(struct bpf_map *map, u32 index);
+struct bpf_dtab_netdev *__dev_map_hash_lookup_elem(struct bpf_map *map, u32 key);
 void __dev_map_flush(struct bpf_map *map);
 int dev_map_enqueue(struct bpf_dtab_netdev *dst, struct xdp_buff *xdp,
 		    struct net_device *dev_rx);
@@ -723,7 +721,6 @@ int dev_map_generic_redirect(struct bpf_dtab_netdev *dst, struct sk_buff *skb,
 			     struct bpf_prog *xdp_prog);
 
 struct bpf_cpu_map_entry *__cpu_map_lookup_elem(struct bpf_map *map, u32 key);
-void __cpu_map_insert_ctx(struct bpf_map *map, u32 index);
 void __cpu_map_flush(struct bpf_map *map);
 int cpu_map_enqueue(struct bpf_cpu_map_entry *rcpu, struct xdp_buff *xdp,
 		    struct net_device *dev_rx);
@@ -803,8 +800,10 @@ static inline struct net_device  *__dev_map_lookup_elem(struct bpf_map *map,
 	return NULL;
 }
 
-static inline void __dev_map_insert_ctx(struct bpf_map *map, u32 index)
+static inline struct net_device  *__dev_map_hash_lookup_elem(struct bpf_map *map,
+							     u32 key)
 {
+	return NULL;
 }
 
 static inline void __dev_map_flush(struct bpf_map *map)
@@ -834,10 +833,6 @@ static inline
 struct bpf_cpu_map_entry *__cpu_map_lookup_elem(struct bpf_map *map, u32 key)
 {
 	return NULL;
-}
-
-static inline void __cpu_map_insert_ctx(struct bpf_map *map, u32 index)
-{
 }
 
 static inline void __cpu_map_flush(struct bpf_map *map)
@@ -1054,6 +1049,7 @@ extern const struct bpf_func_proto bpf_spin_unlock_proto;
 extern const struct bpf_func_proto bpf_get_local_storage_proto;
 extern const struct bpf_func_proto bpf_strtol_proto;
 extern const struct bpf_func_proto bpf_strtoul_proto;
+extern const struct bpf_func_proto bpf_tcp_sock_proto;
 
 /* Shared helpers among cBPF and eBPF. */
 void bpf_user_rnd_init_once(void);
@@ -1102,6 +1098,15 @@ u32 bpf_tcp_sock_convert_ctx_access(enum bpf_access_type type,
 				    struct bpf_insn *insn_buf,
 				    struct bpf_prog *prog,
 				    u32 *target_size);
+
+bool bpf_xdp_sock_is_valid_access(int off, int size, enum bpf_access_type type,
+				  struct bpf_insn_access_aux *info);
+
+u32 bpf_xdp_sock_convert_ctx_access(enum bpf_access_type type,
+				    const struct bpf_insn *si,
+				    struct bpf_insn *insn_buf,
+				    struct bpf_prog *prog,
+				    u32 *target_size);
 #else
 static inline bool bpf_tcp_sock_is_valid_access(int off, int size,
 						enum bpf_access_type type,
@@ -1111,6 +1116,21 @@ static inline bool bpf_tcp_sock_is_valid_access(int off, int size,
 }
 
 static inline u32 bpf_tcp_sock_convert_ctx_access(enum bpf_access_type type,
+						  const struct bpf_insn *si,
+						  struct bpf_insn *insn_buf,
+						  struct bpf_prog *prog,
+						  u32 *target_size)
+{
+	return 0;
+}
+static inline bool bpf_xdp_sock_is_valid_access(int off, int size,
+						enum bpf_access_type type,
+						struct bpf_insn_access_aux *info)
+{
+	return false;
+}
+
+static inline u32 bpf_xdp_sock_convert_ctx_access(enum bpf_access_type type,
 						  const struct bpf_insn *si,
 						  struct bpf_insn *insn_buf,
 						  struct bpf_prog *prog,
