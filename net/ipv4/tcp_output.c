@@ -1183,6 +1183,7 @@ int tcp_fragment(struct sock *sk, struct sk_buff *skb, u32 len,
 	buff = sk_stream_alloc_skb(sk, nsize, gfp, true);
 	if (!buff)
 		return -ENOMEM; /* We'll just try again later. */
+	skb_copy_decrypted(buff, skb);
 
 	sk->sk_wmem_queued += buff->truesize;
 	sk_mem_charge(sk, buff->truesize);
@@ -1747,6 +1748,7 @@ static int tso_fragment(struct sock *sk, struct sk_buff *skb, unsigned int len,
 	buff = sk_stream_alloc_skb(sk, 0, gfp, true);
 	if (unlikely(!buff))
 		return -ENOMEM;
+	skb_copy_decrypted(buff, skb);
 
 	sk->sk_wmem_queued += buff->truesize;
 	sk_mem_charge(sk, buff->truesize);
