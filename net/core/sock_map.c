@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: GPL-2.0
-
 /* Copyright (c) 2017 - 2018 Covalent IO, Inc. http://covalent.io */
 
 #include <linux/bpf.h>
@@ -171,12 +170,13 @@ static int sock_map_link(struct bpf_map *map, struct sk_psock_progs *progs,
 		}
 	}
 
-	psock = sk_psock_get(sk);
+	psock = sk_psock_get_checked(sk);
+	if (IS_ERR(psock)) {
+		ret = PTR_ERR(psock);
+		goto out_progs;
+	}
+
 	if (psock) {
-		if (!sk_has_psock(sk)) {
-			ret = -EBUSY;
-			goto out_progs;
-		}
 		if ((msg_parser && READ_ONCE(psock->progs.msg_parser)) ||
 		    (skb_progs  && READ_ONCE(psock->progs.skb_parser))) {
 			sk_psock_put(sk, psock);
@@ -247,6 +247,8 @@ static void sock_map_free(struct bpf_map *map)
 	raw_spin_unlock_bh(&stab->lock);
 	rcu_read_unlock();
 
+	synchronize_rcu();
+
 	bpf_map_area_free(stab->sks);
 	kfree(stab);
 }
@@ -276,16 +278,20 @@ static int __sock_map_delete(struct bpf_stab *stab, struct sock *sk_test,
 			     struct sock **psk)
 {
 	struct sock *sk;
+	int err = 0;
 
 	raw_spin_lock_bh(&stab->lock);
 	sk = *psk;
 	if (!sk_test || sk_test == sk)
-		*psk = NULL;
+		sk = xchg(psk, NULL);
+
+	if (likely(sk))
+		sock_map_unref(sk, psk);
+	else
+		err = -EINVAL;
+
 	raw_spin_unlock_bh(&stab->lock);
-	if (unlikely(!sk))
-		return -EINVAL;
-	sock_map_unref(sk, psk);
-	return 0;
+	return err;
 }
 
 static void sock_map_delete_from_link(struct bpf_map *map, struct sock *sk,
@@ -328,6 +334,7 @@ static int sock_map_update_common(struct bpf_map *map, u32 idx,
 				  struct sock *sk, u64 flags)
 {
 	struct bpf_stab *stab = container_of(map, struct bpf_stab, map);
+	struct inet_connection_sock *icsk = inet_csk(sk);
 	struct sk_psock_link *link;
 	struct sk_psock *psock;
 	struct sock *osk;
@@ -338,6 +345,8 @@ static int sock_map_update_common(struct bpf_map *map, u32 idx,
 		return -EINVAL;
 	if (unlikely(idx >= map->max_entries))
 		return -E2BIG;
+	if (unlikely(rcu_access_pointer(icsk->icsk_ulp_data)))
+		return -EINVAL;
 
 	link = sk_psock_init_link();
 	if (!link)
@@ -996,4 +1005,3 @@ void sk_psock_unlink(struct sock *sk, struct sk_psock_link *link)
 		break;
 	}
 }
-

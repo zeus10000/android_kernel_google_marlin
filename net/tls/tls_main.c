@@ -39,7 +39,6 @@
 #include <linux/netdevice.h>
 #include <linux/sched/signal.h>
 #include <linux/inetdevice.h>
-#include <linux/inet_diag.h>
 
 #include <net/tls.h>
 
@@ -331,7 +330,7 @@ static void tls_sk_proto_close(struct sock *sk, long timeout)
 		tls_sw_strparser_done(ctx);
 	if (ctx->rx_conf == TLS_SW)
 		tls_sw_free_ctx_rx(ctx);
-	ctx->sk_proto->close(sk, timeout);
+	ctx->sk_proto_close(sk, timeout);
 
 	if (free_ctx)
 		tls_ctx_free(sk, ctx);
@@ -451,8 +450,7 @@ static int tls_getsockopt(struct sock *sk, int level, int optname,
 	struct tls_context *ctx = tls_get_ctx(sk);
 
 	if (level != SOL_TLS)
-		return ctx->sk_proto->getsockopt(sk, level,
-						 optname, optval, optlen);
+		return ctx->getsockopt(sk, level, optname, optval, optlen);
 
 	return do_tls_getsockopt(sk, optname, optval, optlen);
 }
@@ -610,8 +608,7 @@ static int tls_setsockopt(struct sock *sk, int level, int optname,
 	struct tls_context *ctx = tls_get_ctx(sk);
 
 	if (level != SOL_TLS)
-		return ctx->sk_proto->setsockopt(sk, level, optname, optval,
-						 optlen);
+		return ctx->setsockopt(sk, level, optname, optval, optlen);
 
 	return do_tls_setsockopt(sk, optname, optval, optlen);
 }
@@ -626,7 +623,10 @@ static struct tls_context *create_ctx(struct sock *sk)
 		return NULL;
 
 	rcu_assign_pointer(icsk->icsk_ulp_data, ctx);
-	ctx->sk_proto = sk->sk_prot;
+	ctx->setsockopt = sk->sk_prot->setsockopt;
+	ctx->getsockopt = sk->sk_prot->getsockopt;
+	ctx->sk_proto_close = sk->sk_prot->close;
+	ctx->unhash = sk->sk_prot->unhash;
 	return ctx;
 }
 
@@ -682,6 +682,9 @@ static int tls_hw_prot(struct sock *sk)
 
 			spin_unlock_bh(&device_spinlock);
 			tls_build_proto(sk);
+			ctx->hash = sk->sk_prot->hash;
+			ctx->unhash = sk->sk_prot->unhash;
+			ctx->sk_proto_close = sk->sk_prot->close;
 			ctx->sk_destruct = sk->sk_destruct;
 			sk->sk_destruct = tls_hw_sk_destruct;
 			ctx->rx_conf = TLS_HW_RECORD;
@@ -713,7 +716,7 @@ static void tls_hw_unhash(struct sock *sk)
 		}
 	}
 	spin_unlock_bh(&device_spinlock);
-	ctx->sk_proto->unhash(sk);
+	ctx->unhash(sk);
 }
 
 static int tls_hw_hash(struct sock *sk)
@@ -722,7 +725,7 @@ static int tls_hw_hash(struct sock *sk)
 	struct tls_device *dev;
 	int err;
 
-	err = ctx->sk_proto->hash(sk);
+	err = ctx->hash(sk);
 	spin_lock_bh(&device_spinlock);
 	list_for_each_entry(dev, &device_list, dev_list) {
 		if (dev->hash) {
@@ -812,6 +815,7 @@ static int tls_init(struct sock *sk)
 
 	ctx->tx_conf = TLS_BASE;
 	ctx->rx_conf = TLS_BASE;
+	ctx->sk_proto = sk->sk_prot;
 	update_sk_prot(sk, ctx);
 out:
 	write_unlock_bh(&sk->sk_callback_lock);
@@ -823,71 +827,12 @@ static void tls_update(struct sock *sk, struct proto *p)
 	struct tls_context *ctx;
 
 	ctx = tls_get_ctx(sk);
-	if (likely(ctx))
+	if (likely(ctx)) {
+		ctx->sk_proto_close = p->close;
 		ctx->sk_proto = p;
-	else
+	} else {
 		sk->sk_prot = p;
-}
-
-static int tls_get_info(const struct sock *sk, struct sk_buff *skb)
-{
-	u16 version, cipher_type;
-	struct tls_context *ctx;
-	struct nlattr *start;
-	int err;
-
-	start = nla_nest_start_noflag(skb, INET_ULP_INFO_TLS);
-	if (!start)
-		return -EMSGSIZE;
-
-	rcu_read_lock();
-	ctx = rcu_dereference(inet_csk(sk)->icsk_ulp_data);
-	if (!ctx) {
-		err = 0;
-		goto nla_failure;
 	}
-	version = ctx->prot_info.version;
-	if (version) {
-		err = nla_put_u16(skb, TLS_INFO_VERSION, version);
-		if (err)
-			goto nla_failure;
-	}
-	cipher_type = ctx->prot_info.cipher_type;
-	if (cipher_type) {
-		err = nla_put_u16(skb, TLS_INFO_CIPHER, cipher_type);
-		if (err)
-			goto nla_failure;
-	}
-	err = nla_put_u16(skb, TLS_INFO_TXCONF, tls_user_config(ctx, true));
-	if (err)
-		goto nla_failure;
-
-	err = nla_put_u16(skb, TLS_INFO_RXCONF, tls_user_config(ctx, false));
-	if (err)
-		goto nla_failure;
-
-	rcu_read_unlock();
-	nla_nest_end(skb, start);
-	return 0;
-
-nla_failure:
-	rcu_read_unlock();
-	nla_nest_cancel(skb, start);
-	return err;
-}
-
-static size_t tls_get_info_size(const struct sock *sk)
-{
-	size_t size = 0;
-
-	size += nla_total_size(0) +		/* INET_ULP_INFO_TLS */
-		nla_total_size(sizeof(u16)) +	/* TLS_INFO_VERSION */
-		nla_total_size(sizeof(u16)) +	/* TLS_INFO_CIPHER */
-		nla_total_size(sizeof(u16)) +	/* TLS_INFO_RXCONF */
-		nla_total_size(sizeof(u16)) +	/* TLS_INFO_TXCONF */
-		0;
-
-	return size;
 }
 
 void tls_register_device(struct tls_device *device)
@@ -911,8 +856,6 @@ static struct tcp_ulp_ops tcp_tls_ulp_ops __read_mostly = {
 	.owner			= THIS_MODULE,
 	.init			= tls_init,
 	.update			= tls_update,
-	.get_info		= tls_get_info,
-	.get_info_size		= tls_get_info_size,
 };
 
 static int __init tls_register(void)
