@@ -2288,6 +2288,9 @@ struct pcpu_sw_netstats {
 
 int register_netdevice_notifier(struct notifier_block *nb);
 int unregister_netdevice_notifier(struct notifier_block *nb);
+int register_netdevice_notifier_net(struct net *net, struct notifier_block *nb);
+int unregister_netdevice_notifier_net(struct net *net,
+				      struct notifier_block *nb);
 
 struct netdev_notifier_info {
 	struct net_device	*dev;
