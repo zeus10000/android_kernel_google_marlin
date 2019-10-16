@@ -54,5 +54,6 @@ bool btf_member_is_reg_int(const struct btf *btf, const struct btf_type *s,
 				   const struct btf_member *m,
 				   u32 expected_offset, u32 expected_size);
 const char *btf_name_by_offset(const struct btf *btf, u32 offset);
+struct btf *btf_parse_vmlinux(void);
 
 #endif
