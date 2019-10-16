@@ -60,6 +60,13 @@ struct bpf_prog_aux;
 
 /* unused opcode to mark special call to bpf_tail_call() helper */
 #define BPF_TAIL_CALL	0xf0
+
+/* unused opcode to mark special load instruction. Same as BPF_ABS */
+#define BPF_PROBE_MEM	0x20
+
+/* unused opcode to mark call to interpreter with arguments */
+#define BPF_CALL_ARGS	0xe0
+
 /* As per nm, we expose JITed images as text (code) section for
  * kallsyms. That way, tools like perf can find it to match
  * addresses.
@@ -1218,13 +1225,9 @@ struct bpf_sockopt_kern {
 };
 
 
-/* BPF_CALL_ARGS: opcode for tail calls with register-range passing (Linux 5.0+) */
 /* bpf_helper_changes_pkt_data renamed from bpf_helper_changes_skb_data (5.3+) */
 #define bpf_helper_changes_pkt_data bpf_helper_changes_skb_data
 
-#ifndef BPF_CALL_ARGS
-#define BPF_CALL_ARGS	0xe0
-#endif
 
 /* Whether raw BPF program dump is allowed (4.4 has no kallsyms restriction) */
 static inline bool bpf_dump_raw_ok(void)
