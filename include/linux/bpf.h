@@ -30,21 +30,6 @@ extern struct idr btf_idr;
 extern spinlock_t btf_idr_lock;
 
 /* map is generic key/value storage optionally accesible by eBPF programs */
-struct bpf_map_type_list {
-	struct list_head list_node;
-	const struct bpf_map_ops *ops;
-	enum bpf_map_type type;
-};
-
-struct bpf_prog_type_list {
-	struct list_head list_node;
-	const struct bpf_verifier_ops *ops;
-	enum bpf_prog_type type;
-};
-
-void bpf_register_map_type(struct bpf_map_type_list *tl);
-void bpf_register_prog_type(struct bpf_prog_type_list *tl);
-
 struct bpf_map_ops {
 	/* funcs callable from userspace (via syscall) */
 	int (*map_alloc_check)(union bpf_attr *attr);
@@ -230,10 +215,6 @@ enum bpf_arg_type {
 	ARG_PTR_TO_SOCKET,	/* pointer to bpf_sock (fullsock) */
 	ARG_PTR_TO_BTF_ID,	/* pointer to in-kernel struct */
 };
-/* 4.4 compat aliases for renamed BPF arg types */
-#define ARG_PTR_TO_STACK   ARG_PTR_TO_MEM
-#define ARG_CONST_STACK_SIZE ARG_CONST_SIZE
-
 
 /* type of values returned from helper functions */
 enum bpf_return_type {
@@ -392,19 +373,16 @@ enum bpf_cgroup_storage_type {
 
 #define MAX_BPF_CGROUP_STORAGE_TYPE __BPF_CGROUP_STORAGE_MAX
 
-static inline enum bpf_cgroup_storage_type
-cgroup_storage_type(struct bpf_map *map)
-{
-	if (map->map_type == BPF_MAP_TYPE_PERCPU_CGROUP_STORAGE)
-		return BPF_CGROUP_STORAGE_PERCPU;
-	return BPF_CGROUP_STORAGE_SHARED;
-}
+/* The longest tracepoint has 12 args.
+ * See include/trace/bpf_probe.h
+ */
+#define MAX_BPF_FUNC_ARGS 12
 
 struct bpf_prog_stats {
 	u64 cnt;
 	u64 nsecs;
 	struct u64_stats_sync syncp;
-};
+} __aligned(2 * sizeof(u64));
 
 struct bpf_prog_aux {
 	atomic_t refcnt;
@@ -416,6 +394,7 @@ struct bpf_prog_aux {
 	u32 id;
 	u32 func_cnt; /* used by non-func prog as the number of func progs */
 	u32 func_idx; /* 0 for non-func prog, the index in func array for func prog */
+	u32 attach_btf_id; /* in-kernel BTF type id to attach to */
 	bool verifier_zext; /* Zero extensions has been inserted by verifier. */
 	bool offload_requested;
 	bool attach_btf_trace; /* true if attaching to BTF-enabled raw tp */
@@ -705,11 +684,11 @@ void bpf_map_put_with_uref(struct bpf_map *map);
 void bpf_map_put(struct bpf_map *map);
 int bpf_map_charge_memlock(struct bpf_map *map, u32 pages);
 void bpf_map_uncharge_memlock(struct bpf_map *map, u32 pages);
-int bpf_map_charge_init(struct bpf_map_memory *mem, u64 size);
+int bpf_map_charge_init(struct bpf_map_memory *mem, size_t size);
 void bpf_map_charge_finish(struct bpf_map_memory *mem);
 void bpf_map_charge_move(struct bpf_map_memory *dst,
 			 struct bpf_map_memory *src);
-void *bpf_map_area_alloc(u64 size, int numa_node);
+void *bpf_map_area_alloc(size_t size, int numa_node);
 void bpf_map_area_free(void *base);
 void bpf_map_init_from_attr(struct bpf_map *map, union bpf_attr *attr);
 
@@ -727,7 +706,6 @@ int bpf_percpu_hash_update(struct bpf_map *map, void *key, void *value,
 			   u64 flags);
 int bpf_percpu_array_update(struct bpf_map *map, void *key, void *value,
 			    u64 flags);
-int bpf_stackmap_copy(struct bpf_map *map, void *key, void *value);
 
 int bpf_stackmap_copy(struct bpf_map *map, void *key, void *value);
 
@@ -1203,15 +1181,5 @@ static inline u32 bpf_xdp_sock_convert_ctx_access(enum bpf_access_type type,
 	return 0;
 }
 #endif /* CONFIG_INET */
-
-
-/* BPF raw tracepoint event map (backport from Linux 5.0+) */
-struct tracepoint;
-struct bpf_raw_event_map {
-	struct tracepoint	*tp;
-	void			*bpf_func;
-	u32			num_args;
-	u32			writable_size;
-} __aligned(32);
 
 #endif /* _LINUX_BPF_H */
