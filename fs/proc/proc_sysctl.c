@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * /proc/sys support
  */
@@ -12,7 +11,6 @@
 #include <linux/namei.h>
 #include <linux/mm.h>
 #include <linux/module.h>
-#include <linux/bpf-cgroup.h>
 #include "internal.h"
 
 static const struct dentry_operations proc_sys_dentry_operations;
@@ -446,7 +444,7 @@ static struct inode *proc_sys_make_inode(struct super_block *sb,
 	ei->sysctl = head;
 	ei->sysctl_entry = table;
 
-	inode->i_mtime = inode->i_atime = inode->i_ctime = current_time(inode);
+	inode->i_mtime = inode->i_atime = inode->i_ctime = CURRENT_TIME;
 	inode->i_mode = table->mode;
 	if (!S_ISDIR(table->mode)) {
 		inode->i_mode |= S_IFREG;
@@ -521,8 +519,8 @@ static ssize_t proc_sys_call_handler(struct file *filp, void __user *buf,
 	struct inode *inode = file_inode(filp);
 	struct ctl_table_header *head = grab_header(inode);
 	struct ctl_table *table = PROC_I(inode)->sysctl_entry;
-	void *new_buf = NULL;
 	ssize_t error;
+	size_t res;
 
 	if (IS_ERR(head))
 		return PTR_ERR(head);
@@ -540,27 +538,11 @@ static ssize_t proc_sys_call_handler(struct file *filp, void __user *buf,
 	if (!table->proc_handler)
 		goto out;
 
-	error = BPF_CGROUP_RUN_PROG_SYSCTL(head, table, write, buf, &count,
-					   ppos, &new_buf);
-	if (error)
-		goto out;
-
 	/* careful: calling conventions are nasty here */
-	if (new_buf) {
-		mm_segment_t old_fs;
-
-		old_fs = get_fs();
-		set_fs(KERNEL_DS);
-		error = table->proc_handler(table, write, (void __user *)new_buf,
-					    &count, ppos);
-		set_fs(old_fs);
-		kfree(new_buf);
-	} else {
-		error = table->proc_handler(table, write, buf, &count, ppos);
-	}
-
+	res = count;
+	error = table->proc_handler(table, write, buf, &res, ppos);
 	if (!error)
-		error = count;
+		error = res;
 out:
 	sysctl_head_finish(head);
 
@@ -1367,7 +1349,7 @@ static int register_leaf_sysctl_tables(const char *path, char *pos,
 	/* If there are mixed files and directories we need a new table */
 	if (nr_dirs && nr_files) {
 		struct ctl_table *new;
-		files = kcalloc(nr_files + 1, sizeof(struct ctl_table),
+		files = kzalloc(sizeof(struct ctl_table) * (nr_files + 1),
 				GFP_KERNEL);
 		if (!files)
 			goto out;

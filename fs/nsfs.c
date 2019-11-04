@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #include <linux/mount.h>
 #include <linux/file.h>
 #include <linux/fs.h>
@@ -83,7 +82,7 @@ slow:
 		return ERR_PTR(-ENOMEM);
 	}
 	inode->i_ino = ns->inum;
-	inode->i_mtime = inode->i_atime = inode->i_ctime = current_time(inode);
+	inode->i_mtime = inode->i_atime = inode->i_ctime = CURRENT_TIME;
 	inode->i_flags |= S_IMMUTABLE;
 	inode->i_mode = S_IFREG | S_IRUGO;
 	inode->i_fop = &ns_file_operations;
@@ -98,6 +97,70 @@ slow:
 	d_instantiate(dentry, inode);
 	dentry->d_flags |= DCACHE_RCUACCESS;
 	dentry->d_fsdata = (void *)ns_ops;
+	d = atomic_long_cmpxchg(&ns->stashed, 0, (unsigned long)dentry);
+	if (d) {
+		d_delete(dentry);	/* make sure ->d_prune() does nothing */
+		dput(dentry);
+		cpu_relax();
+		goto again;
+	}
+	goto got_it;
+}
+
+void *ns_get_path_cb(struct path *path,
+		     ns_get_path_helper_t *ns_get_cb,
+		     void *private_data)
+{
+	struct vfsmount *mnt = mntget(nsfs_mnt);
+	struct qstr qname = { .name = "", };
+	struct dentry *dentry;
+	struct inode *inode;
+	struct ns_common *ns;
+	unsigned long d;
+
+again:
+	ns = ns_get_cb(private_data);
+	if (!ns) {
+		mntput(mnt);
+		return ERR_PTR(-ENOENT);
+	}
+	rcu_read_lock();
+	d = atomic_long_read(&ns->stashed);
+	if (!d)
+		goto slow;
+	dentry = (struct dentry *)d;
+	if (!lockref_get_not_dead(&dentry->d_lockref))
+		goto slow;
+	rcu_read_unlock();
+	ns->ops->put(ns);
+got_it:
+	path->mnt = mnt;
+	path->dentry = dentry;
+	return NULL;
+slow:
+	rcu_read_unlock();
+	inode = new_inode_pseudo(mnt->mnt_sb);
+	if (!inode) {
+		ns->ops->put(ns);
+		mntput(mnt);
+		return ERR_PTR(-ENOMEM);
+	}
+	inode->i_ino = ns->inum;
+	inode->i_mtime = inode->i_atime = inode->i_ctime = CURRENT_TIME;
+	inode->i_flags |= S_IMMUTABLE;
+	inode->i_mode = S_IFREG | S_IRUGO;
+	inode->i_fop = &ns_file_operations;
+	inode->i_private = ns;
+
+	dentry = d_alloc_pseudo(mnt->mnt_sb, &qname);
+	if (!dentry) {
+		iput(inode);
+		mntput(mnt);
+		return ERR_PTR(-ENOMEM);
+	}
+	d_instantiate(dentry, inode);
+	dentry->d_flags |= DCACHE_RCUACCESS;
+	dentry->d_fsdata = (void *)ns->ops;
 	d = atomic_long_cmpxchg(&ns->stashed, 0, (unsigned long)dentry);
 	if (d) {
 		d_delete(dentry);	/* make sure ->d_prune() does nothing */

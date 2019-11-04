@@ -17,10 +17,32 @@
 #include <net/sock.h>
 #include <net/bpf_sk_storage.h>
 
-#include "../cgroup/cgroup-internal.h"
+/* 4.4 compat: cgroup_mutex only in cgroup-internal.h in 5.4 */
+extern struct mutex cgroup_mutex;
+
+/* 4.4 compat: rcu_swap_protected added in 5.3 */
+#ifndef rcu_swap_protected
+#define rcu_swap_protected(rcu_ptr, ptr, c) \
+do { \
+	typeof(ptr) _ptr = rcu_dereference_raw(rcu_ptr); \
+	rcu_assign_pointer((rcu_ptr), (ptr)); \
+	(ptr) = _ptr; \
+} while (0)
+#endif
+
+/* 4.4 compat: lockdep_is_held not defined when CONFIG_LOCKDEP=n */
+#ifndef lockdep_is_held
+#define lockdep_is_held(l) 0
+#endif
+
 
 DEFINE_STATIC_KEY_FALSE(cgroup_bpf_enabled_key);
 EXPORT_SYMBOL(cgroup_bpf_enabled_key);
+
+void cgroup_bpf_get(struct cgroup *cgrp)
+{
+	percpu_ref_get(&cgrp->bpf.refcnt);
+}
 
 void cgroup_bpf_offline(struct cgroup *cgrp)
 {
@@ -651,7 +673,7 @@ int __cgroup_bpf_run_filter_skb(struct sock *sk,
 
 	return ret;
 }
-EXPORT_SYMBOL(__cgroup_bpf_run_filter);
+EXPORT_SYMBOL(__cgroup_bpf_run_filter_skb);
 
 /**
  * __cgroup_bpf_run_filter_sk() - Run a program on a sock
@@ -670,18 +692,8 @@ int __cgroup_bpf_run_filter_sk(struct sock *sk,
 			       enum bpf_attach_type type)
 {
 	struct cgroup *cgrp = sock_cgroup_ptr(&sk->sk_cgrp_data);
-	int ret;
 
-
-	rcu_read_lock();
-
-	prog = rcu_dereference(cgrp->bpf.effective[type]->progs[0]);
-	if (prog)
-		ret = BPF_PROG_RUN(prog, sk) == 1 ? 0 : -EPERM;
-
-	rcu_read_unlock();
-
-	return ret;
+	return BPF_PROG_RUN_ARRAY(cgrp->bpf.effective[type], sk, BPF_PROG_RUN);
 }
 EXPORT_SYMBOL(__cgroup_bpf_run_filter_sk);
 

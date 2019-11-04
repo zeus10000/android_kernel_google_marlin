@@ -1400,4 +1400,13 @@ static __always_inline void trace_iterator_reset(struct trace_iterator *iter)
 	iter->pos = -1;
 }
 
+#ifdef CONFIG_FTRACE_SYSCALLS
+bool is_syscall_trace_event(struct trace_event_call *tp_event);
+#else
+static inline bool is_syscall_trace_event(struct trace_event_call *tp_event)
+{
+	return false;
+}
+#endif
+
 #endif /* _LINUX_KERNEL_TRACE_H */

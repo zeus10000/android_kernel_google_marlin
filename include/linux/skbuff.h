@@ -1,16 +1,21 @@
-/* SPDX-License-Identifier: GPL-2.0-or-later */
 /*
  *	Definitions for the 'struct sk_buff' memory handlers.
  *
  *	Authors:
  *		Alan Cox, <gw4pts@gw4pts.ampr.org>
  *		Florian La Roche, <rzsfl@rz.uni-sb.de>
+ *
+ *	This program is free software; you can redistribute it and/or
+ *	modify it under the terms of the GNU General Public License
+ *	as published by the Free Software Foundation; either version
+ *	2 of the License, or (at your option) any later version.
  */
 
 #ifndef _LINUX_SKBUFF_H
 #define _LINUX_SKBUFF_H
 
 #include <linux/kernel.h>
+#include <linux/kmemcheck.h>
 #include <linux/compiler.h>
 #include <linux/time.h>
 #include <linux/bug.h>
@@ -155,8 +160,6 @@ struct scatterlist;
 struct pipe_inode_info;
 struct iov_iter;
 struct napi_struct;
-struct bpf_prog;
-union bpf_attr;
 
 #if defined(CONFIG_NF_CONNTRACK) || defined(CONFIG_NF_CONNTRACK_MODULE)
 struct nf_conntrack {
@@ -334,6 +337,7 @@ struct ubuf_info {
  */
 struct skb_shared_info {
 	unsigned char	nr_frags;
+	__u8		meta_len;
 	__u8		tx_flags;
 	unsigned short	gso_size;
 	/* Warning: this field is not always filled in (UFO)! */
@@ -405,6 +409,9 @@ enum {
 	SKB_GSO_UDP_TUNNEL_CSUM = 1 << 11,
 
 	SKB_GSO_TUNNEL_REMCSUM = 1 << 12,
+	/* Compat: IP-in-IP GSO types (4.12+) */
+	SKB_GSO_IPXIP4 = 1 << 13,
+	SKB_GSO_IPXIP6 = 1 << 14,
 };
 
 #if BITS_PER_LONG > 32
@@ -596,6 +603,7 @@ struct sk_buff {
 	/* Following fields are _not_ copied in __copy_skb_header()
 	 * Note that queue_mapping is here mostly to fill a hole.
 	 */
+	kmemcheck_bitfield_begin(flags1);
 	__u16			queue_mapping;
 
 /* if you move cloned around you also must adapt those constants */
@@ -655,8 +663,8 @@ struct sk_buff {
 #ifdef CONFIG_IPV6_NDISC_NODETYPE
 	__u8			ndisc_nodetype:2;
 #endif
-
 	__u8			ipvs_property:1;
+
 	__u8			inner_protocol_type:1;
 	__u8			remcsum_offload:1;
 	/* 3 or 5 bit hole */
@@ -680,6 +688,13 @@ struct sk_buff {
 	__u32			hash;
 	__be16			vlan_proto;
 	__u16			vlan_tci;
+/* 4.4 compat: PKT_VLAN_PRESENT extracted from vlan_tci bit 12 (VLAN_CFI_MASK) */
+#ifdef __BIG_ENDIAN_BITFIELD
+#define PKT_VLAN_PRESENT_BIT	7
+#else
+#define PKT_VLAN_PRESENT_BIT	4  /* bit 4 of high byte = bit 12 of vlan_tci */
+#endif
+#define PKT_VLAN_PRESENT_OFFSET()	(offsetof(struct sk_buff, vlan_tci) + 1)
 #if defined(CONFIG_NET_RX_BUSY_POLL) || defined(CONFIG_XPS)
 	union {
 		unsigned int	napi_id;
@@ -1024,11 +1039,6 @@ static inline __be32 skb_flow_get_ports(const struct sk_buff *skb,
 void skb_flow_dissector_init(struct flow_dissector *flow_dissector,
 			     const struct flow_dissector_key *key,
 			     unsigned int key_count);
-
-int skb_flow_dissector_bpf_prog_attach(const union bpf_attr *attr,
-				       struct bpf_prog *prog);
-
-int skb_flow_dissector_bpf_prog_detach(const union bpf_attr *attr);
 
 bool __skb_flow_dissect(const struct sk_buff *skb,
 			struct flow_dissector *flow_dissector,
@@ -1737,6 +1747,17 @@ static inline unsigned int skb_headlen(const struct sk_buff *skb)
 	return skb->len - skb->data_len;
 }
 
+static inline u8 skb_metadata_len(const struct sk_buff *skb)
+{
+	return skb_shinfo(skb)->meta_len;
+}
+
+static inline void skb_metadata_set(struct sk_buff *skb, u8 meta_len)
+{
+	skb_shinfo(skb)->meta_len = meta_len;
+}
+
+
 static inline int skb_pagelen(const struct sk_buff *skb)
 {
 	int i, len = 0;
@@ -2100,6 +2121,11 @@ static inline void skb_set_network_header(struct sk_buff *skb, const int offset)
 static inline unsigned char *skb_mac_header(const struct sk_buff *skb)
 {
 	return skb->head + skb->mac_header;
+}
+
+static inline int skb_mac_header_len(const struct sk_buff *skb)
+{
+	return skb->data - skb_mac_header(skb);
 }
 
 static inline int skb_mac_header_was_set(const struct sk_buff *skb)
@@ -2912,21 +2938,6 @@ static inline int __skb_grow_rcsum(struct sk_buff *skb, unsigned int len)
 	return __skb_grow(skb, len);
 }
 
-static inline int __skb_trim_rcsum(struct sk_buff *skb, unsigned int len)
-{
-	if (skb->ip_summed == CHECKSUM_COMPLETE)
-		skb->ip_summed = CHECKSUM_NONE;
-	__skb_trim(skb, len);
-	return 0;
-}
-
-static inline int __skb_grow_rcsum(struct sk_buff *skb, unsigned int len)
-{
-	if (skb->ip_summed == CHECKSUM_COMPLETE)
-		skb->ip_summed = CHECKSUM_NONE;
-	return __skb_grow(skb, len);
-}
-
 #define skb_queue_walk(queue, skb) \
 		for (skb = (queue)->next;					\
 		     skb != (struct sk_buff *)(queue);				\
@@ -3151,69 +3162,6 @@ static inline ktime_t net_timedelta(ktime_t t)
 static inline ktime_t net_invalid_timestamp(void)
 {
 	return ktime_set(0, 0);
-}
-
-static inline u8 skb_metadata_len(const struct sk_buff *skb)
-{
-	return skb_shinfo(skb)->meta_len;
-}
-
-static inline void *skb_metadata_end(const struct sk_buff *skb)
-{
-	return skb_mac_header(skb);
-}
-
-static inline bool __skb_metadata_differs(const struct sk_buff *skb_a,
-					  const struct sk_buff *skb_b,
-					  u8 meta_len)
-{
-	const void *a = skb_metadata_end(skb_a);
-	const void *b = skb_metadata_end(skb_b);
-	/* Using more efficient varaiant than plain call to memcmp(). */
-#if defined(CONFIG_HAVE_EFFICIENT_UNALIGNED_ACCESS) && BITS_PER_LONG == 64
-	u64 diffs = 0;
-
-	switch (meta_len) {
-#define __it(x, op) (x -= sizeof(u##op))
-#define __it_diff(a, b, op) (*(u##op *)__it(a, op)) ^ (*(u##op *)__it(b, op))
-	case 32: diffs |= __it_diff(a, b, 64);
-	case 24: diffs |= __it_diff(a, b, 64);
-	case 16: diffs |= __it_diff(a, b, 64);
-	case  8: diffs |= __it_diff(a, b, 64);
-		break;
-	case 28: diffs |= __it_diff(a, b, 64);
-	case 20: diffs |= __it_diff(a, b, 64);
-	case 12: diffs |= __it_diff(a, b, 64);
-	case  4: diffs |= __it_diff(a, b, 32);
-		break;
-	}
-	return diffs;
-#else
-	return memcmp(a - meta_len, b - meta_len, meta_len);
-#endif
-}
-
-static inline bool skb_metadata_differs(const struct sk_buff *skb_a,
-					const struct sk_buff *skb_b)
-{
-	u8 len_a = skb_metadata_len(skb_a);
-	u8 len_b = skb_metadata_len(skb_b);
-
-	if (!(len_a | len_b))
-		return false;
-
-	return len_a != len_b ?
-	       true : __skb_metadata_differs(skb_a, skb_b, len_a);
-}
-
-static inline void skb_metadata_set(struct sk_buff *skb, u8 meta_len)
-{
-	skb_shinfo(skb)->meta_len = meta_len;
-}
-
-static inline void skb_metadata_clear(struct sk_buff *skb)
-{
-	skb_metadata_set(skb, 0);
 }
 
 struct sk_buff *skb_clone_sk(struct sk_buff *skb);
@@ -3758,39 +3706,11 @@ static inline bool skb_is_gso_v6(const struct sk_buff *skb)
 	return skb_shinfo(skb)->gso_type & SKB_GSO_TCPV6;
 }
 
-/* Note: Should be called only if skb_is_gso(skb) is true */
-static inline bool skb_is_gso_sctp(const struct sk_buff *skb)
-{
-	return skb_shinfo(skb)->gso_type & SKB_GSO_SCTP;
-}
-
-/* Note: Should be called only if skb_is_gso(skb) is true */
-static inline bool skb_is_gso_tcp(const struct sk_buff *skb)
-{
-	return skb_shinfo(skb)->gso_type & (SKB_GSO_TCPV4 | SKB_GSO_TCPV6);
-}
-
 static inline void skb_gso_reset(struct sk_buff *skb)
 {
 	skb_shinfo(skb)->gso_size = 0;
 	skb_shinfo(skb)->gso_segs = 0;
 	skb_shinfo(skb)->gso_type = 0;
-}
-
-static inline void skb_increase_gso_size(struct skb_shared_info *shinfo,
-					 u16 increment)
-{
-	if (WARN_ON_ONCE(shinfo->gso_size == GSO_BY_FRAGS))
-		return;
-	shinfo->gso_size += increment;
-}
-
-static inline void skb_decrease_gso_size(struct skb_shared_info *shinfo,
-					 u16 decrement)
-{
-	if (WARN_ON_ONCE(shinfo->gso_size == GSO_BY_FRAGS))
-		return;
-	shinfo->gso_size -= decrement;
 }
 
 void __skb_warn_lro_forwarding(const struct sk_buff *skb);

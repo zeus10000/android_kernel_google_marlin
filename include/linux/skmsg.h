@@ -240,7 +240,7 @@ static inline struct sk_psock *sk_psock(const struct sock *sk)
 
 static inline bool sk_has_psock(struct sock *sk)
 {
-	return sk_psock(sk) != NULL && sk->sk_prot->recvmsg == tcp_bpf_recvmsg;
+	return sk_psock(sk) != NULL;  /* tcp_bpf.c not backported */
 }
 
 static inline void sk_psock_queue_msg(struct sk_psock *psock,

@@ -3406,31 +3406,12 @@ int perf_event_read_local(struct perf_event *event, u64 *value,
 {
 	unsigned long flags;
 	int ret = 0;
-	u64 now;
 
 	/*
 	 * Disabling interrupts avoids all counter scheduling (context
 	 * switches, timer based rotation and IPIs).
 	 */
 	local_irq_save(flags);
-
-	/*
-	 * It must not be an event with inherit set, we cannot read
-	 * all child counters from atomic context.
-	 */
-	if (event->attr.inherit) {
-		ret = -EOPNOTSUPP;
-		goto out;
-	}
-
-	/*
-	 * It must not have a pmu::count method, those are not
-	 * NMI safe.
-	 */
-	if (event->pmu->count) {
-		ret = -EOPNOTSUPP;
-		goto out;
-	}
 
 	/* If this is a per-task event, it must be for current */
 	if ((event->attach_state & PERF_ATTACH_TASK) &&
@@ -3446,26 +3427,38 @@ int perf_event_read_local(struct perf_event *event, u64 *value,
 		goto out;
 	}
 
-	now = event->shadow_ctx_time + perf_clock();
-	if (enabled)
-		*enabled = now - event->tstamp_enabled;
+	/*
+	 * It must not be an event with inherit set, we cannot read
+	 * all child counters from atomic context.
+	 */
+	if (event->attr.inherit) {
+		ret = -EOPNOTSUPP;
+		goto out;
+	}
+
+	/*
+	 * It must not have a pmu::count method, those are not NMI safe.
+	 */
+	if (event->pmu->count) {
+		ret = -EOPNOTSUPP;
+		goto out;
+	}
+
 	/*
 	 * If the event is currently on this CPU, its either a per-task event,
 	 * or local to this CPU. Furthermore it means its ACTIVE (otherwise
 	 * oncpu == -1).
 	 */
-	if (event->oncpu == smp_processor_id()) {
+	if (event->oncpu == smp_processor_id())
 		event->pmu->read(event);
-		if (running)
-			*running = now - event->tstamp_running;
-	} else if (running) {
-		*running = event->total_time_running;
-	}
 
 	*value = local64_read(&event->count);
+	if (enabled)
+		*enabled = 0;
+	if (running)
+		*running = 0;
 out:
 	local_irq_restore(flags);
-
 	return ret;
 }
 
@@ -6986,7 +6979,6 @@ void perf_swevent_put_recursion_context(int rctx)
 
 	put_recursion_context(swhash->recursion, rctx);
 }
-EXPORT_SYMBOL_GPL(perf_swevent_put_recursion_context);
 
 void ___perf_sw_event(u32 event_id, u64 nr, struct pt_regs *regs, u64 addr)
 {
@@ -7394,7 +7386,6 @@ static void bpf_overflow_handler(struct perf_event *event,
 	struct bpf_perf_event_data_kern ctx = {
 		.data = data,
 		.regs = regs,
-		.event = event,
 	};
 	int ret = 0;
 
@@ -7415,7 +7406,6 @@ out:
 
 static int perf_event_set_bpf_handler(struct perf_event *event, u32 prog_fd)
 {
-	bool is_kprobe, is_tracepoint;
 	struct bpf_prog *prog;
 
 	if (event->overflow_handler_context)
@@ -7467,7 +7457,7 @@ static int perf_event_set_bpf_prog(struct perf_event *event, u32 prog_fd)
 		return perf_event_set_bpf_handler(event, prog_fd);
 
 	if (event->attr.type != PERF_TYPE_TRACEPOINT)
-		return perf_event_set_bpf_handler(event, prog_fd);
+		return -EINVAL;
 
 	is_kprobe = event->tp_event->flags & TRACE_EVENT_FL_UKPROBE;
 	is_tracepoint = event->tp_event->flags & TRACE_EVENT_FL_TRACEPOINT;
@@ -8437,7 +8427,7 @@ static int perf_copy_attr(struct perf_event_attr __user *uattr,
 	u32 size;
 	int ret;
 
-	if (!access_ok(uattr, PERF_ATTR_SIZE_VER0))
+	if (!access_ok(VERIFY_WRITE, uattr, PERF_ATTR_SIZE_VER0))
 		return -EFAULT;
 
 	/*
@@ -8651,11 +8641,11 @@ static int perf_event_set_clock(struct perf_event *event, clockid_t clk_id)
 		break;
 
 	case CLOCK_BOOTTIME:
-		event->clock = &ktime_get_boottime_ns;
+		event->clock = &ktime_get_boot_ns;
 		break;
 
 	case CLOCK_TAI:
-		event->clock = &ktime_get_clocktai_ns;
+		event->clock = &ktime_get_tai_ns;
 		break;
 
 	default:

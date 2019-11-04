@@ -236,6 +236,7 @@ void free_symbol_cache(struct symbol_cache *sc);
 struct symbol_cache *alloc_symbol_cache(const char *sym, long offset);
 int trace_kprobe_ftrace(struct trace_event_call *call);
 int trace_kprobe_error_injectable(struct trace_event_call *call);
+bool trace_kprobe_on_func_entry(struct trace_event_call *call);
 #else
 /* uprobes do not support symbol fetch methods */
 #define fetch_symbol_u8			NULL

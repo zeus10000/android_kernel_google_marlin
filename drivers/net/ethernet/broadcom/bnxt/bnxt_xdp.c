@@ -18,6 +18,7 @@
 #include "bnxt_hsi.h"
 #include "bnxt.h"
 #include "bnxt_xdp.h"
+#include <net/xdp.h>
 
 void bnxt_xmit_xdp(struct bnxt *bp, struct bnxt_tx_ring_info *txr,
 		   dma_addr_t mapping, u32 len, u16 rx_prod)
@@ -208,7 +209,7 @@ static int bnxt_xdp_set(struct bnxt *bp, struct bpf_prog *prog)
 	return 0;
 }
 
-int bnxt_xdp(struct net_device *dev, struct netdev_xdp *xdp)
+int bnxt_xdp(struct net_device *dev, struct netdev_bpf *xdp)
 {
 	struct bnxt *bp = netdev_priv(dev);
 	int rc;

@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (C) 2002,2003 by Andreas Gruenbacher <a.gruenbacher@computer.org>
  *
@@ -913,7 +912,7 @@ int simple_set_acl(struct inode *inode, struct posix_acl *acl, int type)
 			return error;
 	}
 
-	inode->i_ctime = current_time(inode);
+	inode->i_ctime = CURRENT_TIME;
 	set_cached_acl(inode, type, acl);
 	return 0;
 }

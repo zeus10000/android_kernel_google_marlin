@@ -48,7 +48,6 @@ struct bpf_reg_state {
 	 * result in a bad access.
 	 */
 	u64 min_value, max_value;
-	u32 id;
 	union {
 		/* valid when type == PTR_TO_PACKET */
 		u16 range;
@@ -305,6 +304,7 @@ struct bpf_insn_aux_data {
 			u32 map_off;		/* offset from value base address */
 		};
 	};
+	u32 ctx_field_size; /* the ctx access size for verifier */
 	int sanitize_stack_off; /* stack slot to be cleared */
 	bool seen; /* this insn was processed by the verifier */
 	bool zext_dst; /* this insn zero extends dst reg */
@@ -317,6 +317,14 @@ struct bpf_insn_aux_data {
 
 #define BPF_VERIFIER_TMP_LOG_SIZE	1024
 
+/* BPF verifier log levels (compat backport from Linux 5.0+) */
+#define BPF_LOG_LEVEL1		1
+#define BPF_LOG_LEVEL2		2
+#define BPF_LOG_LEVEL		BPF_LOG_LEVEL1
+#define BPF_LOG_STATS		4
+#define BPF_LOG_LEVEL_MASK	(BPF_LOG_LEVEL1 | BPF_LOG_LEVEL2)
+#define BPF_LOG_MASK		(BPF_LOG_LEVEL1 | BPF_LOG_LEVEL2 | BPF_LOG_STATS)
+
 struct bpf_verifier_log {
 	u32 level;
 	char kbuf[BPF_VERIFIER_TMP_LOG_SIZE];
@@ -328,6 +336,11 @@ struct bpf_verifier_log {
 static inline bool bpf_verifier_log_full(const struct bpf_verifier_log *log)
 {
 	return log->len_used >= log->len_total - 1;
+}
+
+static inline bool bpf_verifier_log_needed(const struct bpf_verifier_log *log)
+{
+	return log->level && log->ubuf && !bpf_verifier_log_full(log);
 }
 
 struct bpf_verifier_env;
@@ -391,6 +404,8 @@ struct bpf_verifier_env {
 	u32 peak_states;
 	/* longest register parentage chain walked for liveness marking */
 	u32 longest_mark_read_walk;
+	/* states to free at end of verification */
+	struct bpf_verifier_state_list *free_list;
 };
 
 void bpf_verifier_vlog(struct bpf_verifier_log *log, const char *fmt,
@@ -411,12 +426,29 @@ static inline struct bpf_reg_state *cur_regs(struct bpf_verifier_env *env)
 }
 
 #if defined(CONFIG_NET) && defined(CONFIG_BPF_SYSCALL)
-int bpf_prog_offload_verifier_prep(struct bpf_verifier_env *env);
+int bpf_prog_offload_verifier_prep(struct bpf_prog *prog);
+int bpf_prog_offload_verify_insn(struct bpf_verifier_env *env,
+				 int insn_idx, int prev_insn_idx);
+int bpf_prog_offload_finalize(struct bpf_verifier_env *env);
+void
+bpf_prog_offload_replace_insn(struct bpf_verifier_env *env, u32 off,
+			      struct bpf_insn *insn);
+void
+bpf_prog_offload_remove_insns(struct bpf_verifier_env *env, u32 off, u32 cnt);
 #else
-int bpf_prog_offload_verifier_prep(struct bpf_verifier_env *env)
-{
-	return -EOPNOTSUPP;
-}
+static inline int bpf_prog_offload_verifier_prep(struct bpf_prog *prog)
+{ return -EOPNOTSUPP; }
+static inline int bpf_prog_offload_verify_insn(struct bpf_verifier_env *env,
+						   int insn_idx, int prev_insn_idx)
+{ return -EOPNOTSUPP; }
+static inline int bpf_prog_offload_finalize(struct bpf_verifier_env *env)
+{ return -EOPNOTSUPP; }
+static inline void
+bpf_prog_offload_replace_insn(struct bpf_verifier_env *env, u32 off,
+			      struct bpf_insn *insn) { }
+static inline void
+bpf_prog_offload_remove_insns(struct bpf_verifier_env *env, u32 off,
+			      u32 cnt) { }
 #endif
 
 #endif /* _LINUX_BPF_VERIFIER_H */

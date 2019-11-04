@@ -11,6 +11,7 @@
 #include <linux/refcount.h>
 #include <linux/compat.h>
 #include <linux/skbuff.h>
+#include <linux/if_vlan.h>
 #include <linux/linkage.h>
 #include <linux/printk.h>
 #include <linux/workqueue.h>
@@ -21,12 +22,15 @@
 #include <net/sch_generic.h>
 
 #include <asm/cacheflush.h>
+#include <asm/set_memory.h>
 
 #include <uapi/linux/filter.h>
 #include <uapi/linux/bpf.h>
 
 struct sk_buff;
 struct sock;
+struct xdp_rxq_info;
+struct xdp_buff;
 struct seccomp_data;
 struct bpf_prog_aux;
 
@@ -140,6 +144,14 @@ struct bpf_prog_aux;
 		.src_reg = 0,					\
 		.off   = 0,					\
 		.imm   = IMM })
+
+/* Special form of mov32, used for doing explicit zero extension on dst. */
+#define BPF_ZEXT_REG(DST)						((struct bpf_insn) {							.code  = BPF_ALU | BPF_MOV | BPF_X,				.dst_reg = DST,							.src_reg = DST,							.off   = 0,							.imm   = 1 })
+
+static inline bool insn_is_zext(const struct bpf_insn *insn)
+{
+	return insn->code == (BPF_ALU | BPF_MOV | BPF_X) && insn->imm == 1;
+}
 
 #define BPF_MOV32_IMM(DST, IMM)					\
 	((struct bpf_insn) {					\
@@ -268,6 +280,15 @@ struct bpf_prog_aux;
 		.src_reg = 0,					\
 		.off   = OFF,					\
 		.imm   = IMM })
+
+/* BPF_JMP32 variants (32-bit comparisons, backported from 5.1) */
+#define BPF_JMP32_REG(OP, DST, SRC, OFF)				((struct bpf_insn) {							.code  = BPF_JMP32 | BPF_OP(OP) | BPF_X,			.dst_reg = DST,							.src_reg = SRC,							.off   = OFF,							.imm   = 0 })
+
+#define BPF_JMP32_IMM(OP, DST, IMM, OFF)				((struct bpf_insn) {							.code  = BPF_JMP32 | BPF_OP(OP) | BPF_K,			.dst_reg = DST,							.src_reg = 0,							.off   = OFF,							.imm   = IMM })
+
+/* Unconditional jump */
+
+#define BPF_JMP_A(OFF)							((struct bpf_insn) {							.code  = BPF_JMP | BPF_JA,					.dst_reg = 0,							.src_reg = 0,							.off   = OFF,							.imm   = 0 })
 
 /* Function call */
 
@@ -465,7 +486,8 @@ struct bpf_prog {
 				is_func:1,	/* program is a bpf function */
 				kprobe_override:1, /* Do we override a kprobe? */
 				has_callchain_buf:1, /* callchain buffer allocated? */
-				enforce_expected_attach_type:1; /* Enforce expected_attach_type checking at attach time */
+				enforce_expected_attach_type:1, /* Enforce expected_attach_type checking at attach time */
+				jit_requested:1; /* archs can request JIT compilation */
 	enum bpf_prog_type	type;		/* Type of BPF program */
 	enum bpf_attach_type	expected_attach_type; /* For some prog types */
 	u32			len;		/* Number of filter blocks */
@@ -473,8 +495,8 @@ struct bpf_prog {
 	u8			tag[BPF_TAG_SIZE];
 	struct bpf_prog_aux	*aux;		/* Auxiliary fields */
 	struct sock_fprog_kern	*orig_prog;	/* Original BPF program */
-	unsigned int		(*bpf_func)(const struct sk_buff *skb,
-					    const struct bpf_insn *filter);
+	unsigned int		(*bpf_func)(const void *ctx,
+					    const struct bpf_insn *insn);
 	/* Instructions for interpreter */
 	union {
 		struct sock_filter	insns[0];
@@ -551,12 +573,7 @@ struct bpf_skb_data_end {
 	void *data_end;
 };
 
-struct xdp_buff {
-	void *data;
-	void *data_end;
-	void *data_meta;
-	void *data_hard_start;
-};
+
 
 struct sk_msg_buff {
 	void *data;
@@ -878,25 +895,10 @@ int xdp_do_redirect(struct net_device *dev,
 		    struct bpf_prog *prog);
 void xdp_do_flush_map(void);
 
-/* Drivers not supporting XDP metadata can use this helper, which
- * rejects any room expansion for metadata as a result.
- */
-static __always_inline void
-xdp_set_data_meta_invalid(struct xdp_buff *xdp)
-{
-	xdp->data_meta = xdp->data + 1;
-}
-
-static __always_inline bool
-xdp_data_meta_unsupported(const struct xdp_buff *xdp)
-{
-	return unlikely(xdp->data_meta > xdp->data);
-}
-
 void bpf_warn_invalid_xdp_action(u32 act);
 
-struct sock *do_sk_redirect_map(struct sk_buff *skb);
-struct sock *do_msg_redirect_map(struct sk_msg_buff *md);
+
+struct sock_reuseport;
 
 #ifdef CONFIG_INET
 struct sock *bpf_run_sk_reuseport(struct sock_reuseport *reuse, struct sock *sk,
@@ -967,7 +969,7 @@ static inline bool bpf_prog_ebpf_jited(const struct bpf_prog *fp)
 	return fp->jited && bpf_jit_is_ebpf();
 }
 
-static inline bool bpf_jit_blinding_enabled(void)
+static inline bool bpf_jit_blinding_enabled(struct bpf_prog *prog __attribute__((unused)))
 {
 	/* These are the prerequisites, should someone ever have the
 	 * idea to call blinding outside of them, we make sure to
@@ -1018,6 +1020,10 @@ bpf_address_lookup(unsigned long addr, unsigned long *size,
 }
 
 void bpf_prog_kallsyms_add(struct bpf_prog *fp);
+static inline bool bpf_prog_kallsyms_verify_off(const struct bpf_prog *fp)
+{
+	return true; /* compat stub: kallsyms cleanup not tracked in 4.4 */
+}
 void bpf_prog_kallsyms_del(struct bpf_prog *fp);
 void bpf_get_prog_name(const struct bpf_prog *prog, char *sym);
 
@@ -1212,4 +1218,33 @@ struct bpf_sockopt_kern {
 	s32		retval;
 };
 
+
+/* BPF_CALL_ARGS: opcode for tail calls with register-range passing (Linux 5.0+) */
+/* bpf_helper_changes_pkt_data renamed from bpf_helper_changes_skb_data (5.3+) */
+#define bpf_helper_changes_pkt_data bpf_helper_changes_skb_data
+
+#ifndef BPF_CALL_ARGS
+#define BPF_CALL_ARGS	0xe0
+#endif
+
+/* Whether raw BPF program dump is allowed (4.4 has no kallsyms restriction) */
+static inline bool bpf_dump_raw_ok(void)
+{
+	return true;
+}
+
+/* Recompute data/data_end after an sk_skb skb modification */
+static inline void bpf_compute_data_end_sk_skb(struct sk_buff *skb)
+{
+	bpf_compute_data_pointers(skb);
+}
+
+
+bool bpf_jit_needs_zext(void);
+/* 4.4 compat: function renamed in 5.x */
+#ifndef bpf_compute_data_end
+#define bpf_compute_data_end bpf_compute_data_pointers
+#endif
+
+void bpf_clear_redirect_map(struct bpf_map *map);
 #endif /* __LINUX_FILTER_H__ */
