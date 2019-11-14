@@ -14,6 +14,8 @@
 #include <linux/numa.h>
 #include <linux/wait.h>
 #include <linux/u64_stats_sync.h>
+#include <linux/refcount.h>
+#include <linux/mutex.h>
 
 struct bpf_verifier_env;
 struct bpf_verifier_log;
@@ -213,6 +215,7 @@ enum bpf_arg_type {
 	ARG_PTR_TO_INT,		/* pointer to int */
 	ARG_PTR_TO_LONG,	/* pointer to long */
 	ARG_PTR_TO_SOCKET,	/* pointer to bpf_sock (fullsock) */
+	ARG_PTR_TO_BTF_ID,	/* pointer to in-kernel struct */
 };
 
 /* type of values returned from helper functions */
@@ -235,11 +238,17 @@ struct bpf_func_proto {
 	bool gpl_only;
 	bool pkt_access;
 	enum bpf_return_type ret_type;
-	enum bpf_arg_type arg1_type;
-	enum bpf_arg_type arg2_type;
-	enum bpf_arg_type arg3_type;
-	enum bpf_arg_type arg4_type;
-	enum bpf_arg_type arg5_type;
+	union {
+		struct {
+			enum bpf_arg_type arg1_type;
+			enum bpf_arg_type arg2_type;
+			enum bpf_arg_type arg3_type;
+			enum bpf_arg_type arg4_type;
+			enum bpf_arg_type arg5_type;
+		};
+		enum bpf_arg_type arg_type[5];
+	};
+	u32 *btf_id; /* BTF ids of arguments */
 };
 
 /* bpf_context is intentionally undefined structure. Pointer to bpf_context is
@@ -366,11 +375,110 @@ enum bpf_cgroup_storage_type {
 
 #define MAX_BPF_CGROUP_STORAGE_TYPE __BPF_CGROUP_STORAGE_MAX
 
+/* The longest tracepoint has 12 args.
+ * See include/trace/bpf_probe.h
+ */
+#define MAX_BPF_FUNC_ARGS 12
+
 struct bpf_prog_stats {
 	u64 cnt;
 	u64 nsecs;
 	struct u64_stats_sync syncp;
 } __aligned(2 * sizeof(u64));
+
+struct btf_func_model {
+	u8 ret_size;
+	u8 nr_args;
+	u8 arg_size[MAX_BPF_FUNC_ARGS];
+};
+
+/* Restore arguments before returning from trampoline to let original function
+ * continue executing. This flag is used for fentry progs when there are no
+ * fexit progs.
+ */
+#define BPF_TRAMP_F_RESTORE_REGS	BIT(0)
+/* Call original function after fentry progs, but before fexit progs.
+ * Makes sense for fentry/fexit, normal calls and indirect calls.
+ */
+#define BPF_TRAMP_F_CALL_ORIG		BIT(1)
+/* Skip current frame and return to parent.  Makes sense for fentry/fexit
+ * programs only. Should not be used with normal calls and indirect calls.
+ */
+#define BPF_TRAMP_F_SKIP_FRAME		BIT(2)
+
+/* Different use cases for BPF trampoline:
+ * 1. replace nop at the function entry (kprobe equivalent)
+ *    flags = BPF_TRAMP_F_RESTORE_REGS
+ *    fentry = a set of programs to run before returning from trampoline
+ *
+ * 2. replace nop at the function entry (kprobe + kretprobe equivalent)
+ *    flags = BPF_TRAMP_F_CALL_ORIG | BPF_TRAMP_F_SKIP_FRAME
+ *    orig_call = fentry_ip + MCOUNT_INSN_SIZE
+ *    fentry = a set of program to run before calling original function
+ *    fexit = a set of program to run after original function
+ *
+ * 3. replace direct call instruction anywhere in the function body
+ *    or assign a function pointer for indirect call (like tcp_congestion_ops->cong_avoid)
+ *    With flags = 0
+ *      fentry = a set of programs to run before returning from trampoline
+ *    With flags = BPF_TRAMP_F_CALL_ORIG
+ *      orig_call = original callback addr or direct function addr
+ *      fentry = a set of program to run before calling original function
+ *      fexit = a set of program to run after original function
+ */
+int arch_prepare_bpf_trampoline(void *image, struct btf_func_model *m, u32 flags,
+				struct bpf_prog **fentry_progs, int fentry_cnt,
+				struct bpf_prog **fexit_progs, int fexit_cnt,
+				void *orig_call);
+/* these two functions are called from generated trampoline */
+u64 notrace __bpf_prog_enter(void);
+void notrace __bpf_prog_exit(struct bpf_prog *prog, u64 start);
+
+enum bpf_tramp_prog_type {
+	BPF_TRAMP_FENTRY,
+	BPF_TRAMP_FEXIT,
+	BPF_TRAMP_MAX
+};
+
+struct bpf_trampoline {
+	/* hlist for trampoline_table */
+	struct hlist_node hlist;
+	/* serializes access to fields of this trampoline */
+	struct mutex mutex;
+	refcount_t refcnt;
+	u64 key;
+	struct {
+		struct btf_func_model model;
+		void *addr;
+	} func;
+	/* list of BPF programs using this trampoline */
+	struct hlist_head progs_hlist[BPF_TRAMP_MAX];
+	/* Number of attached programs. A counter per kind. */
+	int progs_cnt[BPF_TRAMP_MAX];
+	/* Executable image of trampoline */
+	void *image;
+	u64 selector;
+};
+#ifdef CONFIG_BPF_JIT
+struct bpf_trampoline *bpf_trampoline_lookup(u64 key);
+int bpf_trampoline_link_prog(struct bpf_prog *prog);
+int bpf_trampoline_unlink_prog(struct bpf_prog *prog);
+void bpf_trampoline_put(struct bpf_trampoline *tr);
+#else
+static inline struct bpf_trampoline *bpf_trampoline_lookup(u64 key)
+{
+	return NULL;
+}
+static inline int bpf_trampoline_link_prog(struct bpf_prog *prog)
+{
+	return -ENOTSUPP;
+}
+static inline int bpf_trampoline_unlink_prog(struct bpf_prog *prog)
+{
+	return -ENOTSUPP;
+}
+static inline void bpf_trampoline_put(struct bpf_trampoline *tr) {}
+#endif
 
 struct bpf_prog_aux {
 	atomic_t refcnt;
@@ -385,6 +493,14 @@ struct bpf_prog_aux {
 	u32 attach_btf_id; /* in-kernel BTF type id to attach to */
 	bool verifier_zext; /* Zero extensions has been inserted by verifier. */
 	bool offload_requested;
+	bool attach_btf_trace; /* true if attaching to BTF-enabled raw tp */
+	enum bpf_tramp_prog_type trampoline_prog_type;
+	struct bpf_trampoline *trampoline;
+	struct hlist_node tramp_hlist;
+	/* BTF_KIND_FUNC_PROTO for valid attach_btf_id */
+	const struct btf_type *attach_func_proto;
+	/* function name for valid attach_btf_id */
+	const char *attach_func_name;
 	struct bpf_prog **func;
 	void *jit_data; /* JIT specific data. arch dependent */
 	struct latch_tree_node ksym_tnode;
@@ -765,6 +881,13 @@ int btf_struct_access(struct bpf_verifier_log *log,
 		      const struct btf_type *t, int off, int size,
 		      enum bpf_access_type atype,
 		      u32 *next_btf_id);
+u32 btf_resolve_helper_id(struct bpf_verifier_log *log, void *, int);
+
+int btf_distill_func_proto(struct bpf_verifier_log *log,
+			   struct btf *btf,
+			   const struct btf_type *func_proto,
+			   const char *func_name,
+			   struct btf_func_model *m);
 
 #else /* !CONFIG_BPF_SYSCALL */
 static inline struct bpf_prog *bpf_prog_get(u32 ufd)
@@ -988,31 +1111,6 @@ static inline int sock_map_get_from_fd(const union bpf_attr *attr,
 				       struct bpf_prog *prog)
 {
 	return -EINVAL;
-}
-#endif
-
-#if defined(CONFIG_XDP_SOCKETS)
-struct xdp_sock;
-struct xdp_sock *__xsk_map_lookup_elem(struct bpf_map *map, u32 key);
-int __xsk_map_redirect(struct bpf_map *map, struct xdp_buff *xdp,
-		       struct xdp_sock *xs);
-void __xsk_map_flush(struct bpf_map *map);
-#else
-struct xdp_sock;
-static inline struct xdp_sock *__xsk_map_lookup_elem(struct bpf_map *map,
-						     u32 key)
-{
-	return NULL;
-}
-
-static inline int __xsk_map_redirect(struct bpf_map *map, struct xdp_buff *xdp,
-				     struct xdp_sock *xs)
-{
-	return -EOPNOTSUPP;
-}
-
-static inline void __xsk_map_flush(struct bpf_map *map)
-{
 }
 #endif
 
