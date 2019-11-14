@@ -20,6 +20,9 @@ KCOV_INSTRUMENT_dynamic_debug.o := n
 # convention (see CONFIG_ARCH_HWEIGHT_CFLAGS).
 KCOV_INSTRUMENT_hweight.o := n
 
+# Used by KCSAN while enabled, avoid recursion.
+KCSAN_SANITIZE_random32.o := n
+
 lib-y := ctype.o string.o vsprintf.o cmdline.o \
 	 rbtree.o radix-tree.o dump_stack.o timerqueue.o\
 	 idr.o int_sqrt.o extable.o \
