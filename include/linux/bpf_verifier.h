@@ -43,11 +43,6 @@ enum bpf_reg_liveness {
 struct bpf_reg_state {
 	/* Ordering of fields matters.  See states_equal() */
 	enum bpf_reg_type type;
-	/*
-	 * Used to determine if any memory access using this register will
-	 * result in a bad access.
-	 */
-	u64 min_value, max_value;
 	union {
 		/* valid when type == PTR_TO_PACKET */
 		u16 range;
@@ -298,7 +293,7 @@ struct bpf_verifier_state_list {
 struct bpf_insn_aux_data {
 	union {
 		enum bpf_reg_type ptr_type;	/* pointer type for load/store insns */
-		unsigned long map_state;	/* pointer/poison value for maps */
+		unsigned long map_ptr_state;	/* pointer/poison value for maps */
 		s32 call_imm;			/* saved imm field of call insn */
 		u32 alu_limit;			/* limit for add/sub register with pointer */
 		struct {
@@ -306,7 +301,8 @@ struct bpf_insn_aux_data {
 			u32 map_off;		/* offset from value base address */
 		};
 	};
-	u32 ctx_field_size; /* the ctx access size for verifier */
+	u64 map_key_state; /* constant (32 bit) key tracking for maps */
+	int ctx_field_size; /* the ctx field size for load insn, maybe 0 */
 	int sanitize_stack_off; /* stack slot to be cleared */
 	bool seen; /* this insn was processed by the verifier */
 	bool zext_dst; /* this insn zero extends dst reg */
@@ -318,7 +314,6 @@ struct bpf_insn_aux_data {
 #define MAX_USED_MAPS 64 /* max number of maps accessed by one eBPF program */
 
 #define BPF_VERIFIER_TMP_LOG_SIZE	1024
-
 
 struct bpf_verifier_log {
 	u32 level;
@@ -346,12 +341,6 @@ static inline bool bpf_verifier_log_needed(const struct bpf_verifier_log *log)
 		log->level == BPF_LOG_KERNEL;
 }
 
-struct bpf_verifier_env;
-struct bpf_ext_analyzer_ops {
-	int (*insn_hook)(struct bpf_verifier_env *env,
-			 int insn_idx, int prev_insn_idx);
-};
-
 #define BPF_MAX_SUBPROGS 256
 
 struct bpf_subprog_info {
@@ -375,7 +364,7 @@ struct bpf_verifier_env {
 	bool test_state_freq;		/* test verifier with different pruning frequency */
 	struct bpf_verifier_state *cur_state; /* current verifier state */
 	struct bpf_verifier_state_list **explored_states; /* search pruning optimization */
-	const struct bpf_ext_analyzer_ops *dev_ops; /* device analyzer ops */
+	struct bpf_verifier_state_list *free_list;
 	struct bpf_map *used_maps[MAX_USED_MAPS]; /* array of map's used by eBPF program */
 	u32 used_map_cnt;		/* number of used maps */
 	u32 id_gen;			/* used to generate unique reg IDs */
@@ -408,12 +397,10 @@ struct bpf_verifier_env {
 	u32 peak_states;
 	/* longest register parentage chain walked for liveness marking */
 	u32 longest_mark_read_walk;
-	/* states to free at end of verification */
-	struct bpf_verifier_state_list *free_list;
 };
 
-void bpf_verifier_vlog(struct bpf_verifier_log *log, const char *fmt,
-		       va_list args);
+__printf(2, 0) void bpf_verifier_vlog(struct bpf_verifier_log *log,
+				      const char *fmt, va_list args);
 __printf(2, 3) void bpf_verifier_log_write(struct bpf_verifier_env *env,
 					   const char *fmt, ...);
 __printf(2, 3) void bpf_log(struct bpf_verifier_log *log,
@@ -431,7 +418,6 @@ static inline struct bpf_reg_state *cur_regs(struct bpf_verifier_env *env)
 	return cur_func(env)->regs;
 }
 
-#if defined(CONFIG_NET) && defined(CONFIG_BPF_SYSCALL)
 int bpf_prog_offload_verifier_prep(struct bpf_prog *prog);
 int bpf_prog_offload_verify_insn(struct bpf_verifier_env *env,
 				 int insn_idx, int prev_insn_idx);
@@ -441,20 +427,5 @@ bpf_prog_offload_replace_insn(struct bpf_verifier_env *env, u32 off,
 			      struct bpf_insn *insn);
 void
 bpf_prog_offload_remove_insns(struct bpf_verifier_env *env, u32 off, u32 cnt);
-#else
-static inline int bpf_prog_offload_verifier_prep(struct bpf_prog *prog)
-{ return -EOPNOTSUPP; }
-static inline int bpf_prog_offload_verify_insn(struct bpf_verifier_env *env,
-						   int insn_idx, int prev_insn_idx)
-{ return -EOPNOTSUPP; }
-static inline int bpf_prog_offload_finalize(struct bpf_verifier_env *env)
-{ return -EOPNOTSUPP; }
-static inline void
-bpf_prog_offload_replace_insn(struct bpf_verifier_env *env, u32 off,
-			      struct bpf_insn *insn) { }
-static inline void
-bpf_prog_offload_remove_insns(struct bpf_verifier_env *env, u32 off,
-			      u32 cnt) { }
-#endif
 
 #endif /* _LINUX_BPF_VERIFIER_H */
