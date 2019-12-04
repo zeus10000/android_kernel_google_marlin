@@ -286,7 +286,6 @@ static int addr6_resolve(struct sockaddr_in6 *src_in,
 {
 	struct flowi6 fl6;
 	struct dst_entry *dst;
-	int ret;
 
 	memset(&fl6, 0, sizeof fl6);
 	fl6.daddr = dst_in->sin6_addr;
