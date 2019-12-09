@@ -42,7 +42,7 @@ struct sk_buff;
  * matching for small options.
  */
 #define TUN_METADATA_OFFSET(opt_len) \
-	(FIELD_SIZEOF(struct sw_flow_key, tun_opts) - opt_len)
+	(sizeof_field(struct sw_flow_key, tun_opts) - opt_len)
 #define TUN_METADATA_OPTS(flow_key, opt_len) \
 	((void *)((flow_key)->tun_opts + TUN_METADATA_OFFSET(opt_len)))
 
@@ -52,7 +52,7 @@ struct ovs_tunnel_info {
 
 #define OVS_SW_FLOW_KEY_METADATA_SIZE			\
 	(offsetof(struct sw_flow_key, recirc_id) +	\
-	FIELD_SIZEOF(struct sw_flow_key, recirc_id))
+	sizeof_field(struct sw_flow_key, recirc_id))
 
 struct sw_flow_key {
 	u8 tun_opts[IP_TUNNEL_OPTS_MAX];

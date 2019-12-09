@@ -790,7 +790,7 @@ static int __init af_rxrpc_init(void)
 {
 	int ret = -1;
 
-	BUILD_BUG_ON(sizeof(struct rxrpc_skb_priv) > FIELD_SIZEOF(struct sk_buff, cb));
+	BUILD_BUG_ON(sizeof(struct rxrpc_skb_priv) > sizeof_field(struct sk_buff, cb));
 
 	rxrpc_epoch = htonl(get_seconds());
 
