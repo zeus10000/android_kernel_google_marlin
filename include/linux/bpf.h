@@ -17,6 +17,10 @@
 #include <linux/u64_stats_sync.h>
 #include <linux/refcount.h>
 #include <linux/mutex.h>
+/* module.h omitted: including it here creates a circular include chain via
+ * sched.h->cgroup-defs.h->bpf-cgroup.h->bpf.h->module.h on 4.4 kernels.
+ * bpf_try_module_get/bpf_module_put implementations live in kernel/bpf/struct_ops.c.
+ * [BACKPORT: 4.4 adaptation] */
 
 struct bpf_verifier_env;
 struct bpf_verifier_log;
@@ -28,6 +32,7 @@ struct sock;
 struct seq_file;
 struct btf;
 struct btf_type;
+struct module;
 struct exception_table_entry;
 
 extern struct idr btf_idr;
@@ -106,6 +111,7 @@ struct bpf_map {
 	struct btf *btf;
 	struct bpf_map_memory memory;
 	char name[BPF_OBJ_NAME_LEN];
+	u32 btf_vmlinux_value_type_id;
 	bool unpriv_array;
 	bool frozen; /* write-once; write-protected by freeze_mutex */
 	/* 22 bytes hole */
@@ -183,7 +189,8 @@ static inline bool bpf_map_offload_neutral(const struct bpf_map *map)
 
 static inline bool bpf_map_support_seq_show(const struct bpf_map *map)
 {
-	return map->btf && map->ops->map_seq_show_elem;
+	return (map->btf_value_type_id || map->btf_vmlinux_value_type_id) &&
+		map->ops->map_seq_show_elem;
 }
 
 int map_check_no_btf(const struct bpf_map *map,
@@ -441,7 +448,8 @@ struct btf_func_model {
  *      fentry = a set of program to run before calling original function
  *      fexit = a set of program to run after original function
  */
-int arch_prepare_bpf_trampoline(void *image, struct btf_func_model *m, u32 flags,
+int arch_prepare_bpf_trampoline(void *image, void *image_end,
+				const struct btf_func_model *m, u32 flags,
 				struct bpf_prog **fentry_progs, int fentry_cnt,
 				struct bpf_prog **fexit_progs, int fexit_cnt,
 				void *orig_call);
@@ -672,6 +680,7 @@ struct bpf_array_aux {
 	struct work_struct work;
 };
 
+struct bpf_struct_ops_value;
 struct btf_type;
 struct btf_member;
 
@@ -681,21 +690,50 @@ struct bpf_struct_ops {
 	int (*init)(struct btf *btf);
 	int (*check_member)(const struct btf_type *t,
 			    const struct btf_member *member);
+	int (*init_member)(const struct btf_type *t,
+			   const struct btf_member *member,
+			   void *kdata, const void *udata);
+	int (*reg)(void *kdata);
+	void (*unreg)(void *kdata);
 	const struct btf_type *type;
+	const struct btf_type *value_type;
 	const char *name;
 	struct btf_func_model func_models[BPF_STRUCT_OPS_MAX_NR_MEMBERS];
 	u32 type_id;
+	u32 value_id;
 };
 
 #if defined(CONFIG_BPF_JIT) && defined(CONFIG_BPF_SYSCALL)
+#define BPF_MODULE_OWNER ((void *)((0xeB9FUL << 2) + POISON_POINTER_DELTA))
 const struct bpf_struct_ops *bpf_struct_ops_find(u32 type_id);
 void bpf_struct_ops_init(struct btf *btf);
+bool bpf_struct_ops_get(const void *kdata);
+void bpf_struct_ops_put(const void *kdata);
+int bpf_struct_ops_map_sys_lookup_elem(struct bpf_map *map, void *key,
+				       void *value);
+bool bpf_try_module_get(const void *data, struct module *owner);
+void bpf_module_put(const void *data, struct module *owner);
 #else
 static inline const struct bpf_struct_ops *bpf_struct_ops_find(u32 type_id)
 {
 	return NULL;
 }
 static inline void bpf_struct_ops_init(struct btf *btf) { }
+static inline bool bpf_try_module_get(const void *data, struct module *owner)
+{
+	/* No BPF_JIT+BPF_SYSCALL: struct_ops unavailable; accept module unconditionally */
+	return true;
+}
+static inline void bpf_module_put(const void *data, struct module *owner)
+{
+	/* No BPF_JIT+BPF_SYSCALL: struct_ops unavailable; nothing to release */
+}
+static inline int bpf_struct_ops_map_sys_lookup_elem(struct bpf_map *map,
+						     void *key,
+						     void *value)
+{
+	return -EINVAL;
+}
 #endif
 
 struct bpf_array {
