@@ -8221,6 +8221,8 @@ void free_netdev(struct net_device *dev)
 
 	free_percpu(dev->pcpu_refcnt);
 	dev->pcpu_refcnt = NULL;
+	free_percpu(dev->xdp_bulkq);
+	dev->xdp_bulkq = NULL;
 
 	prog = rcu_dereference_protected(dev->xdp_prog, 1);
 	if (prog) {
