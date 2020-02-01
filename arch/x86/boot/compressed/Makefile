@@ -57,7 +57,7 @@ endif
 endif
 LDFLAGS_vmlinux := -T
 
-hostprogs-y	:= mkpiggy
+hostprogs	:= mkpiggy
 HOST_EXTRACFLAGS += -I$(srctree)/tools/include
 
 vmlinux-objs-y := $(obj)/vmlinux.lds $(obj)/head_$(BITS).o $(obj)/misc.o \
