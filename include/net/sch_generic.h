@@ -878,6 +878,7 @@ static inline void psched_ratecfg_getrate(struct tc_ratespec *res,
  */
 struct mini_Qdisc {
 	struct tcf_proto *filter_list;
+	struct tcf_block *block;
 	struct gnet_stats_basic_cpu __percpu *cpu_bstats;
 	struct gnet_stats_queue	__percpu *cpu_qstats;
 	struct rcu_head rcu;
@@ -904,5 +905,7 @@ void mini_qdisc_pair_swap(struct mini_Qdisc_pair *miniqp,
 			  struct tcf_proto *tp_head);
 void mini_qdisc_pair_init(struct mini_Qdisc_pair *miniqp, struct Qdisc *qdisc,
 			  struct mini_Qdisc __rcu **p_miniq);
+void mini_qdisc_pair_block_init(struct mini_Qdisc_pair *miniqp,
+				struct tcf_block *block);
 
 #endif
