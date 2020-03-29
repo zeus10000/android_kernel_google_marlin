@@ -3477,8 +3477,8 @@ errout:
 	return ERR_PTR(err);
 }
 
-extern char __weak _binary__btf_vmlinux_bin_start[];
-extern char __weak _binary__btf_vmlinux_bin_end[];
+extern char __weak __start_BTF[];
+extern char __weak __stop_BTF[];
 extern struct btf *btf_vmlinux;
 
 #define BPF_MAP_TYPE(_id, _ops)
@@ -3605,9 +3605,8 @@ struct btf *btf_parse_vmlinux(void)
 	}
 	env->btf = btf;
 
-	btf->data = _binary__btf_vmlinux_bin_start;
-	btf->data_size = _binary__btf_vmlinux_bin_end -
-		_binary__btf_vmlinux_bin_start;
+	btf->data = __start_BTF;
+	btf->data_size = __stop_BTF - __start_BTF;
 
 	err = btf_parse_hdr(env);
 	if (err)
@@ -3643,7 +3642,7 @@ struct btf *btf_parse_vmlinux(void)
 		goto errout;
 	}
 
-	bpf_struct_ops_init(btf);
+	bpf_struct_ops_init(btf, log);
 
 	btf_verifier_env_free(env);
 	refcount_set(&btf->refcnt, 1);
@@ -3667,6 +3666,19 @@ struct btf *bpf_prog_get_target_btf(const struct bpf_prog *prog)
 	} else {
 		return btf_vmlinux;
 	}
+}
+
+static bool is_string_ptr(struct btf *btf, const struct btf_type *t)
+{
+	/* t comes in already as a pointer */
+	t = btf_type_by_id(btf, t->type);
+
+	/* allow const */
+	if (BTF_INFO_KIND(t->info) == BTF_KIND_CONST)
+		t = btf_type_by_id(btf, t->type);
+
+	/* char, signed char, unsigned char */
+	return btf_type_is_int(t) && t->size == 1;
 }
 
 bool btf_ctx_access(int off, int size, enum bpf_access_type type,
@@ -3697,14 +3709,40 @@ bool btf_ctx_access(int off, int size, enum bpf_access_type type,
 		nr_args--;
 	}
 
-	if ((prog->expected_attach_type == BPF_TRACE_FEXIT ||
-	     prog->expected_attach_type == BPF_MODIFY_RETURN) &&
-	    arg == nr_args) {
-		if (!t)
-			/* Default prog with 5 args. 6th arg is retval. */
-			return true;
-		/* function return type */
-		t = btf_type_by_id(btf, t->type);
+	if (arg == nr_args) {
+		if (prog->expected_attach_type == BPF_TRACE_FEXIT ||
+		    prog->expected_attach_type == BPF_LSM_MAC) {
+			/* When LSM programs are attached to void LSM hooks
+			 * they use FEXIT trampolines and when attached to
+			 * int LSM hooks, they use MODIFY_RETURN trampolines.
+			 *
+			 * While the LSM programs are BPF_MODIFY_RETURN-like
+			 * the check:
+			 *
+			 *	if (ret_type != 'int')
+			 *		return -EINVAL;
+			 *
+			 * is _not_ done here. This is still safe as LSM hooks
+			 * have only void and int return types.
+			 */
+			if (!t)
+				return true;
+			t = btf_type_by_id(btf, t->type);
+		} else if (prog->expected_attach_type == BPF_MODIFY_RETURN) {
+			/* For now the BPF_MODIFY_RETURN can only be attached to
+			 * functions that return an int.
+			 */
+			if (!t)
+				return false;
+
+			t = btf_type_skip_modifiers(btf, t->type, NULL);
+			if (!btf_type_is_int(t)) {
+				bpf_log(log,
+					"ret type %s not allowed for fmod_ret\n",
+					btf_kind_str[BTF_INFO_KIND(t->info)]);
+				return false;
+			}
+		}
 	} else if (arg >= nr_args) {
 		bpf_log(log, "func '%s' doesn't have %d-th argument\n",
 			tname, arg + 1);
@@ -3734,6 +3772,9 @@ bool btf_ctx_access(int off, int size, enum bpf_access_type type,
 		 * It is the same as scalar from the verifier safety pov.
 		 * No further pointer walking is allowed.
 		 */
+		return true;
+
+	if (is_string_ptr(btf, t))
 		return true;
 
 	/* this is a pointer to another type */
@@ -3916,6 +3957,7 @@ again:
 
 		if (btf_type_is_ptr(mtype)) {
 			const struct btf_type *stype;
+			u32 id;
 
 			if (msize != size || off != moff) {
 				bpf_log(log,
@@ -3924,12 +3966,9 @@ again:
 				return -EACCES;
 			}
 
-			stype = btf_type_by_id(btf_vmlinux, mtype->type);
-			/* skip modifiers */
-			while (btf_type_is_modifier(stype))
-				stype = btf_type_by_id(btf_vmlinux, stype->type);
+			stype = btf_type_skip_modifiers(btf_vmlinux, mtype->type, &id);
 			if (btf_type_is_struct(stype)) {
-				*next_btf_id = mtype->type;
+				*next_btf_id = id;
 				return PTR_TO_BTF_ID;
 			}
 		}
@@ -4129,9 +4168,9 @@ int btf_distill_func_proto(struct bpf_verifier_log *log,
  * EFAULT - verifier bug
  * 0 - 99% match. The last 1% is validated by the verifier.
  */
-int btf_check_func_type_match(struct bpf_verifier_log *log,
-			      struct btf *btf1, const struct btf_type *t1,
-			      struct btf *btf2, const struct btf_type *t2)
+static int btf_check_func_type_match(struct bpf_verifier_log *log,
+				     struct btf *btf1, const struct btf_type *t1,
+				     struct btf *btf2, const struct btf_type *t2)
 {
 	const struct btf_param *args1, *args2;
 	const char *fn1, *fn2, *s1, *s2;
