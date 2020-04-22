@@ -37,11 +37,11 @@ enum xdp_mem_type {
 	MEM_TYPE_PAGE_SHARED = 0, /* Split-page refcnt based model */
 	MEM_TYPE_PAGE_ORDER0,     /* Orig XDP full page model */
 	MEM_TYPE_PAGE_POOL,
+	MEM_TYPE_ZERO_COPY,
 	MEM_TYPE_MAX,
 };
 
 /* XDP flags for ndo_xdp_xmit */
-#define XDP_XMIT_FLAGS_NONE	0U
 #define XDP_XMIT_FLUSH		(1U << 0)	/* doorbell signal consumer */
 #define XDP_XMIT_FLAGS_MASK	XDP_XMIT_FLUSH
 
@@ -51,6 +51,10 @@ struct xdp_mem_info {
 };
 
 struct page_pool;
+
+struct zero_copy_allocator {
+	void (*free)(struct zero_copy_allocator *zca, unsigned long handle);
+};
 
 struct xdp_rxq_info {
 	struct net_device *dev;
@@ -64,6 +68,7 @@ struct xdp_buff {
 	void *data_end;
 	void *data_meta;
 	void *data_hard_start;
+	unsigned long handle;
 	struct xdp_rxq_info *rxq;
 };
 
@@ -79,6 +84,15 @@ struct xdp_frame {
 	struct net_device *dev_rx; /* used by cpumap */
 };
 
+/* Clear kernel pointers in xdp_frame */
+static inline void xdp_scrub_frame(struct xdp_frame *frame)
+{
+	frame->data = NULL;
+	frame->dev_rx = NULL;
+}
+
+struct xdp_frame *xdp_convert_zc_to_xdp_frame(struct xdp_buff *xdp);
+
 /* Convert xdp_buff to xdp_frame */
 static inline
 struct xdp_frame *convert_to_xdp_frame(struct xdp_buff *xdp)
@@ -86,6 +100,9 @@ struct xdp_frame *convert_to_xdp_frame(struct xdp_buff *xdp)
 	struct xdp_frame *xdp_frame;
 	int metasize;
 	int headroom;
+
+	if (xdp->rxq->mem.type == MEM_TYPE_ZERO_COPY)
+		return xdp_convert_zc_to_xdp_frame(xdp);
 
 	/* Assure headroom is available for storing info */
 	headroom = xdp->data - xdp->data_hard_start;
@@ -134,6 +151,7 @@ void xdp_rxq_info_unused(struct xdp_rxq_info *xdp_rxq);
 bool xdp_rxq_info_is_reg(struct xdp_rxq_info *xdp_rxq);
 int xdp_rxq_info_reg_mem_model(struct xdp_rxq_info *xdp_rxq,
 			       enum xdp_mem_type type, void *allocator);
+void xdp_rxq_info_unreg_mem_model(struct xdp_rxq_info *xdp_rxq);
 
 /* Drivers not supporting XDP metadata can use this helper, which
  * rejects any room expansion for metadata as a result.
@@ -149,5 +167,20 @@ xdp_data_meta_unsupported(const struct xdp_buff *xdp)
 {
 	return unlikely(xdp->data_meta > xdp->data);
 }
+
+struct xdp_attachment_info {
+	struct bpf_prog *prog;
+	u32 flags;
+};
+
+struct netdev_bpf;
+int xdp_attachment_query(struct xdp_attachment_info *info,
+			 struct netdev_bpf *bpf);
+bool xdp_attachment_flags_ok(struct xdp_attachment_info *info,
+			     struct netdev_bpf *bpf);
+void xdp_attachment_setup(struct xdp_attachment_info *info,
+			  struct netdev_bpf *bpf);
+
+#define DEV_MAP_BULK_SIZE 16
 
 #endif /* __LINUX_NET_XDP_H__ */
