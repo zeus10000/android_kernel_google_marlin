@@ -227,7 +227,7 @@ exit_put:
 }
 
 int perf_event_max_stack_handler(struct ctl_table *table, int write,
-				 void __user *buffer, size_t *lenp, loff_t *ppos)
+				 void *buffer, size_t *lenp, loff_t *ppos)
 {
 	int new_value = sysctl_perf_event_max_stack, ret;
 	struct ctl_table new_table = *table;
