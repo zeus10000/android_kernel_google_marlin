@@ -24,10 +24,10 @@
 static void sha1_generic_block_fn(struct sha1_state *sst, u8 const *src,
 				  int blocks)
 {
-	u32 temp[SHA_WORKSPACE_WORDS];
+	u32 temp[SHA1_WORKSPACE_WORDS];
 
 	while (blocks--) {
-		sha_transform(sst->state, src, temp);
+		sha1_transform(sst->state, src, temp);
 		src += SHA1_BLOCK_SIZE;
 	}
 	memzero_explicit(temp, sizeof(temp));
