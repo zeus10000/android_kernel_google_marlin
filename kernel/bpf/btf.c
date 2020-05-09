@@ -2418,7 +2418,7 @@ static int btf_enum_check_member(struct btf_verifier_env *env,
 
 	struct_size = struct_type->size;
 	bytes_offset = BITS_ROUNDDOWN_BYTES(struct_bits_off);
-	if (struct_size - bytes_offset < sizeof(int)) {
+	if (struct_size - bytes_offset < member_type->size) {
 		btf_verifier_log_member(env, struct_type, member,
 					"Member exceeds struct_size");
 		return -EINVAL;
@@ -3477,8 +3477,8 @@ errout:
 	return ERR_PTR(err);
 }
 
-extern char __weak _binary__btf_vmlinux_bin_start[];
-extern char __weak _binary__btf_vmlinux_bin_end[];
+extern char __weak __start_BTF[];
+extern char __weak __stop_BTF[];
 extern struct btf *btf_vmlinux;
 
 #define BPF_MAP_TYPE(_id, _ops)
@@ -3499,12 +3499,14 @@ enum {
 	__ctx_convert##_id,
 #include <linux/bpf_types.h>
 #undef BPF_PROG_TYPE
+	__ctx_convert_unused, /* to avoid empty enum in extreme .config */
 };
 static u8 bpf_ctx_convert_map[] = {
 #define BPF_PROG_TYPE(_id, _name, prog_ctx_type, kern_ctx_type) \
 	[_id] = __ctx_convert##_id,
 #include <linux/bpf_types.h>
 #undef BPF_PROG_TYPE
+	0, /* avoid empty array */
 };
 #undef BPF_MAP_TYPE
 #undef BPF_LINK_TYPE
@@ -3605,9 +3607,8 @@ struct btf *btf_parse_vmlinux(void)
 	}
 	env->btf = btf;
 
-	btf->data = _binary__btf_vmlinux_bin_start;
-	btf->data_size = _binary__btf_vmlinux_bin_end -
-		_binary__btf_vmlinux_bin_start;
+	btf->data = __start_BTF;
+	btf->data_size = __stop_BTF - __start_BTF;
 
 	err = btf_parse_hdr(env);
 	if (err)
@@ -3643,7 +3644,7 @@ struct btf *btf_parse_vmlinux(void)
 		goto errout;
 	}
 
-	bpf_struct_ops_init(btf);
+	bpf_struct_ops_init(btf, log);
 
 	btf_verifier_env_free(env);
 	refcount_set(&btf->refcnt, 1);
@@ -3667,6 +3668,19 @@ struct btf *bpf_prog_get_target_btf(const struct bpf_prog *prog)
 	} else {
 		return btf_vmlinux;
 	}
+}
+
+static bool is_string_ptr(struct btf *btf, const struct btf_type *t)
+{
+	/* t comes in already as a pointer */
+	t = btf_type_by_id(btf, t->type);
+
+	/* allow const */
+	if (BTF_INFO_KIND(t->info) == BTF_KIND_CONST)
+		t = btf_type_by_id(btf, t->type);
+
+	/* char, signed char, unsigned char */
+	return btf_type_is_int(t) && t->size == 1;
 }
 
 bool btf_ctx_access(int off, int size, enum bpf_access_type type,
@@ -3697,9 +3711,16 @@ bool btf_ctx_access(int off, int size, enum bpf_access_type type,
 		nr_args--;
 	}
 
+	if (arg > nr_args) {
+		bpf_log(log, "func '%s' doesn't have %d-th argument\n",
+			tname, arg + 1);
+		return false;
+	}
+
 	if (arg == nr_args) {
-		if (prog->expected_attach_type == BPF_TRACE_FEXIT ||
-		    prog->expected_attach_type == BPF_LSM_MAC) {
+		switch (prog->expected_attach_type) {
+		case BPF_LSM_MAC:
+		case BPF_TRACE_FEXIT:
 			/* When LSM programs are attached to void LSM hooks
 			 * they use FEXIT trampolines and when attached to
 			 * int LSM hooks, they use MODIFY_RETURN trampolines.
@@ -3716,7 +3737,8 @@ bool btf_ctx_access(int off, int size, enum bpf_access_type type,
 			if (!t)
 				return true;
 			t = btf_type_by_id(btf, t->type);
-		} else if (prog->expected_attach_type == BPF_MODIFY_RETURN) {
+			break;
+		case BPF_MODIFY_RETURN:
 			/* For now the BPF_MODIFY_RETURN can only be attached to
 			 * functions that return an int.
 			 */
@@ -3730,21 +3752,23 @@ bool btf_ctx_access(int off, int size, enum bpf_access_type type,
 					btf_kind_str[BTF_INFO_KIND(t->info)]);
 				return false;
 			}
+			break;
+		default:
+			bpf_log(log, "func '%s' doesn't have %d-th argument\n",
+				tname, arg + 1);
+			return false;
 		}
-	} else if (arg >= nr_args) {
-		bpf_log(log, "func '%s' doesn't have %d-th argument\n",
-			tname, arg + 1);
-		return false;
 	} else {
 		if (!t)
 			/* Default prog with 5 args */
 			return true;
 		t = btf_type_by_id(btf, args[arg].type);
 	}
+
 	/* skip modifiers */
 	while (btf_type_is_modifier(t))
 		t = btf_type_by_id(btf, t->type);
-	if (btf_type_is_int(t))
+	if (btf_type_is_int(t) || btf_type_is_enum(t))
 		/* accessing a scalar */
 		return true;
 	if (!btf_type_is_ptr(t)) {
@@ -3762,9 +3786,14 @@ bool btf_ctx_access(int off, int size, enum bpf_access_type type,
 		 */
 		return true;
 
+	if (is_string_ptr(btf, t))
+		return true;
+
 	/* this is a pointer to another type */
-	info->reg_type = PTR_TO_BTF_ID;
-	info->btf_id = t->type;
+	if (off != 0 && prog->aux->btf_id_or_null_non0_off)
+		info->reg_type = PTR_TO_BTF_ID_OR_NULL;
+	else
+		info->reg_type = PTR_TO_BTF_ID;
 
 	if (tgt_prog) {
 		ret = btf_translate_to_vmlinux(log, btf, t, tgt_prog->type, arg);
@@ -3775,10 +3804,14 @@ bool btf_ctx_access(int off, int size, enum bpf_access_type type,
 			return false;
 		}
 	}
+
+	info->btf_id = t->type;
 	t = btf_type_by_id(btf, t->type);
 	/* skip modifiers */
-	while (btf_type_is_modifier(t))
+	while (btf_type_is_modifier(t)) {
+		info->btf_id = t->type;
 		t = btf_type_by_id(btf, t->type);
+	}
 	if (!btf_type_is_struct(t)) {
 		bpf_log(log,
 			"func '%s' arg%d type %s is not a struct\n",
@@ -3804,23 +3837,57 @@ int btf_struct_access(struct bpf_verifier_log *log,
 again:
 	tname = __btf_name_by_offset(btf_vmlinux, t->name_off);
 	if (!btf_type_is_struct(t)) {
-		bpf_log(log, "Type '%s' is not a struct", tname);
+		bpf_log(log, "Type '%s' is not a struct\n", tname);
 		return -EINVAL;
 	}
 
-	for_each_member(i, t, member) {
-		if (btf_member_bitfield_size(t, member))
-			/* bitfields are not supported yet */
-			continue;
+	if (off + size > t->size) {
+		bpf_log(log, "access beyond struct %s at off %u size %u\n",
+			tname, off, size);
+		return -EACCES;
+	}
 
+	for_each_member(i, t, member) {
 		/* offset of the field in bytes */
 		moff = btf_member_bit_offset(t, member) / 8;
 		if (off + size <= moff)
 			/* won't find anything, field is already too far */
 			break;
+
+		if (btf_member_bitfield_size(t, member)) {
+			u32 end_bit = btf_member_bit_offset(t, member) +
+				btf_member_bitfield_size(t, member);
+
+			/* off <= moff instead of off == moff because clang
+			 * does not generate a BTF member for anonymous
+			 * bitfield like the ":16" here:
+			 * struct {
+			 *	int :16;
+			 *	int x:8;
+			 * };
+			 */
+			if (off <= moff &&
+			    BITS_ROUNDUP_BYTES(end_bit) <= off + size)
+				return SCALAR_VALUE;
+
+			/* off may be accessing a following member
+			 *
+			 * or
+			 *
+			 * Doing partial access at either end of this
+			 * bitfield.  Continue on this case also to
+			 * treat it as not accessing this bitfield
+			 * and eventually error out as field not
+			 * found to keep it simple.
+			 * It could be relaxed if there was a legit
+			 * partial access case later.
+			 */
+			continue;
+		}
+
 		/* In case of "off" is pointing to holes of a struct */
 		if (off < moff)
-			continue;
+			break;
 
 		/* type of the field */
 		mtype = btf_type_by_id(btf_vmlinux, member->type);
@@ -3905,6 +3972,7 @@ again:
 
 		if (btf_type_is_ptr(mtype)) {
 			const struct btf_type *stype;
+			u32 id;
 
 			if (msize != size || off != moff) {
 				bpf_log(log,
@@ -3913,12 +3981,9 @@ again:
 				return -EACCES;
 			}
 
-			stype = btf_type_by_id(btf_vmlinux, mtype->type);
-			/* skip modifiers */
-			while (btf_type_is_modifier(stype))
-				stype = btf_type_by_id(btf_vmlinux, stype->type);
+			stype = btf_type_skip_modifiers(btf_vmlinux, mtype->type, &id);
 			if (btf_type_is_struct(stype)) {
-				*next_btf_id = mtype->type;
+				*next_btf_id = id;
 				return PTR_TO_BTF_ID;
 			}
 		}
@@ -4045,8 +4110,10 @@ static int __get_type_size(struct btf *btf, u32 btf_id,
 	t = btf_type_by_id(btf, btf_id);
 	while (t && btf_type_is_modifier(t))
 		t = btf_type_by_id(btf, t->type);
-	if (!t)
+	if (!t) {
+		*bad_type = btf->types[0];
 		return -EINVAL;
+	}
 	if (btf_type_is_ptr(t))
 		/* kernel size of pointer. Not BPF's size of pointer*/
 		return sizeof(void *);
@@ -4116,9 +4183,9 @@ int btf_distill_func_proto(struct bpf_verifier_log *log,
  * EFAULT - verifier bug
  * 0 - 99% match. The last 1% is validated by the verifier.
  */
-int btf_check_func_type_match(struct bpf_verifier_log *log,
-			      struct btf *btf1, const struct btf_type *t1,
-			      struct btf *btf2, const struct btf_type *t2)
+static int btf_check_func_type_match(struct bpf_verifier_log *log,
+				     struct btf *btf1, const struct btf_type *t1,
+				     struct btf *btf2, const struct btf_type *t2)
 {
 	const struct btf_param *args1, *args2;
 	const char *fn1, *fn2, *s1, *s2;
@@ -4538,7 +4605,7 @@ int btf_get_info_by_fd(const struct btf *btf,
 		       union bpf_attr __user *uattr)
 {
 	struct bpf_btf_info __user *uinfo;
-	struct bpf_btf_info info = {};
+	struct bpf_btf_info info;
 	u32 info_copy, btf_copy;
 	void __user *ubtf;
 	u32 uinfo_len;
@@ -4547,6 +4614,7 @@ int btf_get_info_by_fd(const struct btf *btf,
 	uinfo_len = attr->info.info_len;
 
 	info_copy = min_t(u32, uinfo_len, sizeof(info));
+	memset(&info, 0, sizeof(info));
 	if (copy_from_user(&info, uinfo, info_copy))
 		return -EFAULT;
 
