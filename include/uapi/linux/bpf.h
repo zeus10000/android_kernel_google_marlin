@@ -111,6 +111,11 @@ enum bpf_cmd {
 	BPF_MAP_LOOKUP_AND_DELETE_BATCH,
 	BPF_MAP_UPDATE_BATCH,
 	BPF_MAP_DELETE_BATCH,
+	BPF_LINK_CREATE,
+	BPF_LINK_UPDATE,
+	BPF_LINK_GET_FD_BY_ID,
+	BPF_LINK_GET_NEXT_ID,
+	BPF_ENABLE_STATS,
 };
 
 enum bpf_map_type {
@@ -181,6 +186,7 @@ enum bpf_prog_type {
 	BPF_PROG_TYPE_TRACING,
 	BPF_PROG_TYPE_STRUCT_OPS,
 	BPF_PROG_TYPE_EXT,
+	BPF_PROG_TYPE_LSM,
 };
 
 enum bpf_attach_type {
@@ -211,6 +217,8 @@ enum bpf_attach_type {
 	BPF_TRACE_FENTRY,
 	BPF_TRACE_FEXIT,
 	BPF_MODIFY_RETURN,
+	BPF_LSM_MAC,
+	BPF_TRACE_ITER,
 	__MAX_BPF_ATTACH_TYPE
 };
 
@@ -384,6 +392,12 @@ enum {
  */
 #define BPF_F_QUERY_EFFECTIVE	(1U << 0)
 
+/* type for BPF_ENABLE_STATS */
+enum bpf_stats_type {
+	/* enabled run_time_ns and run_cnt */
+	BPF_STATS_RUN_TIME = 0,
+};
+
 enum bpf_stack_build_id_status {
 	/* user space need an empty entry to identify end of a trace */
 	BPF_STACK_BUILD_ID_EMPTY = 0,
@@ -528,6 +542,7 @@ union bpf_attr {
 			__u32		prog_id;
 			__u32		map_id;
 			__u32		btf_id;
+			__u32		link_id;
 		};
 		__u32		next_id;
 		__u32		open_flags;
@@ -548,7 +563,7 @@ union bpf_attr {
 		__u32		prog_cnt;
 	} query;
 
-	struct {
+	struct { /* anonymous struct used by BPF_RAW_TRACEPOINT_OPEN command */
 		__u64 name;
 		__u32 prog_fd;
 	} raw_tracepoint;
@@ -576,6 +591,28 @@ union bpf_attr {
 		__u64		probe_offset;	/* output: probe_offset */
 		__u64		probe_addr;	/* output: probe_addr */
 	} task_fd_query;
+
+	struct { /* struct used by BPF_LINK_CREATE command */
+		__u32		prog_fd;	/* eBPF program to attach */
+		__u32		target_fd;	/* object to attach to */
+		__u32		attach_type;	/* attach type */
+		__u32		flags;		/* extra flags */
+	} link_create;
+
+	struct { /* struct used by BPF_LINK_UPDATE command */
+		__u32		link_fd;	/* link fd */
+		/* new program fd to update link with */
+		__u32		new_prog_fd;
+		__u32		flags;		/* extra flags */
+		/* expected link's program fd; is specified only if
+		 * BPF_F_REPLACE flag is set in flags */
+		__u32		old_prog_fd;
+	} link_update;
+
+	struct { /* struct used by BPF_ENABLE_STATS command */
+		__u32		type;
+	} enable_stats;
+
 } __attribute__((aligned(8)));
 
 /* The description below is an attempt at providing documentation to eBPF
@@ -639,6 +676,8 @@ union bpf_attr {
  * u64 bpf_ktime_get_ns(void)
  * 	Description
  * 		Return the time elapsed since system boot, in nanoseconds.
+ * 		Does not include time the system was suspended.
+ * 		See: clock_gettime(CLOCK_MONOTONIC)
  * 	Return
  * 		Current *ktime*.
  *
@@ -1549,13 +1588,18 @@ union bpf_attr {
  * 	Return
  * 		0
  *
- * int bpf_setsockopt(struct bpf_sock_ops *bpf_socket, int level, int optname, void *optval, int optlen)
+ * int bpf_setsockopt(void *bpf_socket, int level, int optname, void *optval, int optlen)
  * 	Description
  * 		Emulate a call to **setsockopt()** on the socket associated to
  * 		*bpf_socket*, which must be a full socket. The *level* at
  * 		which the option resides and the name *optname* of the option
  * 		must be specified, see **setsockopt(2)** for more information.
  * 		The option value of length *optlen* is pointed by *optval*.
+ *
+ * 		*bpf_socket* should be one of the following:
+ * 		* **struct bpf_sock_ops** for **BPF_PROG_TYPE_SOCK_OPS**.
+ * 		* **struct bpf_sock_addr** for **BPF_CGROUP_INET4_CONNECT**
+ * 		  and **BPF_CGROUP_INET6_CONNECT**.
  *
  * 		This helper actually implements a subset of **setsockopt()**.
  * 		It supports the following *level*\ s:
@@ -1629,7 +1673,7 @@ union bpf_attr {
  * 		ifindex, but doesn't require a map to do so.
  * 	Return
  * 		**XDP_REDIRECT** on success, or the value of the two lower bits
- * 		of the **flags* argument on error.
+ * 		of the *flags* argument on error.
  *
  * int bpf_sk_redirect_map(struct sk_buff *skb, struct bpf_map *map, u32 key, u64 flags)
  * 	Description
@@ -1751,7 +1795,7 @@ union bpf_attr {
  * 	Return
  * 		0 on success, or a negative error in case of failure.
  *
- * int bpf_getsockopt(struct bpf_sock_ops *bpf_socket, int level, int optname, void *optval, int optlen)
+ * int bpf_getsockopt(void *bpf_socket, int level, int optname, void *optval, int optlen)
  * 	Description
  * 		Emulate a call to **getsockopt()** on the socket associated to
  * 		*bpf_socket*, which must be a full socket. The *level* at
@@ -1759,6 +1803,11 @@ union bpf_attr {
  * 		must be specified, see **getsockopt(2)** for more information.
  * 		The retrieved value is stored in the structure pointed by
  * 		*opval* and of length *optlen*.
+ *
+ * 		*bpf_socket* should be one of the following:
+ * 		* **struct bpf_sock_ops** for **BPF_PROG_TYPE_SOCK_OPS**.
+ * 		* **struct bpf_sock_addr** for **BPF_CGROUP_INET4_CONNECT**
+ * 		  and **BPF_CGROUP_INET6_CONNECT**.
  *
  * 		This helper actually implements a subset of **getsockopt()**.
  * 		It supports the following *level*\ s:
@@ -1946,10 +1995,11 @@ union bpf_attr {
  *
  * 		This helper works for IPv4 and IPv6, TCP and UDP sockets. The
  * 		domain (*addr*\ **->sa_family**) must be **AF_INET** (or
- * 		**AF_INET6**). Looking for a free port to bind to can be
- * 		expensive, therefore binding to port is not permitted by the
- * 		helper: *addr*\ **->sin_port** (or **sin6_port**, respectively)
- * 		must be set to zero.
+ * 		**AF_INET6**). It's advised to pass zero port (**sin_port**
+ * 		or **sin6_port**) which triggers IP_BIND_ADDRESS_NO_PORT-like
+ * 		behavior and lets the kernel efficiently pick up an unused
+ * 		port as long as 4-tuple is unique. Passing non-zero port might
+ * 		lead to degraded performance.
  * 	Return
  * 		0 on success, or a negative error in case of failure.
  *
@@ -2972,6 +3022,54 @@ union bpf_attr {
  * 		instead of sockets.
  * 	Return
  * 		A 8-byte long opaque number.
+ *
+ * u64 bpf_get_current_ancestor_cgroup_id(int ancestor_level)
+ * 	Description
+ * 		Return id of cgroup v2 that is ancestor of the cgroup associated
+ * 		with the current task at the *ancestor_level*. The root cgroup
+ * 		is at *ancestor_level* zero and each step down the hierarchy
+ * 		increments the level. If *ancestor_level* == level of cgroup
+ * 		associated with the current task, then return value will be the
+ * 		same as that of **bpf_get_current_cgroup_id**\ ().
+ *
+ * 		The helper is useful to implement policies based on cgroups
+ * 		that are upper in hierarchy than immediate cgroup associated
+ * 		with the current task.
+ *
+ * 		The format of returned id and helper limitations are same as in
+ * 		**bpf_get_current_cgroup_id**\ ().
+ * 	Return
+ * 		The id is returned or 0 in case the id could not be retrieved.
+ *
+ * int bpf_sk_assign(struct sk_buff *skb, struct bpf_sock *sk, u64 flags)
+ *	Description
+ *		Assign the *sk* to the *skb*. When combined with appropriate
+ *		routing configuration to receive the packet towards the socket,
+ *		will cause *skb* to be delivered to the specified socket.
+ *		Subsequent redirection of *skb* via  **bpf_redirect**\ (),
+ *		**bpf_clone_redirect**\ () or other methods outside of BPF may
+ *		interfere with successful delivery to the socket.
+ *
+ *		This operation is only valid from TC ingress path.
+ *
+ *		The *flags* argument must be zero.
+ *	Return
+ *		0 on success, or a negative errno in case of failure.
+ *
+ *		* **-EINVAL**		Unsupported flags specified.
+ *		* **-ENOENT**		Socket is unavailable for assignment.
+ *		* **-ENETUNREACH**	Socket is unreachable (wrong netns).
+ *		* **-EOPNOTSUPP**	Unsupported operation, for example a
+ *					call from outside of TC ingress.
+ *		* **-ESOCKTNOSUPPORT**	Socket type not supported (reuseport).
+ *
+ * u64 bpf_ktime_get_boot_ns(void)
+ * 	Description
+ * 		Return the time elapsed since system boot, in nanoseconds.
+ * 		Does include the time the system was suspended.
+ * 		See: clock_gettime(CLOCK_BOOTTIME)
+ * 	Return
+ * 		Current *ktime*.
  */
 #define __BPF_FUNC_MAPPER(FN)		\
 	FN(unspec),			\
@@ -3096,7 +3194,10 @@ union bpf_attr {
 	FN(read_branch_records),	\
 	FN(get_ns_current_pid_tgid),	\
 	FN(xdp_output),			\
-	FN(get_netns_cookie),
+	FN(get_netns_cookie),		\
+	FN(get_current_ancestor_cgroup_id),	\
+	FN(sk_assign),			\
+	FN(ktime_get_boot_ns),
 
 /* integer value in 'imm' field of BPF_CALL instruction selects which helper
  * function eBPF program intends to call
