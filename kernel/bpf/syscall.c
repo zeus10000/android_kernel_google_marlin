@@ -4,7 +4,6 @@
 #include <linux/bpf.h>
 #include <linux/bpf_trace.h>
 #include <linux/bpf_lirc.h>
-#include <linux/bpf_verifier.h>
 #include <linux/btf.h>
 #include <linux/syscalls.h>
 #include <linux/slab.h>
@@ -26,11 +25,7 @@
 #include <linux/nospec.h>
 #include <linux/audit.h>
 #include <uapi/linux/btf.h>
-#include <linux/pgtable.h>
 #include <linux/bpf_lsm.h>
-#include <linux/poll.h>
-#include <linux/bpf-netns.h>
-#include <linux/rcupdate_trace.h>
 
 #define IS_FD_ARRAY(map) ((map)->map_type == BPF_MAP_TYPE_PERF_EVENT_ARRAY || \
 			  (map)->map_type == BPF_MAP_TYPE_CGROUP_ARRAY || \
@@ -76,19 +71,32 @@ int bpf_check_uarg_tail_zero(void __user *uaddr,
 			     size_t expected_size,
 			     size_t actual_size)
 {
-	unsigned char __user *addr = uaddr + expected_size;
-	int res;
+	unsigned char __user *addr;
+	unsigned char __user *end;
+	unsigned char val;
+	int err;
 
 	if (unlikely(actual_size > PAGE_SIZE))	/* silly large */
 		return -E2BIG;
 
+	if (unlikely(!access_ok(uaddr, actual_size)))
+		return -EFAULT;
+
 	if (actual_size <= expected_size)
 		return 0;
 
-	res = check_zeroed_user(addr, actual_size - expected_size);
-	if (res < 0)
-		return res;
-	return res ? 0 : -E2BIG;
+	addr = uaddr + expected_size;
+	end  = uaddr + actual_size;
+
+	for (; addr < end; addr++) {
+		err = get_user(val, addr);
+		if (err)
+			return err;
+		if (val)
+			return -E2BIG;
+	}
+
+	return 0;
 }
 
 const struct bpf_map_ops bpf_map_offload_ops = {
@@ -277,29 +285,27 @@ static void *__bpf_map_area_alloc(u64 size, int numa_node, bool mmapable)
 	 * __GFP_RETRY_MAYFAIL to avoid such situations.
 	 */
 
-	const gfp_t gfp = __GFP_NOWARN | __GFP_ZERO;
-	unsigned int flags = 0;
-	unsigned long align = 1;
+	const gfp_t flags = __GFP_NOWARN | __GFP_ZERO;
 	void *area;
 
 	if (size >= SIZE_MAX)
 		return NULL;
 
 	/* kmalloc()'ed memory can't be mmap()'ed */
-	if (mmapable) {
-		BUG_ON(!PAGE_ALIGNED(size));
-		align = SHMLBA;
-		flags = VM_USERMAP;
-	} else if (size <= (PAGE_SIZE << PAGE_ALLOC_COSTLY_ORDER)) {
-		area = kmalloc_node(size, gfp | GFP_USER | __GFP_NORETRY,
+	if (!mmapable && size <= (PAGE_SIZE << PAGE_ALLOC_COSTLY_ORDER)) {
+		area = kmalloc_node(size, GFP_USER | __GFP_NORETRY | flags,
 				    numa_node);
 		if (area != NULL)
 			return area;
 	}
-
-	return __vmalloc_node_range(size, align, VMALLOC_START, VMALLOC_END,
-			gfp | GFP_KERNEL | __GFP_RETRY_MAYFAIL, PAGE_KERNEL,
-			flags, numa_node, __builtin_return_address(0));
+	if (mmapable) {
+		BUG_ON(!PAGE_ALIGNED(size));
+		return vmalloc_user_node_flags(size, numa_node, GFP_KERNEL |
+					       __GFP_RETRY_MAYFAIL | flags);
+	}
+	return __vmalloc_node_flags_caller(size, numa_node,
+					   GFP_KERNEL | __GFP_RETRY_MAYFAIL |
+					   flags, __builtin_return_address(0));
 }
 
 void *bpf_map_area_alloc(u64 size, int numa_node)
@@ -621,20 +627,9 @@ static int bpf_map_mmap(struct file *filp, struct vm_area_struct *vma)
 
 	mutex_lock(&map->freeze_mutex);
 
-	if (vma->vm_flags & VM_WRITE) {
-		if (map->frozen) {
-			err = -EPERM;
-			goto out;
-		}
-		/* map is meant to be read-only, so do not allow mapping as
-		 * writable, because it's possible to leak a writable page
-		 * reference and allows user-space to still modify it after
-		 * freezing, while verifier will assume contents do not change
-		 */
-		if (map->map_flags & BPF_F_RDONLY_PROG) {
-			err = -EACCES;
-			goto out;
-		}
+	if ((vma->vm_flags & VM_WRITE) && map->frozen) {
+		err = -EPERM;
+		goto out;
 	}
 
 	/* set default open/close callbacks */
@@ -656,16 +651,6 @@ out:
 	return err;
 }
 
-static __poll_t bpf_map_poll(struct file *filp, struct poll_table_struct *pts)
-{
-	struct bpf_map *map = filp->private_data;
-
-	if (map->ops->map_poll)
-		return map->ops->map_poll(map, filp, pts);
-
-	return EPOLLERR;
-}
-
 const struct file_operations bpf_map_fops = {
 #ifdef CONFIG_PROC_FS
 	.show_fdinfo	= bpf_map_show_fdinfo,
@@ -674,7 +659,6 @@ const struct file_operations bpf_map_fops = {
 	.read		= bpf_dummy_read,
 	.write		= bpf_dummy_write,
 	.mmap		= bpf_map_mmap,
-	.poll		= bpf_map_poll,
 };
 
 int bpf_map_new_fd(struct bpf_map *map, int flags)
@@ -770,8 +754,7 @@ static int map_check_btf(struct bpf_map *map, const struct btf *btf,
 		if (map->map_type != BPF_MAP_TYPE_HASH &&
 		    map->map_type != BPF_MAP_TYPE_ARRAY &&
 		    map->map_type != BPF_MAP_TYPE_CGROUP_STORAGE &&
-		    map->map_type != BPF_MAP_TYPE_SK_STORAGE &&
-		    map->map_type != BPF_MAP_TYPE_INODE_STORAGE)
+		    map->map_type != BPF_MAP_TYPE_SK_STORAGE)
 			return -ENOTSUPP;
 		if (map->spin_lock_off + sizeof(struct bpf_spin_lock) >
 		    map->value_size) {
@@ -1393,7 +1376,7 @@ int generic_map_lookup_batch(struct bpf_map *map,
 
 	buf = kmalloc(map->key_size + value_size, GFP_USER | __GFP_NOWARN);
 	if (!buf) {
-		kfree(buf_prevkey);
+		kvfree(buf_prevkey);
 		return -ENOMEM;
 	}
 
@@ -1478,8 +1461,7 @@ static int map_lookup_and_delete_elem(union bpf_attr *attr)
 	map = __bpf_map_get(f);
 	if (IS_ERR(map))
 		return PTR_ERR(map);
-	if (!(map_get_sys_perms(map, f) & FMODE_CAN_READ) ||
-	    !(map_get_sys_perms(map, f) & FMODE_CAN_WRITE)) {
+	if (!(map_get_sys_perms(map, f) & FMODE_CAN_WRITE)) {
 		err = -EPERM;
 		goto err_put;
 	}
@@ -1507,10 +1489,8 @@ static int map_lookup_and_delete_elem(union bpf_attr *attr)
 	if (err)
 		goto free_value;
 
-	if (copy_to_user(uvalue, value, value_size) != 0) {
-		err = -EFAULT;
+	if (copy_to_user(uvalue, value, value_size) != 0)
 		goto free_value;
-	}
 
 	err = 0;
 
@@ -1731,14 +1711,10 @@ static void __bpf_prog_put_noref(struct bpf_prog *prog, bool deferred)
 	btf_put(prog->aux->btf);
 	bpf_prog_free_linfo(prog);
 
-	if (deferred) {
-		if (prog->aux->sleepable)
-			call_rcu_tasks_trace(&prog->aux->rcu, __bpf_prog_put_rcu);
-		else
-			call_rcu(&prog->aux->rcu, __bpf_prog_put_rcu);
-	} else {
+	if (deferred)
+		call_rcu(&prog->aux->rcu, __bpf_prog_put_rcu);
+	else
 		__bpf_prog_put_rcu(&prog->aux->rcu);
-	}
 }
 
 static void __bpf_prog_put(struct bpf_prog *prog, bool do_idr_lock)
@@ -1988,7 +1964,6 @@ bpf_prog_load_check_attach(enum bpf_prog_type prog_type,
 	case BPF_PROG_TYPE_CGROUP_SOCK:
 		switch (expected_attach_type) {
 		case BPF_CGROUP_INET_SOCK_CREATE:
-		case BPF_CGROUP_INET_SOCK_RELEASE:
 		case BPF_CGROUP_INET4_POST_BIND:
 		case BPF_CGROUP_INET6_POST_BIND:
 			return 0;
@@ -2001,10 +1976,6 @@ bpf_prog_load_check_attach(enum bpf_prog_type prog_type,
 		case BPF_CGROUP_INET6_BIND:
 		case BPF_CGROUP_INET4_CONNECT:
 		case BPF_CGROUP_INET6_CONNECT:
-		case BPF_CGROUP_INET4_GETPEERNAME:
-		case BPF_CGROUP_INET6_GETPEERNAME:
-		case BPF_CGROUP_INET4_GETSOCKNAME:
-		case BPF_CGROUP_INET6_GETSOCKNAME:
 		case BPF_CGROUP_UDP4_SENDMSG:
 		case BPF_CGROUP_UDP6_SENDMSG:
 		case BPF_CGROUP_UDP4_RECVMSG:
@@ -2029,14 +2000,10 @@ bpf_prog_load_check_attach(enum bpf_prog_type prog_type,
 		default:
 			return -EINVAL;
 		}
-	case BPF_PROG_TYPE_SK_LOOKUP:
-		if (expected_attach_type == BPF_SK_LOOKUP)
-			return 0;
-		return -EINVAL;
 	case BPF_PROG_TYPE_EXT:
 		if (expected_attach_type)
 			return -EINVAL;
-		fallthrough;
+		/* fallthrough */
 	default:
 		return 0;
 	}
@@ -2108,7 +2075,6 @@ static int bpf_prog_load(union bpf_attr *attr, union bpf_attr __user *uattr)
 	if (attr->prog_flags & ~(BPF_F_STRICT_ALIGNMENT |
 				 BPF_F_ANY_ALIGNMENT |
 				 BPF_F_TEST_STATE_FREQ |
-				 BPF_F_SLEEPABLE |
 				 BPF_F_TEST_RND_HI32))
 		return -EINVAL;
 
@@ -2134,7 +2100,7 @@ static int bpf_prog_load(union bpf_attr *attr, union bpf_attr __user *uattr)
 	    !bpf_capable())
 		return -EPERM;
 
-	if (is_net_admin_prog_type(type) && !capable(CAP_NET_ADMIN) && !capable(CAP_SYS_ADMIN))
+	if (is_net_admin_prog_type(type) && !capable(CAP_NET_ADMIN))
 		return -EPERM;
 	if (is_perfmon_prog_type(type) && !perfmon_capable())
 		return -EPERM;
@@ -2153,18 +2119,17 @@ static int bpf_prog_load(union bpf_attr *attr, union bpf_attr __user *uattr)
 	prog->expected_attach_type = attr->expected_attach_type;
 	prog->aux->attach_btf_id = attr->attach_btf_id;
 	if (attr->attach_prog_fd) {
-		struct bpf_prog *dst_prog;
+		struct bpf_prog *tgt_prog;
 
-		dst_prog = bpf_prog_get(attr->attach_prog_fd);
-		if (IS_ERR(dst_prog)) {
-			err = PTR_ERR(dst_prog);
+		tgt_prog = bpf_prog_get(attr->attach_prog_fd);
+		if (IS_ERR(tgt_prog)) {
+			err = PTR_ERR(tgt_prog);
 			goto free_prog_nouncharge;
 		}
-		prog->aux->dst_prog = dst_prog;
+		prog->aux->linked_prog = tgt_prog;
 	}
 
 	prog->aux->offload_requested = !!attr->prog_ifindex;
-	prog->aux->sleepable = attr->prog_flags & BPF_F_SLEEPABLE;
 
 	err = security_bpf_prog_alloc(prog->aux);
 	if (err)
@@ -2497,23 +2462,11 @@ struct bpf_link *bpf_link_get_from_fd(u32 ufd)
 struct bpf_tracing_link {
 	struct bpf_link link;
 	enum bpf_attach_type attach_type;
-	struct bpf_trampoline *trampoline;
-	struct bpf_prog *tgt_prog;
 };
 
 static void bpf_tracing_link_release(struct bpf_link *link)
 {
-	struct bpf_tracing_link *tr_link =
-		container_of(link, struct bpf_tracing_link, link);
-
-	WARN_ON_ONCE(bpf_trampoline_unlink_prog(link->prog,
-						tr_link->trampoline));
-
-	bpf_trampoline_put(tr_link->trampoline);
-
-	/* tgt_prog is NULL if target is a kernel function */
-	if (tr_link->tgt_prog)
-		bpf_prog_put(tr_link->tgt_prog);
+	WARN_ON_ONCE(bpf_trampoline_unlink_prog(link->prog));
 }
 
 static void bpf_tracing_link_dealloc(struct bpf_link *link)
@@ -2553,15 +2506,10 @@ static const struct bpf_link_ops bpf_tracing_link_lops = {
 	.fill_link_info = bpf_tracing_link_fill_link_info,
 };
 
-static int bpf_tracing_prog_attach(struct bpf_prog *prog,
-				   int tgt_prog_fd,
-				   u32 btf_id)
+static int bpf_tracing_prog_attach(struct bpf_prog *prog)
 {
 	struct bpf_link_primer link_primer;
-	struct bpf_prog *tgt_prog = NULL;
-	struct bpf_trampoline *tr = NULL;
 	struct bpf_tracing_link *link;
-	u64 key = 0;
 	int err;
 
 	switch (prog->type) {
@@ -2590,28 +2538,6 @@ static int bpf_tracing_prog_attach(struct bpf_prog *prog,
 		goto out_put_prog;
 	}
 
-	if (!!tgt_prog_fd != !!btf_id) {
-		err = -EINVAL;
-		goto out_put_prog;
-	}
-
-	if (tgt_prog_fd) {
-		/* For now we only allow new targets for BPF_PROG_TYPE_EXT */
-		if (prog->type != BPF_PROG_TYPE_EXT) {
-			err = -EINVAL;
-			goto out_put_prog;
-		}
-
-		tgt_prog = bpf_prog_get(tgt_prog_fd);
-		if (IS_ERR(tgt_prog)) {
-			err = PTR_ERR(tgt_prog);
-			tgt_prog = NULL;
-			goto out_put_prog;
-		}
-
-		key = bpf_trampoline_compute_key(tgt_prog, btf_id);
-	}
-
 	link = kzalloc(sizeof(*link), GFP_USER);
 	if (!link) {
 		err = -ENOMEM;
@@ -2621,100 +2547,20 @@ static int bpf_tracing_prog_attach(struct bpf_prog *prog,
 		      &bpf_tracing_link_lops, prog);
 	link->attach_type = prog->expected_attach_type;
 
-	mutex_lock(&prog->aux->dst_mutex);
-
-	/* There are a few possible cases here:
-	 *
-	 * - if prog->aux->dst_trampoline is set, the program was just loaded
-	 *   and not yet attached to anything, so we can use the values stored
-	 *   in prog->aux
-	 *
-	 * - if prog->aux->dst_trampoline is NULL, the program has already been
-         *   attached to a target and its initial target was cleared (below)
-	 *
-	 * - if tgt_prog != NULL, the caller specified tgt_prog_fd +
-	 *   target_btf_id using the link_create API.
-	 *
-	 * - if tgt_prog == NULL when this function was called using the old
-         *   raw_tracepoint_open API, and we need a target from prog->aux
-         *
-         * The combination of no saved target in prog->aux, and no target
-         * specified on load is illegal, and we reject that here.
-	 */
-	if (!prog->aux->dst_trampoline && !tgt_prog) {
-		err = -ENOENT;
-		goto out_unlock;
-	}
-
-	if (!prog->aux->dst_trampoline ||
-	    (key && key != prog->aux->dst_trampoline->key)) {
-		/* If there is no saved target, or the specified target is
-		 * different from the destination specified at load time, we
-		 * need a new trampoline and a check for compatibility
-		 */
-		struct bpf_attach_target_info tgt_info = {};
-
-		err = bpf_check_attach_target(NULL, prog, tgt_prog, btf_id,
-					      &tgt_info);
-		if (err)
-			goto out_unlock;
-
-		tr = bpf_trampoline_get(key, &tgt_info);
-		if (!tr) {
-			err = -ENOMEM;
-			goto out_unlock;
-		}
-	} else {
-		/* The caller didn't specify a target, or the target was the
-		 * same as the destination supplied during program load. This
-		 * means we can reuse the trampoline and reference from program
-		 * load time, and there is no need to allocate a new one. This
-		 * can only happen once for any program, as the saved values in
-		 * prog->aux are cleared below.
-		 */
-		tr = prog->aux->dst_trampoline;
-		tgt_prog = prog->aux->dst_prog;
-	}
-
 	err = bpf_link_prime(&link->link, &link_primer);
-	if (err)
-		goto out_unlock;
+	if (err) {
+		kfree(link);
+		goto out_put_prog;
+	}
 
-	err = bpf_trampoline_link_prog(prog, tr);
+	err = bpf_trampoline_link_prog(prog);
 	if (err) {
 		bpf_link_cleanup(&link_primer);
-		link = NULL;
-		goto out_unlock;
+		goto out_put_prog;
 	}
 
-	link->tgt_prog = tgt_prog;
-	link->trampoline = tr;
-
-	/* Always clear the trampoline and target prog from prog->aux to make
-	 * sure the original attach destination is not kept alive after a
-	 * program is (re-)attached to another target.
-	 */
-	if (prog->aux->dst_prog &&
-	    (tgt_prog_fd || tr != prog->aux->dst_trampoline))
-		/* got extra prog ref from syscall, or attaching to different prog */
-		bpf_prog_put(prog->aux->dst_prog);
-	if (prog->aux->dst_trampoline && tr != prog->aux->dst_trampoline)
-		/* we allocated a new trampoline, so free the old one */
-		bpf_trampoline_put(prog->aux->dst_trampoline);
-
-	prog->aux->dst_prog = NULL;
-	prog->aux->dst_trampoline = NULL;
-	mutex_unlock(&prog->aux->dst_mutex);
-
 	return bpf_link_settle(&link_primer);
-out_unlock:
-	if (tr && tr != prog->aux->dst_trampoline)
-		bpf_trampoline_put(tr);
-	mutex_unlock(&prog->aux->dst_mutex);
-	kfree(link);
 out_put_prog:
-	if (tgt_prog_fd && tgt_prog)
-		bpf_prog_put(tgt_prog);
 	bpf_prog_put(prog);
 	return err;
 }
@@ -2828,7 +2674,7 @@ static int bpf_raw_tracepoint_open(const union bpf_attr *attr)
 			tp_name = prog->aux->attach_func_name;
 			break;
 		}
-		return bpf_tracing_prog_attach(prog, 0, 0);
+		return bpf_tracing_prog_attach(prog);
 	case BPF_PROG_TYPE_RAW_TRACEPOINT:
 	case BPF_PROG_TYPE_RAW_TRACEPOINT_WRITABLE:
 		if (strncpy_from_user(buf,
@@ -2888,7 +2734,6 @@ static int bpf_prog_attach_check_attach_type(const struct bpf_prog *prog,
 	case BPF_PROG_TYPE_CGROUP_SOCK:
 	case BPF_PROG_TYPE_CGROUP_SOCK_ADDR:
 	case BPF_PROG_TYPE_CGROUP_SOCKOPT:
-	case BPF_PROG_TYPE_SK_LOOKUP:
 		return attach_type == prog->expected_attach_type ? 0 : -EINVAL;
 	case BPF_PROG_TYPE_CGROUP_SKB:
 		if (!capable(CAP_NET_ADMIN))
@@ -2913,7 +2758,6 @@ attach_type_to_prog_type(enum bpf_attach_type attach_type)
 		return BPF_PROG_TYPE_CGROUP_SKB;
 		break;
 	case BPF_CGROUP_INET_SOCK_CREATE:
-	case BPF_CGROUP_INET_SOCK_RELEASE:
 	case BPF_CGROUP_INET4_POST_BIND:
 	case BPF_CGROUP_INET6_POST_BIND:
 		return BPF_PROG_TYPE_CGROUP_SOCK;
@@ -2921,10 +2765,6 @@ attach_type_to_prog_type(enum bpf_attach_type attach_type)
 	case BPF_CGROUP_INET6_BIND:
 	case BPF_CGROUP_INET4_CONNECT:
 	case BPF_CGROUP_INET6_CONNECT:
-	case BPF_CGROUP_INET4_GETPEERNAME:
-	case BPF_CGROUP_INET6_GETPEERNAME:
-	case BPF_CGROUP_INET4_GETSOCKNAME:
-	case BPF_CGROUP_INET6_GETSOCKNAME:
 	case BPF_CGROUP_UDP4_SENDMSG:
 	case BPF_CGROUP_UDP6_SENDMSG:
 	case BPF_CGROUP_UDP4_RECVMSG:
@@ -2950,8 +2790,6 @@ attach_type_to_prog_type(enum bpf_attach_type attach_type)
 		return BPF_PROG_TYPE_CGROUP_SOCKOPT;
 	case BPF_TRACE_ITER:
 		return BPF_PROG_TYPE_TRACING;
-	case BPF_SK_LOOKUP:
-		return BPF_PROG_TYPE_SK_LOOKUP;
 	default:
 		return BPF_PROG_TYPE_UNSPEC;
 	}
@@ -2996,7 +2834,7 @@ static int bpf_prog_attach(const union bpf_attr *attr)
 		ret = lirc_prog_attach(attr, prog);
 		break;
 	case BPF_PROG_TYPE_FLOW_DISSECTOR:
-		ret = netns_bpf_prog_attach(attr, prog);
+		ret = skb_flow_dissector_bpf_prog_attach(attr, prog);
 		break;
 	case BPF_PROG_TYPE_CGROUP_DEVICE:
 	case BPF_PROG_TYPE_CGROUP_SKB:
@@ -3030,11 +2868,13 @@ static int bpf_prog_detach(const union bpf_attr *attr)
 	switch (ptype) {
 	case BPF_PROG_TYPE_SK_MSG:
 	case BPF_PROG_TYPE_SK_SKB:
-		return sock_map_prog_detach(attr, ptype);
+		return sock_map_get_from_fd(attr, NULL);
 	case BPF_PROG_TYPE_LIRC_MODE2:
 		return lirc_prog_detach(attr);
 	case BPF_PROG_TYPE_FLOW_DISSECTOR:
-		return netns_bpf_prog_detach(attr, ptype);
+		if (!capable(CAP_NET_ADMIN))
+			return -EPERM;
+		return skb_flow_dissector_bpf_prog_detach(attr);
 	case BPF_PROG_TYPE_CGROUP_DEVICE:
 	case BPF_PROG_TYPE_CGROUP_SKB:
 	case BPF_PROG_TYPE_CGROUP_SOCK:
@@ -3064,17 +2904,12 @@ static int bpf_prog_query(const union bpf_attr *attr,
 	case BPF_CGROUP_INET_INGRESS:
 	case BPF_CGROUP_INET_EGRESS:
 	case BPF_CGROUP_INET_SOCK_CREATE:
-	case BPF_CGROUP_INET_SOCK_RELEASE:
 	case BPF_CGROUP_INET4_BIND:
 	case BPF_CGROUP_INET6_BIND:
 	case BPF_CGROUP_INET4_POST_BIND:
 	case BPF_CGROUP_INET6_POST_BIND:
 	case BPF_CGROUP_INET4_CONNECT:
 	case BPF_CGROUP_INET6_CONNECT:
-	case BPF_CGROUP_INET4_GETPEERNAME:
-	case BPF_CGROUP_INET6_GETPEERNAME:
-	case BPF_CGROUP_INET4_GETSOCKNAME:
-	case BPF_CGROUP_INET6_GETSOCKNAME:
 	case BPF_CGROUP_UDP4_SENDMSG:
 	case BPF_CGROUP_UDP6_SENDMSG:
 	case BPF_CGROUP_UDP4_RECVMSG:
@@ -3088,8 +2923,7 @@ static int bpf_prog_query(const union bpf_attr *attr,
 	case BPF_LIRC_MODE2:
 		return lirc_prog_query(attr, uattr);
 	case BPF_FLOW_DISSECTOR:
-	case BPF_SK_LOOKUP:
-		return netns_bpf_prog_query(attr, uattr);
+		return skb_flow_dissector_prog_query(attr, uattr);
 	default:
 		return -EINVAL;
 	}
@@ -3276,14 +3110,12 @@ static const struct bpf_map *bpf_map_from_imm(const struct bpf_prog *prog,
 	return NULL;
 }
 
-static struct bpf_insn *bpf_insn_prepare_dump(const struct bpf_prog *prog,
-					      const struct cred *f_cred)
+static struct bpf_insn *bpf_insn_prepare_dump(const struct bpf_prog *prog)
 {
 	const struct bpf_map *map;
 	struct bpf_insn *insns;
 	u32 off, type;
 	u64 imm;
-	u8 code;
 	int i;
 
 	insns = kmemdup(prog->insnsi, bpf_prog_insn_size(prog),
@@ -3292,27 +3124,21 @@ static struct bpf_insn *bpf_insn_prepare_dump(const struct bpf_prog *prog,
 		return insns;
 
 	for (i = 0; i < prog->len; i++) {
-		code = insns[i].code;
-
-		if (code == (BPF_JMP | BPF_TAIL_CALL)) {
+		if (insns[i].code == (BPF_JMP | BPF_TAIL_CALL)) {
 			insns[i].code = BPF_JMP | BPF_CALL;
 			insns[i].imm = BPF_FUNC_tail_call;
 			/* fall-through */
 		}
-		if (code == (BPF_JMP | BPF_CALL) ||
-		    code == (BPF_JMP | BPF_CALL_ARGS)) {
-			if (code == (BPF_JMP | BPF_CALL_ARGS))
+		if (insns[i].code == (BPF_JMP | BPF_CALL) ||
+		    insns[i].code == (BPF_JMP | BPF_CALL_ARGS)) {
+			if (insns[i].code == (BPF_JMP | BPF_CALL_ARGS))
 				insns[i].code = BPF_JMP | BPF_CALL;
-			if (!bpf_dump_raw_ok(f_cred))
+			if (!bpf_dump_raw_ok())
 				insns[i].imm = 0;
 			continue;
 		}
-		if (BPF_CLASS(code) == BPF_LDX && BPF_MODE(code) == BPF_PROBE_MEM) {
-			insns[i].code = BPF_LDX | BPF_SIZE(code) | BPF_MEM;
-			continue;
-		}
 
-		if (code != (BPF_LD | BPF_IMM | BPF_DW))
+		if (insns[i].code != (BPF_LD | BPF_IMM | BPF_DW))
 			continue;
 
 		imm = ((u64)insns[i + 1].imm << 32) | (u32)insns[i].imm;
@@ -3359,8 +3185,7 @@ static int set_info_rec_size(struct bpf_prog_info *info)
 	return 0;
 }
 
-static int bpf_prog_get_info_by_fd(struct file *file,
-				   struct bpf_prog *prog,
+static int bpf_prog_get_info_by_fd(struct bpf_prog *prog,
 				   const union bpf_attr *attr,
 				   union bpf_attr __user *uattr)
 {
@@ -3429,11 +3254,11 @@ static int bpf_prog_get_info_by_fd(struct file *file,
 		struct bpf_insn *insns_sanitized;
 		bool fault;
 
-		if (prog->blinded && !bpf_dump_raw_ok(file->f_cred)) {
+		if (prog->blinded && !bpf_dump_raw_ok()) {
 			info.xlated_prog_insns = 0;
 			goto done;
 		}
-		insns_sanitized = bpf_insn_prepare_dump(prog, file->f_cred);
+		insns_sanitized = bpf_insn_prepare_dump(prog);
 		if (!insns_sanitized)
 			return -ENOMEM;
 		uinsns = u64_to_user_ptr(info.xlated_prog_insns);
@@ -3467,7 +3292,7 @@ static int bpf_prog_get_info_by_fd(struct file *file,
 	}
 
 	if (info.jited_prog_len && ulen) {
-		if (bpf_dump_raw_ok(file->f_cred)) {
+		if (bpf_dump_raw_ok()) {
 			uinsns = u64_to_user_ptr(info.jited_prog_insns);
 			ulen = min_t(u32, info.jited_prog_len, ulen);
 
@@ -3502,7 +3327,7 @@ static int bpf_prog_get_info_by_fd(struct file *file,
 	ulen = info.nr_jited_ksyms;
 	info.nr_jited_ksyms = prog->aux->func_cnt ? : 1;
 	if (ulen) {
-		if (bpf_dump_raw_ok(file->f_cred)) {
+		if (bpf_dump_raw_ok()) {
 			unsigned long ksym_addr;
 			u64 __user *user_ksyms;
 			u32 i;
@@ -3533,7 +3358,7 @@ static int bpf_prog_get_info_by_fd(struct file *file,
 	ulen = info.nr_jited_func_lens;
 	info.nr_jited_func_lens = prog->aux->func_cnt ? : 1;
 	if (ulen) {
-		if (bpf_dump_raw_ok(file->f_cred)) {
+		if (bpf_dump_raw_ok()) {
 			u32 __user *user_lens;
 			u32 func_len, i;
 
@@ -3590,7 +3415,7 @@ static int bpf_prog_get_info_by_fd(struct file *file,
 	else
 		info.nr_jited_line_info = 0;
 	if (info.nr_jited_line_info && ulen) {
-		if (bpf_dump_raw_ok(file->f_cred)) {
+		if (bpf_dump_raw_ok()) {
 			__u64 __user *user_linfo;
 			u32 i;
 
@@ -3636,8 +3461,7 @@ done:
 	return 0;
 }
 
-static int bpf_map_get_info_by_fd(struct file *file,
-				  struct bpf_map *map,
+static int bpf_map_get_info_by_fd(struct bpf_map *map,
 				  const union bpf_attr *attr,
 				  union bpf_attr __user *uattr)
 {
@@ -3680,8 +3504,7 @@ static int bpf_map_get_info_by_fd(struct file *file,
 	return 0;
 }
 
-static int bpf_btf_get_info_by_fd(struct file *file,
-				  struct btf *btf,
+static int bpf_btf_get_info_by_fd(struct btf *btf,
 				  const union bpf_attr *attr,
 				  union bpf_attr __user *uattr)
 {
@@ -3696,8 +3519,7 @@ static int bpf_btf_get_info_by_fd(struct file *file,
 	return btf_get_info_by_fd(btf, attr, uattr);
 }
 
-static int bpf_link_get_info_by_fd(struct file *file,
-				  struct bpf_link *link,
+static int bpf_link_get_info_by_fd(struct bpf_link *link,
 				  const union bpf_attr *attr,
 				  union bpf_attr __user *uattr)
 {
@@ -3750,15 +3572,15 @@ static int bpf_obj_get_info_by_fd(const union bpf_attr *attr,
 		return -EBADFD;
 
 	if (f.file->f_op == &bpf_prog_fops)
-		err = bpf_prog_get_info_by_fd(f.file, f.file->private_data, attr,
+		err = bpf_prog_get_info_by_fd(f.file->private_data, attr,
 					      uattr);
 	else if (f.file->f_op == &bpf_map_fops)
-		err = bpf_map_get_info_by_fd(f.file, f.file->private_data, attr,
+		err = bpf_map_get_info_by_fd(f.file->private_data, attr,
 					     uattr);
 	else if (f.file->f_op == &btf_fops)
-		err = bpf_btf_get_info_by_fd(f.file, f.file->private_data, attr, uattr);
+		err = bpf_btf_get_info_by_fd(f.file->private_data, attr, uattr);
 	else if (f.file->f_op == &bpf_link_fops)
-		err = bpf_link_get_info_by_fd(f.file, f.file->private_data,
+		err = bpf_link_get_info_by_fd(f.file->private_data,
 					      attr, uattr);
 	else
 		err = -EINVAL;
@@ -3983,15 +3805,10 @@ err_put:
 
 static int tracing_bpf_link_attach(const union bpf_attr *attr, struct bpf_prog *prog)
 {
-	if (attr->link_create.attach_type != prog->expected_attach_type)
-		return -EINVAL;
-
-	if (prog->expected_attach_type == BPF_TRACE_ITER)
+	if (attr->link_create.attach_type == BPF_TRACE_ITER &&
+	    prog->expected_attach_type == BPF_TRACE_ITER)
 		return bpf_iter_link_attach(attr, prog);
-	else if (prog->type == BPF_PROG_TYPE_EXT)
-		return bpf_tracing_prog_attach(prog,
-					       attr->link_create.target_fd,
-					       attr->link_create.target_btf_id);
+
 	return -EINVAL;
 }
 
@@ -4005,25 +3822,18 @@ static int link_create(union bpf_attr *attr)
 	if (CHECK_ATTR(BPF_LINK_CREATE))
 		return -EINVAL;
 
-	prog = bpf_prog_get(attr->link_create.prog_fd);
+	ptype = attach_type_to_prog_type(attr->link_create.attach_type);
+	if (ptype == BPF_PROG_TYPE_UNSPEC)
+		return -EINVAL;
+
+	prog = bpf_prog_get_type(attr->link_create.prog_fd, ptype);
 	if (IS_ERR(prog))
 		return PTR_ERR(prog);
 
 	ret = bpf_prog_attach_check_attach_type(prog,
 						attr->link_create.attach_type);
 	if (ret)
-		goto out;
-
-	if (prog->type == BPF_PROG_TYPE_EXT) {
-		ret = tracing_bpf_link_attach(attr, prog);
-		goto out;
-	}
-
-	ptype = attach_type_to_prog_type(attr->link_create.attach_type);
-	if (ptype == BPF_PROG_TYPE_UNSPEC || ptype != prog->type) {
-		ret = -EINVAL;
-		goto out;
-	}
+		goto err_out;
 
 	switch (ptype) {
 	case BPF_PROG_TYPE_CGROUP_SKB:
@@ -4038,15 +3848,11 @@ static int link_create(union bpf_attr *attr)
 	case BPF_PROG_TYPE_TRACING:
 		ret = tracing_bpf_link_attach(attr, prog);
 		break;
-	case BPF_PROG_TYPE_FLOW_DISSECTOR:
-	case BPF_PROG_TYPE_SK_LOOKUP:
-		ret = netns_bpf_link_create(attr, prog);
-		break;
 	default:
 		ret = -EINVAL;
 	}
 
-out:
+err_out:
 	if (ret < 0)
 		bpf_prog_put(prog);
 	return ret;
@@ -4093,7 +3899,7 @@ static int link_update(union bpf_attr *attr)
 	if (link->ops->update_prog)
 		ret = link->ops->update_prog(link, new_prog, old_prog);
 	else
-		ret = -EINVAL;
+		ret = EINVAL;
 
 out_put_progs:
 	if (old_prog)
