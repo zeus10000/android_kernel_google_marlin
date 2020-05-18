@@ -60,10 +60,12 @@
 #include <net/calipso.h>
 #include <net/seg6.h>
 #include <net/rpl.h>
-#include <net/xfrm.h>
+#include <net/compat.h>
 
 #include <linux/uaccess.h>
 #include <linux/mroute6.h>
+
+#include "ip6_offload.h"
 
 MODULE_AUTHOR("Cast of dozens");
 MODULE_DESCRIPTION("IPv6 protocol stack for Linux");
@@ -90,6 +92,12 @@ MODULE_PARM_DESC(disable_ipv6, "Disable IPv6 on all interfaces");
 
 module_param_named(autoconf, ipv6_defaults.autoconf, int, 0444);
 MODULE_PARM_DESC(autoconf, "Enable IPv6 address autoconfiguration on all interfaces");
+
+bool ipv6_mod_enabled(void)
+{
+	return disable_ipv6_mod == 0;
+}
+EXPORT_SYMBOL_GPL(ipv6_mod_enabled);
 
 static __inline__ struct ipv6_pinfo *inet6_sk_generic(struct sock *sk)
 {
@@ -564,6 +572,56 @@ int inet6_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg)
 }
 EXPORT_SYMBOL(inet6_ioctl);
 
+#ifdef CONFIG_COMPAT
+struct compat_in6_rtmsg {
+	struct in6_addr		rtmsg_dst;
+	struct in6_addr		rtmsg_src;
+	struct in6_addr		rtmsg_gateway;
+	u32			rtmsg_type;
+	u16			rtmsg_dst_len;
+	u16			rtmsg_src_len;
+	u32			rtmsg_metric;
+	u32			rtmsg_info;
+	u32			rtmsg_flags;
+	s32			rtmsg_ifindex;
+};
+
+static int inet6_compat_routing_ioctl(struct sock *sk, unsigned int cmd,
+		struct compat_in6_rtmsg __user *ur)
+{
+	struct in6_rtmsg rt;
+
+	if (copy_from_user(&rt.rtmsg_dst, &ur->rtmsg_dst,
+			3 * sizeof(struct in6_addr)) ||
+	    get_user(rt.rtmsg_type, &ur->rtmsg_type) ||
+	    get_user(rt.rtmsg_dst_len, &ur->rtmsg_dst_len) ||
+	    get_user(rt.rtmsg_src_len, &ur->rtmsg_src_len) ||
+	    get_user(rt.rtmsg_metric, &ur->rtmsg_metric) ||
+	    get_user(rt.rtmsg_info, &ur->rtmsg_info) ||
+	    get_user(rt.rtmsg_flags, &ur->rtmsg_flags) ||
+	    get_user(rt.rtmsg_ifindex, &ur->rtmsg_ifindex))
+		return -EFAULT;
+
+
+	return ipv6_route_ioctl(sock_net(sk), cmd, &rt);
+}
+
+int inet6_compat_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg)
+{
+	void __user *argp = compat_ptr(arg);
+	struct sock *sk = sock->sk;
+
+	switch (cmd) {
+	case SIOCADDRT:
+	case SIOCDELRT:
+		return inet6_compat_routing_ioctl(sk, cmd, argp);
+	default:
+		return -ENOIOCTLCMD;
+	}
+}
+EXPORT_SYMBOL_GPL(inet6_compat_ioctl);
+#endif /* CONFIG_COMPAT */
+
 INDIRECT_CALLABLE_DECLARE(int udpv6_sendmsg(struct sock *, struct msghdr *,
 					    size_t));
 int inet6_sendmsg(struct socket *sock, struct msghdr *msg, size_t size)
@@ -625,6 +683,7 @@ const struct proto_ops inet6_stream_ops = {
 	.read_sock	   = tcp_read_sock,
 	.peek_len	   = tcp_peek_len,
 #ifdef CONFIG_COMPAT
+	.compat_ioctl	   = inet6_compat_ioctl,
 	.compat_setsockopt = compat_sock_common_setsockopt,
 	.compat_getsockopt = compat_sock_common_getsockopt,
 #endif
@@ -651,7 +710,9 @@ const struct proto_ops inet6_dgram_ops = {
 	.recvmsg	   = inet6_recvmsg,		/* retpoline's sake */
 	.mmap		   = sock_no_mmap,
 	.sendpage	   = sock_no_sendpage,
+	.set_peek_off	   = sk_set_peek_off,
 #ifdef CONFIG_COMPAT
+	.compat_ioctl	   = inet6_compat_ioctl,
 	.compat_setsockopt = compat_sock_common_setsockopt,
 	.compat_getsockopt = compat_sock_common_getsockopt,
 #endif
@@ -959,11 +1020,6 @@ static const struct ipv6_stub ipv6_stub_impl = {
 	.ip6_del_rt	   = ip6_del_rt,
 	.udpv6_encap_enable = udpv6_encap_enable,
 	.ndisc_send_na = ndisc_send_na,
-#if IS_ENABLED(CONFIG_XFRM)
-	.xfrm6_local_rxpmtu = xfrm6_local_rxpmtu,
-	.xfrm6_udp_encap_rcv = xfrm6_udp_encap_rcv,
-	.xfrm6_rcv_encap = xfrm6_rcv_encap,
-#endif
 	.nd_tbl	= &nd_tbl,
 };
 
@@ -1094,6 +1150,10 @@ static int __init inet6_init(void)
 	if (err)
 		goto udplitev6_fail;
 
+	err = udpv6_offload_init();
+	if (err)
+		goto udpv6_offload_fail;
+
 	err = tcpv6_init();
 	if (err)
 		goto tcpv6_fail;
@@ -1152,6 +1212,8 @@ pingv6_fail:
 ipv6_packet_fail:
 	tcpv6_exit();
 tcpv6_fail:
+	udpv6_offload_exit();
+udpv6_offload_fail:
 	udplitev6_exit();
 udplitev6_fail:
 	udpv6_exit();
