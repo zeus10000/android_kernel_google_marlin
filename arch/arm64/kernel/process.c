@@ -262,7 +262,7 @@ void show_regs(struct pt_regs * regs)
 {
 	printk("\n");
 	__show_regs(regs);
-	dump_backtrace(regs, NULL);
+	dump_backtrace(regs, NULL, KERN_DEFAULT);
 }
 
 static void tls_thread_flush(void)
