@@ -191,7 +191,7 @@ static inline struct tcf_proto __rcu **dsmark_find_tcf(struct Qdisc *sch,
 
 /* --------------------------- Qdisc operations ---------------------------- */
 
-static int dsmark_enqueue(struct sk_buff *skb, struct Qdisc *sch,
+static int dsmark_enqueue(struct sk_buff *skb, struct Qdisc *sch, spinlock_t *root_lock,
 			  struct sk_buff **to_free)
 {
 	struct dsmark_qdisc_data *p = qdisc_priv(sch);
@@ -259,7 +259,7 @@ static int dsmark_enqueue(struct sk_buff *skb, struct Qdisc *sch,
 		}
 	}
 
-	err = qdisc_enqueue(skb, p->q, to_free);
+	err = qdisc_enqueue(skb, p->q, root_lock, to_free);
 	if (err != NET_XMIT_SUCCESS) {
 		if (net_xmit_drop_count(err))
 			qdisc_qstats_drop(sch);

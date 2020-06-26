@@ -65,8 +65,8 @@ prio_classify(struct sk_buff *skb, struct Qdisc *sch, int *qerr)
 	return q->queues[band];
 }
 
-static int
-prio_enqueue(struct sk_buff *skb, struct Qdisc *sch, struct sk_buff **to_free)
+static int prio_enqueue(struct sk_buff *skb, struct Qdisc *sch, spinlock_t *root_lock,
+			struct sk_buff **to_free)
 {
 	struct Qdisc *qdisc;
 	int ret;
@@ -82,7 +82,7 @@ prio_enqueue(struct sk_buff *skb, struct Qdisc *sch, struct sk_buff **to_free)
 	}
 #endif
 
-	ret = qdisc_enqueue(skb, qdisc, to_free);
+	ret = qdisc_enqueue(skb, qdisc, root_lock, to_free);
 	if (ret == NET_XMIT_SUCCESS) {
 		qdisc_qstats_backlog_inc(sch, skb);
 		sch->q.qlen++;

@@ -144,7 +144,7 @@ static inline int gred_use_harddrop(struct gred_sched *t)
 	return t->red_flags & TC_RED_HARDDROP;
 }
 
-static int gred_enqueue(struct sk_buff *skb, struct Qdisc *sch,
+static int gred_enqueue(struct sk_buff *skb, struct Qdisc *sch, spinlock_t *root_lock,
 			struct sk_buff **to_free)
 {
 	struct gred_sched_data *q = NULL;
