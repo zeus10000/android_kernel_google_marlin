@@ -2262,6 +2262,9 @@ static void report_probe(struct seq_file *pi, struct kprobe *p,
 	else
 		kprobe_type = "k";
 
+	if (!kallsyms_show_value(current_cred()))
+		addr = NULL;
+
 	if (sym)
 		seq_printf(pi, "%p  %s  %s+0x%x  %s ",
 			p->addr, kprobe_type, sym, offset,
@@ -2356,8 +2359,16 @@ static int kprobe_blacklist_seq_show(struct seq_file *m, void *v)
 	struct kprobe_blacklist_entry *ent =
 		list_entry(v, struct kprobe_blacklist_entry, list);
 
-	seq_printf(m, "0x%p-0x%p\t%ps\n", (void *)ent->start_addr,
-		   (void *)ent->end_addr, (void *)ent->start_addr);
+	/*
+	 * If /proc/kallsyms is not showing kernel address, we won't
+	 * show them here either.
+	 */
+	if (!kallsyms_show_value(current_cred()))
+		seq_printf(m, "0x%px-0x%px\t%ps\n", NULL, NULL,
+			   (void *)ent->start_addr);
+	else
+		seq_printf(m, "0x%px-0x%px\t%ps\n", (void *)ent->start_addr,
+			   (void *)ent->end_addr, (void *)ent->start_addr);
 	return 0;
 }
 
