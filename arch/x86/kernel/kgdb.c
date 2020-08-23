@@ -559,7 +559,7 @@ static int __kgdb_notify(struct die_args *args, unsigned long cmd)
 			 * a system call which should be ignored
 			 */
 			return NOTIFY_DONE;
-		/* fall through */
+		fallthrough;
 	default:
 		if (user_mode(regs))
 			return NOTIFY_DONE;

@@ -1132,7 +1132,7 @@ global_port_update:
 	case MBA_IDC_COMPLETE:
 		if (ha->notify_lb_portup_comp && !vha->vp_idx)
 			complete(&ha->lb_portup_comp);
-		/* Fallthru */
+		fallthrough;
 	case MBA_IDC_TIME_EXT:
 		if (IS_QLA81XX(vha->hw) || IS_QLA8031(vha->hw) ||
 		    IS_QLA8044(ha))

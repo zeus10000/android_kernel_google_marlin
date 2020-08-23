@@ -1488,7 +1488,7 @@ static int sctp_cmd_interpreter(sctp_event_t event_type,
 
 			if (timer_pending(timer))
 				break;
-			/* fall through */
+			fallthrough;
 
 		case SCTP_CMD_TIMER_START:
 			timer = &asoc->timers[cmd->obj.to];

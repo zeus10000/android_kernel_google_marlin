@@ -441,7 +441,7 @@ static void do_signal(struct pt_regs *regs)
 						regs->areg[2] = -EINTR;
 						break;
 					}
-					/* fallthrough */
+					fallthrough;
 				case -ERESTARTNOINTR:
 					regs->areg[2] = regs->syscall;
 					regs->pc -= 3;

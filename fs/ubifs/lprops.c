@@ -283,7 +283,7 @@ void ubifs_add_to_cat(struct ubifs_info *c, struct ubifs_lprops *lprops,
 			break;
 		/* No more room on heap so make it un-categorized */
 		cat = LPROPS_UNCAT;
-		/* Fall through */
+		fallthrough;
 	case LPROPS_UNCAT:
 		list_add(&lprops->list, &c->uncat_list);
 		break;

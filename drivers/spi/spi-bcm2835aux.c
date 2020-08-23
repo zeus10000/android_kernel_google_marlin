@@ -131,10 +131,10 @@ static inline void bcm2835aux_rd_fifo(struct bcm2835aux_spi *bs)
 			/* fallthrough */
 		case 3:
 			*bs->rx_buf++ = (data >> 16) & 0xff;
-			/* fallthrough */
+			fallthrough;
 		case 2:
 			*bs->rx_buf++ = (data >> 8) & 0xff;
-			/* fallthrough */
+			fallthrough;
 		case 1:
 			*bs->rx_buf++ = (data >> 0) & 0xff;
 			/* fallthrough - no default */

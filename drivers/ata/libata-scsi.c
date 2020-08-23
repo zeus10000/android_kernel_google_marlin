@@ -3661,7 +3661,7 @@ void ata_scsi_simulate(struct ata_device *dev, struct scsi_cmnd *cmd)
 	 * turning this into a no-op.
 	 */
 	case SYNCHRONIZE_CACHE:
-		/* fall through */
+		fallthrough;
 
 	/* no-op's, complete with success */
 	case REZERO_UNIT:

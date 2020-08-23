@@ -318,7 +318,7 @@ static int wacom_graphire_irq(struct wacom_wac *wacom)
 
 			case 2: /* Mouse with wheel */
 				input_report_key(input, BTN_MIDDLE, data[1] & 0x04);
-				/* fall through */
+				fallthrough;
 
 			case 3: /* Mouse without wheel */
 				wacom->tool[0] = BTN_TOOL_MOUSE;
@@ -1174,7 +1174,7 @@ static int wacom_intuos_bt_irq(struct wacom_wac *wacom, size_t len)
 	case 0x04:
 		wacom_intuos_bt_process_data(wacom, data + i);
 		i += 10;
-		/* fall through */
+		fallthrough;
 	case 0x03:
 		wacom_intuos_bt_process_data(wacom, data + i);
 		i += 10;
@@ -2622,7 +2622,7 @@ int wacom_setup_pen_input_capabilities(struct input_dev *input_dev,
 	case INTUOS4S:
 		input_set_abs_params(input_dev, ABS_Z, -900, 899, 0, 0);
 		input_abs_set_res(input_dev, ABS_Z, 287);
-		/* fall through */
+		fallthrough;
 
 	case INTUOS:
 		__set_bit(INPUT_PROP_POINTER, input_dev->propbit);
@@ -2657,7 +2657,7 @@ int wacom_setup_pen_input_capabilities(struct input_dev *input_dev,
 	case TABLETPC:
 	case TABLETPCE:
 		__clear_bit(ABS_MISC, input_dev->absbit);
-		/* fall through */
+		fallthrough;
 
 	case DTUS:
 	case DTUSX:
@@ -2673,7 +2673,7 @@ int wacom_setup_pen_input_capabilities(struct input_dev *input_dev,
 
 	case PTU:
 		__set_bit(BTN_STYLUS2, input_dev->keybit);
-		/* fall through */
+		fallthrough;
 
 	case PENPARTNER:
 		__set_bit(BTN_TOOL_PEN, input_dev->keybit);
@@ -2765,7 +2765,7 @@ int wacom_setup_touch_input_capabilities(struct input_dev *input_dev,
 		input_set_abs_params(input_dev, ABS_MT_WIDTH_MAJOR, 0, features->x_max, 0, 0);
 		input_set_abs_params(input_dev, ABS_MT_WIDTH_MINOR, 0, features->y_max, 0, 0);
 		input_set_abs_params(input_dev, ABS_MT_ORIENTATION, 0, 1, 0, 0);
-		/* fall through */
+		fallthrough;
 
 	case WACOM_27QHDT:
 	case MTSCREEN:
@@ -2773,7 +2773,7 @@ int wacom_setup_touch_input_capabilities(struct input_dev *input_dev,
 	case MTTPC_B:
 	case TABLETPC2FG:
 		input_mt_init_slots(input_dev, features->touch_max, INPUT_MT_DIRECT);
-		/*fall through */
+		fallthrough;
 
 	case TABLETPC:
 	case TABLETPCE:
@@ -2784,7 +2784,7 @@ int wacom_setup_touch_input_capabilities(struct input_dev *input_dev,
 	case INTUOSHT2:
 		input_dev->evbit[0] |= BIT_MASK(EV_SW);
 		__set_bit(SW_MUTE_DEVICE, input_dev->swbit);
-		/* fall through */
+		fallthrough;
 
 	case BAMBOO_PT:
 	case BAMBOO_TOUCH:
@@ -2909,7 +2909,7 @@ int wacom_setup_pad_input_capabilities(struct input_dev *input_dev,
 	case INTUOS3:
 	case INTUOS3L:
 		input_set_abs_params(input_dev, ABS_RY, 0, 4096, 0, 0);
-		/* fall through */
+		fallthrough;
 
 	case INTUOS3S:
 		input_set_abs_params(input_dev, ABS_RX, 0, 4096, 0, 0);
@@ -2931,7 +2931,7 @@ int wacom_setup_pad_input_capabilities(struct input_dev *input_dev,
 		 * ID_INPUT_TABLET to be set.
 		 */
 		__set_bit(BTN_STYLUS, input_dev->keybit);
-		/* fall through */
+		fallthrough;
 
 	case INTUOS4:
 	case INTUOS4L:

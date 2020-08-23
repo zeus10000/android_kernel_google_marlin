@@ -1415,7 +1415,7 @@ static irqreturn_t blkif_interrupt(int irq, void *dev_id)
 				info->feature_flush = 0;
 				xlvbd_flush(info);
 			}
-			/* fall through */
+			fallthrough;
 		case BLKIF_OP_READ:
 		case BLKIF_OP_WRITE:
 			if (unlikely(bret.status != BLKIF_RSP_OKAY))

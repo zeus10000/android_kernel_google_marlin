@@ -1430,9 +1430,9 @@ spider_net_handle_error_irq(struct spider_net_card *card, u32 status_reg,
 		show_error = 0;
 		break;
 
-	case SPIDER_NET_GDDDEN0INT: /* fallthrough */
-	case SPIDER_NET_GDCDEN0INT: /* fallthrough */
-	case SPIDER_NET_GDBDEN0INT: /* fallthrough */
+	case SPIDER_NET_GDDDEN0INT:
+	case SPIDER_NET_GDCDEN0INT:
+	case SPIDER_NET_GDBDEN0INT:
 	case SPIDER_NET_GDADEN0INT:
 		/* someone has set RX_DMA_EN to 0 */
 		show_error = 0;
@@ -1482,10 +1482,10 @@ spider_net_handle_error_irq(struct spider_net_card *card, u32 status_reg,
 		 * Logging is not needed. */
 		show_error = 0;
 		break;
-	case SPIDER_NET_GRFDFLLINT: /* fallthrough */
-	case SPIDER_NET_GRFCFLLINT: /* fallthrough */
-	case SPIDER_NET_GRFBFLLINT: /* fallthrough */
-	case SPIDER_NET_GRFAFLLINT: /* fallthrough */
+	case SPIDER_NET_GRFDFLLINT:
+	case SPIDER_NET_GRFCFLLINT:
+	case SPIDER_NET_GRFBFLLINT:
+	case SPIDER_NET_GRFAFLLINT:
 	case SPIDER_NET_GRMFLLINT:
 		/* Could happen when rx chain is full */
 		if (card->ignore_rx_ramfull == 0) {
@@ -1506,9 +1506,9 @@ spider_net_handle_error_irq(struct spider_net_card *card, u32 status_reg,
 		break;
 
 	/* chain end */
-	case SPIDER_NET_GDDDCEINT: /* fallthrough */
-	case SPIDER_NET_GDCDCEINT: /* fallthrough */
-	case SPIDER_NET_GDBDCEINT: /* fallthrough */
+	case SPIDER_NET_GDDDCEINT:
+	case SPIDER_NET_GDCDCEINT:
+	case SPIDER_NET_GDBDCEINT:
 	case SPIDER_NET_GDADCEINT:
 		spider_net_resync_head_ptr(card);
 		spider_net_refill_rx_chain(card);
@@ -1519,9 +1519,9 @@ spider_net_handle_error_irq(struct spider_net_card *card, u32 status_reg,
 		break;
 
 	/* invalid descriptor */
-	case SPIDER_NET_GDDINVDINT: /* fallthrough */
-	case SPIDER_NET_GDCINVDINT: /* fallthrough */
-	case SPIDER_NET_GDBINVDINT: /* fallthrough */
+	case SPIDER_NET_GDDINVDINT:
+	case SPIDER_NET_GDCINVDINT:
+	case SPIDER_NET_GDBINVDINT:
 	case SPIDER_NET_GDAINVDINT:
 		/* Could happen when rx chain is full */
 		spider_net_resync_head_ptr(card);

@@ -203,7 +203,7 @@ struct ata_link *ata_link_next(struct ata_link *link, struct ata_port *ap,
 		case ATA_LITER_PMP_FIRST:
 			if (sata_pmp_attached(ap))
 				return ap->pmp_link;
-			/* fall through */
+			fallthrough;
 		case ATA_LITER_HOST_FIRST:
 			return &ap->link;
 		}
@@ -214,11 +214,11 @@ struct ata_link *ata_link_next(struct ata_link *link, struct ata_port *ap,
 		case ATA_LITER_HOST_FIRST:
 			if (sata_pmp_attached(ap))
 				return ap->pmp_link;
-			/* fall through */
+			fallthrough;
 		case ATA_LITER_PMP_FIRST:
 			if (unlikely(ap->slave_link))
 				return ap->slave_link;
-			/* fall through */
+			fallthrough;
 		case ATA_LITER_EDGE:
 			return NULL;
 		}
@@ -528,7 +528,7 @@ int atapi_cmd_type(u8 opcode)
 	case ATA_12:
 		if (atapi_passthru16)
 			return ATAPI_PASS_THRU;
-		/* fall thru */
+		fallthrough;
 	default:
 		return ATAPI_MISC;
 	}
@@ -5026,7 +5026,7 @@ void ata_qc_complete(struct ata_queued_cmd *qc)
 			if (qc->tf.feature != SETFEATURES_WC_ON &&
 			    qc->tf.feature != SETFEATURES_WC_OFF)
 				break;
-			/* fall through */
+			fallthrough;
 		case ATA_CMD_INIT_DEV_PARAMS: /* CHS translation changed */
 		case ATA_CMD_SET_MULTI: /* multi_count changed */
 			/* revalidate device */

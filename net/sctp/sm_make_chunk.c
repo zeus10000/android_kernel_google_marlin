@@ -2073,7 +2073,7 @@ static sctp_ierror_t sctp_process_unk_param(const struct sctp_association *asoc,
 		break;
 	case SCTP_PARAM_ACTION_DISCARD_ERR:
 		retval =  SCTP_IERROR_ERROR;
-		/* Fall through */
+		fallthrough;
 	case SCTP_PARAM_ACTION_SKIP_ERR:
 		/* Make an ERROR chunk, preparing enough room for
 		 * returning multiple unknown parameters.

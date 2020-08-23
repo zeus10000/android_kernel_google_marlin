@@ -313,7 +313,7 @@ static void __init construct_default_ioirq_mptable(int mpc_default_type)
 		case 2:
 			if (i == 0 || i == 13)
 				continue;	/* IRQ0 & IRQ13 not connected */
-			/* fall through */
+			fallthrough;
 		default:
 			if (i == 2)
 				continue;	/* IRQ2 is never connected */
@@ -354,7 +354,7 @@ static void __init construct_ioapic_table(int mpc_default_type)
 	default:
 		pr_err("???\nUnknown standard configuration %d\n",
 		       mpc_default_type);
-		/* fall through */
+		fallthrough;
 	case 1:
 	case 5:
 		memcpy(bus.bustype, "ISA   ", 6);

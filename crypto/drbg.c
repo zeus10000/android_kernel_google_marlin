@@ -1472,7 +1472,7 @@ static int drbg_prepare_hrng(struct drbg_state *drbg)
 
 	case -EALREADY:
 		err = 0;
-		/* fall through */
+		fallthrough;
 
 	default:
 		drbg->random_ready.func = NULL;

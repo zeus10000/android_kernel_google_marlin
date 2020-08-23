@@ -2331,7 +2331,7 @@ static int DRX_Start(struct drxd_state *state, s32 off)
 		switch (p->bandwidth_hz) {
 		case 0:
 			p->bandwidth_hz = 8000000;
-			/* fall through */
+			fallthrough;
 		case 8000000:
 			/* (64/7)*(8/8)*1000000 */
 			bandwidth = DRXD_BANDWIDTH_8MHZ_IN_HZ;

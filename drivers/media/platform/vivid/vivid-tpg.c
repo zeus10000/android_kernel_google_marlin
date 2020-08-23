@@ -210,7 +210,7 @@ bool tpg_s_fourcc(struct tpg_data *tpg, u32 fourcc)
 		tpg->vdownsampling[1] = 1;
 		tpg->hdownsampling[1] = 1;
 		tpg->planes = 2;
-		/* fall through */
+		fallthrough;
 	case V4L2_PIX_FMT_RGB332:
 	case V4L2_PIX_FMT_RGB565:
 	case V4L2_PIX_FMT_RGB565X:
@@ -246,7 +246,7 @@ bool tpg_s_fourcc(struct tpg_data *tpg, u32 fourcc)
 	case V4L2_PIX_FMT_YUV420M:
 	case V4L2_PIX_FMT_YVU420M:
 		tpg->buffers = 3;
-		/* fall through */
+		fallthrough;
 	case V4L2_PIX_FMT_YUV420:
 	case V4L2_PIX_FMT_YVU420:
 		tpg->vdownsampling[1] = 2;
@@ -267,7 +267,7 @@ bool tpg_s_fourcc(struct tpg_data *tpg, u32 fourcc)
 	case V4L2_PIX_FMT_NV16M:
 	case V4L2_PIX_FMT_NV61M:
 		tpg->buffers = 2;
-		/* fall through */
+		fallthrough;
 	case V4L2_PIX_FMT_NV16:
 	case V4L2_PIX_FMT_NV61:
 		tpg->vdownsampling[1] = 1;
@@ -279,7 +279,7 @@ bool tpg_s_fourcc(struct tpg_data *tpg, u32 fourcc)
 	case V4L2_PIX_FMT_NV12M:
 	case V4L2_PIX_FMT_NV21M:
 		tpg->buffers = 2;
-		/* fall through */
+		fallthrough;
 	case V4L2_PIX_FMT_NV12:
 	case V4L2_PIX_FMT_NV21:
 		tpg->vdownsampling[1] = 2;
@@ -1060,7 +1060,7 @@ static void gen_twopix(struct tpg_data *tpg,
 	case V4L2_PIX_FMT_RGB444:
 	case V4L2_PIX_FMT_XRGB444:
 		alpha = 0;
-		/* fall through */
+		fallthrough;
 	case V4L2_PIX_FMT_YUV444:
 	case V4L2_PIX_FMT_ARGB444:
 		buf[0][offset] = (g_u << 4) | b_v;
@@ -1069,7 +1069,7 @@ static void gen_twopix(struct tpg_data *tpg,
 	case V4L2_PIX_FMT_RGB555:
 	case V4L2_PIX_FMT_XRGB555:
 		alpha = 0;
-		/* fall through */
+		fallthrough;
 	case V4L2_PIX_FMT_YUV555:
 	case V4L2_PIX_FMT_ARGB555:
 		buf[0][offset] = (g_u << 5) | b_v;
@@ -1078,7 +1078,7 @@ static void gen_twopix(struct tpg_data *tpg,
 	case V4L2_PIX_FMT_RGB555X:
 	case V4L2_PIX_FMT_XRGB555X:
 		alpha = 0;
-		/* fall through */
+		fallthrough;
 	case V4L2_PIX_FMT_ARGB555X:
 		buf[0][offset] = (alpha & 0x80) | (r_y << 2) | (g_u >> 3);
 		buf[0][offset + 1] = (g_u << 5) | b_v;
@@ -1102,7 +1102,7 @@ static void gen_twopix(struct tpg_data *tpg,
 	case V4L2_PIX_FMT_RGB32:
 	case V4L2_PIX_FMT_XRGB32:
 		alpha = 0;
-		/* fall through */
+		fallthrough;
 	case V4L2_PIX_FMT_YUV32:
 	case V4L2_PIX_FMT_ARGB32:
 		buf[0][offset] = alpha;
@@ -1113,7 +1113,7 @@ static void gen_twopix(struct tpg_data *tpg,
 	case V4L2_PIX_FMT_BGR32:
 	case V4L2_PIX_FMT_XBGR32:
 		alpha = 0;
-		/* fall through */
+		fallthrough;
 	case V4L2_PIX_FMT_ABGR32:
 		buf[0][offset] = b_v;
 		buf[0][offset + 1] = g_u;

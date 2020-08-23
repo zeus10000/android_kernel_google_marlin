@@ -2734,7 +2734,7 @@ more:
 			switch (ret) {
 			case -EBADMSG:
 				con->error_msg = "bad crc/signature";
-				/* fall through */
+				fallthrough;
 			case -EBADE:
 				ret = -EIO;
 				break;

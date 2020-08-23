@@ -2128,7 +2128,7 @@ static int pl08x_of_probe(struct amba_device *adev,
 	switch (val) {
 	default:
 		dev_err(&adev->dev, "illegal burst size for memcpy, set to 1\n");
-		/* Fall through */
+		fallthrough;
 	case 1:
 		cctl_memcpy |= PL080_BSIZE_1 << PL080_CONTROL_SB_SIZE_SHIFT |
 			       PL080_BSIZE_1 << PL080_CONTROL_DB_SIZE_SHIFT;
@@ -2171,7 +2171,7 @@ static int pl08x_of_probe(struct amba_device *adev,
 	switch (val) {
 	default:
 		dev_err(&adev->dev, "illegal bus width for memcpy, set to 8 bits\n");
-		/* Fall through */
+		fallthrough;
 	case 8:
 		cctl_memcpy |= PL080_WIDTH_8BIT << PL080_CONTROL_SWIDTH_SHIFT |
 			       PL080_WIDTH_8BIT << PL080_CONTROL_DWIDTH_SHIFT;

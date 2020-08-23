@@ -382,7 +382,6 @@ void __init omap3xxx_check_revision(void)
 			cpu_rev = "3.1";
 			break;
 		case 7:
-		/* FALLTHROUGH */
 		default:
 			/* Use the latest known revision as default */
 			omap_revision = OMAP3430_REV_ES3_1_2;
@@ -402,7 +401,6 @@ void __init omap3xxx_check_revision(void)
 			cpu_rev = "1.0";
 			break;
 		case 1:
-		/* FALLTHROUGH */
 		default:
 			omap_revision = AM35XX_REV_ES1_1;
 			cpu_rev = "1.1";
@@ -421,7 +419,6 @@ void __init omap3xxx_check_revision(void)
 			cpu_rev = "1.1";
 			break;
 		case 2:
-		/* FALLTHROUGH */
 		default:
 			omap_revision = OMAP3630_REV_ES1_2;
 			cpu_rev = "1.2";
@@ -442,7 +439,6 @@ void __init omap3xxx_check_revision(void)
 			cpu_rev = "2.0";
 			break;
 		case 3:
-			/* FALLTHROUGH */
 		default:
 			omap_revision = TI8168_REV_ES2_1;
 			cpu_rev = "2.1";
@@ -459,7 +455,6 @@ void __init omap3xxx_check_revision(void)
 			cpu_rev = "2.0";
 			break;
 		case 2:
-		/* FALLTHROUGH */
 		default:
 			omap_revision = AM335X_REV_ES2_1;
 			cpu_rev = "2.1";
@@ -477,7 +472,6 @@ void __init omap3xxx_check_revision(void)
 			cpu_rev = "1.1";
 			break;
 		case 2:
-		/* FALLTHROUGH */
 		default:
 			omap_revision = AM437X_REV_ES1_2;
 			cpu_rev = "1.2";
@@ -487,7 +481,6 @@ void __init omap3xxx_check_revision(void)
 	case 0xb8f2:
 		switch (rev) {
 		case 0:
-		/* FALLTHROUGH */
 		case 1:
 			omap_revision = TI8148_REV_ES1_0;
 			cpu_rev = "1.0";
@@ -497,7 +490,6 @@ void __init omap3xxx_check_revision(void)
 			cpu_rev = "2.0";
 			break;
 		case 3:
-		/* FALLTHROUGH */
 		default:
 			omap_revision = TI8148_REV_ES2_1;
 			cpu_rev = "2.1";

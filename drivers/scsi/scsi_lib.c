@@ -1056,7 +1056,7 @@ void scsi_io_completion(struct scsi_cmnd *cmd, unsigned int good_bytes)
 		}
 		if (!scsi_end_request(req, error, blk_rq_err_bytes(req), 0))
 			return;
-		/*FALLTHRU*/
+		fallthrough;
 	case ACTION_REPREP:
 	requeue:
 		/* Unprep the request and put it back at the head of the queue.

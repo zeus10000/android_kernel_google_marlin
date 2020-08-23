@@ -586,10 +586,10 @@ int ide_taskfile_ioctl(ide_drive_t *drive, unsigned long arg)
 			goto abort;
 		}
 		cmd.tf_flags |= IDE_TFLAG_MULTI_PIO;
-		/* fall through */
+		fallthrough;
 	case TASKFILE_OUT:
 		cmd.protocol = ATA_PROT_PIO;
-		/* fall through */
+		fallthrough;
 	case TASKFILE_OUT_DMAQ:
 	case TASKFILE_OUT_DMA:
 		cmd.tf_flags |= IDE_TFLAG_WRITE;
@@ -605,10 +605,10 @@ int ide_taskfile_ioctl(ide_drive_t *drive, unsigned long arg)
 			goto abort;
 		}
 		cmd.tf_flags |= IDE_TFLAG_MULTI_PIO;
-		/* fall through */
+		fallthrough;
 	case TASKFILE_IN:
 		cmd.protocol = ATA_PROT_PIO;
-		/* fall through */
+		fallthrough;
 	case TASKFILE_IN_DMAQ:
 	case TASKFILE_IN_DMA:
 		nsect = taskin / SECTOR_SIZE;

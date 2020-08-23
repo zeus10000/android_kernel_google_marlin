@@ -2035,7 +2035,7 @@ static int bond_miimon_inspect(struct bonding *bond)
 					    slave->dev->name,
 					    bond->params.downdelay * bond->params.miimon);
 			}
-			/*FALLTHRU*/
+			fallthrough;
 		case BOND_LINK_FAIL:
 			if (link_state) {
 				/* recovered before downdelay expired */
@@ -2071,7 +2071,7 @@ static int bond_miimon_inspect(struct bonding *bond)
 					    bond->params.updelay *
 					    bond->params.miimon);
 			}
-			/*FALLTHRU*/
+			fallthrough;
 		case BOND_LINK_BACK:
 			if (!link_state) {
 				bond_set_slave_link_state(slave,
@@ -3026,7 +3026,7 @@ static int bond_slave_netdev_event(unsigned long event,
 		bond_update_speed_duplex(slave);
 		if (BOND_MODE(bond) == BOND_MODE_8023AD)
 			bond_3ad_adapter_speed_duplex_changed(slave);
-		/* Fallthrough */
+		fallthrough;
 	case NETDEV_DOWN:
 		/* Refresh slave-array if applicable!
 		 * If the setup does not use miimon or arpmon (mode-specific!),
@@ -3383,7 +3383,7 @@ static int bond_do_ioctl(struct net_device *bond_dev, struct ifreq *ifr, int cmd
 			return -EINVAL;
 
 		mii->phy_id = 0;
-		/* Fall Through */
+		fallthrough;
 	case SIOCGMIIREG:
 		/* We do this again just in case we were called by SIOCGMIIREG
 		 * instead of SIOCGMIIPHY.

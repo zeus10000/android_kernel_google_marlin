@@ -804,7 +804,7 @@ int arch_uprobe_analyze_insn(struct arch_uprobe *auprobe, struct mm_struct *mm, 
 			fix_ip_or_call = 0;
 			break;
 		}
-		/* fall through */
+		fallthrough;
 	default:
 		riprel_analyze(auprobe, &insn);
 	}

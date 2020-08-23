@@ -553,7 +553,7 @@ should_set_ext_sec_flag(enum securityEnum sectype)
 		if (global_secflags &
 		    (CIFSSEC_MAY_KRB5 | CIFSSEC_MAY_NTLMSSP))
 			return true;
-		/* Fallthrough */
+		fallthrough;
 	default:
 		return false;
 	}

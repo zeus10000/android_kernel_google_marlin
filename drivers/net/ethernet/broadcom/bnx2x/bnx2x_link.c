@@ -4718,14 +4718,14 @@ static void bnx2x_sync_link(struct link_params *params,
 			LINK_STATUS_SPEED_AND_DUPLEX_MASK) {
 		case LINK_10THD:
 			vars->duplex = DUPLEX_HALF;
-			/* Fall thru */
+			fallthrough;
 		case LINK_10TFD:
 			vars->line_speed = SPEED_10;
 			break;
 
 		case LINK_100TXHD:
 			vars->duplex = DUPLEX_HALF;
-			/* Fall thru */
+			fallthrough;
 		case LINK_100T4:
 		case LINK_100TXFD:
 			vars->line_speed = SPEED_100;
@@ -4733,14 +4733,14 @@ static void bnx2x_sync_link(struct link_params *params,
 
 		case LINK_1000THD:
 			vars->duplex = DUPLEX_HALF;
-			/* Fall thru */
+			fallthrough;
 		case LINK_1000TFD:
 			vars->line_speed = SPEED_1000;
 			break;
 
 		case LINK_2500THD:
 			vars->duplex = DUPLEX_HALF;
-			/* Fall thru */
+			fallthrough;
 		case LINK_2500TFD:
 			vars->line_speed = SPEED_2500;
 			break;

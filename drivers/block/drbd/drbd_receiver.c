@@ -1544,7 +1544,7 @@ static int receive_Barrier(struct drbd_connection *connection, struct packet_inf
 			break;
 		else
 			drbd_warn(connection, "Allocation of an epoch failed, slowing down\n");
-			/* Fall through */
+		fallthrough;
 
 	case WO_bdev_flush:
 	case WO_drain_io:
@@ -3233,7 +3233,7 @@ static enum drbd_conns drbd_sync_handshake(struct drbd_peer_device *peer_device,
 		switch (rr_conflict) {
 		case ASB_CALL_HELPER:
 			drbd_khelper(device, "pri-lost");
-			/* fall through */
+			fallthrough;
 		case ASB_DISCONNECT:
 			drbd_err(device, "I shall become SyncTarget, but I am primary!\n");
 			return C_MASK;

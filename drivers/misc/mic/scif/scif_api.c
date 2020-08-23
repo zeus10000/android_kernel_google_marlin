@@ -653,7 +653,7 @@ int __scif_connect(scif_epd_t epd, struct scif_port_id *dst, bool non_block)
 		ep->port.port = err;
 		ep->port.node = scif_info.nodeid;
 		ep->conn_async_state = ASYNC_CONN_IDLE;
-		/* Fall through */
+		fallthrough;
 	case SCIFEP_BOUND:
 		/*
 		 * If a non-blocking connect has been already initiated

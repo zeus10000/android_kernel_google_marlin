@@ -465,7 +465,7 @@ void __init __vic_init(void __iomem *base, int parent_irq, int irq_start,
 		return;
 	default:
 		printk(KERN_WARNING "VIC: unknown vendor, continuing anyways\n");
-		/* fall through */
+		fallthrough;
 	case AMBA_VENDOR_ARM:
 		break;
 	}

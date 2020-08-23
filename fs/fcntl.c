@@ -282,7 +282,7 @@ static long do_fcntl(int fd, unsigned int cmd, unsigned long arg,
 	case F_OFD_SETLK:
 	case F_OFD_SETLKW:
 #endif
-		/* Fallthrough */
+		fallthrough;
 	case F_SETLK:
 	case F_SETLKW:
 		err = fcntl_setlk(fd, filp, cmd, (struct flock __user *) arg);

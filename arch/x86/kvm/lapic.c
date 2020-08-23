@@ -1106,7 +1106,7 @@ static u32 __apic_read(struct kvm_lapic *apic, unsigned int offset)
 		break;
 	case APIC_TASKPRI:
 		report_tpr_access(apic, false);
-		/* fall thru */
+		fallthrough;
 	default:
 		val = kvm_apic_get_reg(apic, offset);
 		break;

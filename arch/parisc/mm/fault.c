@@ -312,7 +312,7 @@ bad_area:
 			}
 
 			/* probably address is outside of mapped file */
-			/* fall through */
+			fallthrough;
 		case 17:	/* NA data TLB miss / page fault */
 		case 18:	/* Unaligned access - PCXS only */
 			si.si_signo = SIGBUS;

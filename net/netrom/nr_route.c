@@ -504,7 +504,7 @@ static int nr_dec_obs(void)
 				switch (i) {
 				case 0:
 					s->routes[0] = s->routes[1];
-					/* Fallthrough */
+					fallthrough;
 				case 1:
 					s->routes[1] = s->routes[2];
 				case 2:

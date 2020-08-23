@@ -3652,7 +3652,7 @@ ncr_script_copy_and_bind (struct ncb *np, ncrcmd *src, ncrcmd *dst, int len)
 						new = old;
 						break;
 					}
-					/* fall through */
+					fallthrough;
 				default:
 					panic("ncr_script_copy_and_bind: weird relocation %x\n", old);
 					break;
@@ -4305,7 +4305,7 @@ static int ncr_queue_command (struct ncb *np, struct scsi_cmnd *cmd)
 			break;
 		cp->phys.header.wgoalp	= cpu_to_scr(goalp);
 		cp->phys.header.wlastp	= cpu_to_scr(lastp);
-		/* fall through */
+		fallthrough;
 	case DMA_FROM_DEVICE:
 		goalp = NCB_SCRIPT_PHYS (np, data_in2) + 8;
 		if (segments <= MAX_SCATTERL)
@@ -6833,7 +6833,7 @@ void ncr_int_sir (struct ncb *np)
 		*/
 		OUTB (HS_PRT, HS_BUSY);
 
-		/* fall through */
+		fallthrough;
 
 	case SIR_NEGO_PROTO:
 		/*-------------------------------------------------------

@@ -270,7 +270,7 @@ static int _setcolreg(struct fb_info *info, u_int regno, u_int red, u_int green,
 		if (fbdev->ctrl->setcolreg)
 			r = fbdev->ctrl->setcolreg(regno, red, green, blue,
 							transp, update_hw_pal);
-		/* Fallthrough */
+		fallthrough;
 	case OMAPFB_COLOR_RGB565:
 	case OMAPFB_COLOR_RGB444:
 		if (r != 0)
@@ -1893,7 +1893,7 @@ static int __init omapfb_setup(char *options)
 			case 'm':
 			case 'M':
 				vram *= 1024;
-				/* Fall through */
+				fallthrough;
 			case 'k':
 			case 'K':
 				vram *= 1024;

@@ -764,7 +764,7 @@ irqreturn_t musb_g_ep0_irq(struct musb *musb)
 			musb_writeb(mbase, MUSB_TESTMODE,
 					musb->test_mode_nr);
 		}
-		/* FALLTHROUGH */
+		fallthrough;
 
 	case MUSB_EP0_STAGE_STATUSOUT:
 		/* end of sequence #1: write to host (TX state) */
@@ -796,7 +796,7 @@ irqreturn_t musb_g_ep0_irq(struct musb *musb)
 		 */
 		retval = IRQ_HANDLED;
 		musb->ep0_state = MUSB_EP0_STAGE_SETUP;
-		/* FALLTHROUGH */
+		fallthrough;
 
 	case MUSB_EP0_STAGE_SETUP:
 setup:

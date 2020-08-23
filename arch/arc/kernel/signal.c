@@ -319,7 +319,7 @@ static void arc_restart_syscall(struct k_sigaction *ka, struct pt_regs *regs)
 			regs->r0 = -EINTR;
 			break;
 		}
-		/* fallthrough */
+		fallthrough;
 
 	case -ERESTARTNOINTR:
 		/*

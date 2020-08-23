@@ -718,7 +718,7 @@ static int scsi_eh_completed_normally(struct scsi_cmnd *scmd)
 		return FAILED;
 	case QUEUE_FULL:
 		scsi_handle_queue_full(scmd->device);
-		/* fall through */
+		fallthrough;
 	case BUSY:
 		return NEEDS_RETRY;
 	default:
@@ -1243,7 +1243,7 @@ retry_tur:
 	case NEEDS_RETRY:
 		if (retry_cnt--)
 			goto retry_tur;
-		/*FALLTHRU*/
+		fallthrough;
 	case SUCCESS:
 		return 0;
 	default:
@@ -1732,7 +1732,7 @@ int scsi_noretry_cmd(struct scsi_cmnd *scmd)
 		if (msg_byte(scmd->result) == COMMAND_COMPLETE &&
 		    status_byte(scmd->result) == RESERVATION_CONFLICT)
 			return 0;
-		/* fall through */
+		fallthrough;
 	case DID_SOFT_ERROR:
 		return (scmd->request->cmd_flags & REQ_FAILFAST_DRIVER);
 	}
@@ -1850,7 +1850,7 @@ int scsi_decide_disposition(struct scsi_cmnd *scmd)
 			 * lower down
 			 */
 			break;
-		/* fallthrough */
+		fallthrough;
 	case DID_BUS_BUSY:
 	case DID_PARITY:
 		goto maybe_retry;
@@ -2374,17 +2374,17 @@ scsi_ioctl_reset(struct scsi_device *dev, int __user *arg)
 		rtn = scsi_try_bus_device_reset(scmd);
 		if (rtn == SUCCESS || (val & SG_SCSI_RESET_NO_ESCALATE))
 			break;
-		/* FALLTHROUGH */
+		fallthrough;
 	case SG_SCSI_RESET_TARGET:
 		rtn = scsi_try_target_reset(scmd);
 		if (rtn == SUCCESS || (val & SG_SCSI_RESET_NO_ESCALATE))
 			break;
-		/* FALLTHROUGH */
+		fallthrough;
 	case SG_SCSI_RESET_BUS:
 		rtn = scsi_try_bus_reset(scmd);
 		if (rtn == SUCCESS || (val & SG_SCSI_RESET_NO_ESCALATE))
 			break;
-		/* FALLTHROUGH */
+		fallthrough;
 	case SG_SCSI_RESET_HOST:
 		rtn = scsi_try_host_reset(scmd);
 		if (rtn == SUCCESS)

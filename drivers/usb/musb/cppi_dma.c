@@ -976,7 +976,7 @@ static int cppi_channel_program(struct dma_channel *ch,
 		dev_dbg(musb->controller, "%cX DMA%d not allocated!\n",
 				cppi_ch->transmit ? 'T' : 'R',
 				cppi_ch->index);
-		/* FALLTHROUGH */
+		fallthrough;
 	case MUSB_DMA_STATUS_FREE:
 		break;
 	}

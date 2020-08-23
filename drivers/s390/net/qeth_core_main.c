@@ -838,7 +838,7 @@ static void qeth_send_control_data_cb(struct qeth_channel *channel,
 	case -EIO:
 		qeth_clear_ipacmd_list(card);
 		qeth_schedule_recovery(card);
-		/* fall through */
+		fallthrough;
 	default:
 		goto out;
 	}
@@ -2701,7 +2701,7 @@ void qeth_print_status_message(struct qeth_card *card)
 			card->info.mcl_level[QETH_MCL_LENGTH] = 0;
 			break;
 		}
-		/* fallthrough */
+		fallthrough;
 	case QETH_CARD_TYPE_IQD:
 		if ((card->info.guestlan) ||
 		    (card->info.mcl_level[0] & 0x80)) {

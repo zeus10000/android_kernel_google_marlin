@@ -438,7 +438,7 @@ got_root:
 	case MUFS_INTLFFS:
 	case MUFS_DCFFS:
 		affs_set_opt(sbi->s_flags, SF_MUFS);
-		/* fall thru */
+		fallthrough;
 	case FS_INTLFFS:
 	case FS_DCFFS:
 		affs_set_opt(sbi->s_flags, SF_INTL);

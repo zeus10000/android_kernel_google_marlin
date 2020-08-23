@@ -4125,7 +4125,7 @@ sctp_disposition_t sctp_sf_eat_auth(struct net *net,
 			sctp_add_cmd_sf(commands, SCTP_CMD_REPLY,
 					SCTP_CHUNK(err_chunk));
 		}
-		/* Fall Through */
+		fallthrough;
 	case SCTP_IERROR_AUTH_BAD_KEYID:
 	case SCTP_IERROR_BAD_SIG:
 		return sctp_sf_pdiscard(net, ep, asoc, type, arg, commands);

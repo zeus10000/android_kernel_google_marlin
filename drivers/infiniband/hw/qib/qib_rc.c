@@ -98,7 +98,7 @@ static int qib_make_rc_ack(struct qib_ibdev *dev, struct qib_qp *qp,
 			qib_put_mr(e->rdma_sge.mr);
 			e->rdma_sge.mr = NULL;
 		}
-		/* FALLTHROUGH */
+		fallthrough;
 	case OP(ATOMIC_ACKNOWLEDGE):
 		/*
 		 * We can increment the tail pointer now that the last
@@ -107,7 +107,7 @@ static int qib_make_rc_ack(struct qib_ibdev *dev, struct qib_qp *qp,
 		 */
 		if (++qp->s_tail_ack_queue > QIB_MAX_RDMA_ATOMIC)
 			qp->s_tail_ack_queue = 0;
-		/* FALLTHROUGH */
+		fallthrough;
 	case OP(SEND_ONLY):
 	case OP(ACKNOWLEDGE):
 		/* Check for no next entry in the queue. */
@@ -167,7 +167,7 @@ static int qib_make_rc_ack(struct qib_ibdev *dev, struct qib_qp *qp,
 
 	case OP(RDMA_READ_RESPONSE_FIRST):
 		qp->s_ack_state = OP(RDMA_READ_RESPONSE_MIDDLE);
-		/* FALLTHROUGH */
+		fallthrough;
 	case OP(RDMA_READ_RESPONSE_MIDDLE):
 		qp->s_cur_sge = &qp->s_ack_rdma_sge;
 		qp->s_rdma_mr = qp->s_ack_rdma_sge.sge.mr;
@@ -516,10 +516,10 @@ int qib_make_rc_req(struct qib_qp *qp)
 		 * See qib_restart_rc().
 		 */
 		qp->s_len = restart_sge(&qp->s_sge, wqe, qp->s_psn, pmtu);
-		/* FALLTHROUGH */
+		fallthrough;
 	case OP(SEND_FIRST):
 		qp->s_state = OP(SEND_MIDDLE);
-		/* FALLTHROUGH */
+		fallthrough;
 	case OP(SEND_MIDDLE):
 		bth2 = qp->s_psn++ & QIB_PSN_MASK;
 		if (qib_cmp24(qp->s_psn, qp->s_next_psn) > 0)
@@ -557,10 +557,10 @@ int qib_make_rc_req(struct qib_qp *qp)
 		 * See qib_restart_rc().
 		 */
 		qp->s_len = restart_sge(&qp->s_sge, wqe, qp->s_psn, pmtu);
-		/* FALLTHROUGH */
+		fallthrough;
 	case OP(RDMA_WRITE_FIRST):
 		qp->s_state = OP(RDMA_WRITE_MIDDLE);
-		/* FALLTHROUGH */
+		fallthrough;
 	case OP(RDMA_WRITE_MIDDLE):
 		bth2 = qp->s_psn++ & QIB_PSN_MASK;
 		if (qib_cmp24(qp->s_psn, qp->s_next_psn) > 0)
@@ -1969,7 +1969,7 @@ void qib_rc_rcv(struct qib_ctxtdata *rcd, struct qib_ib_header *hdr,
 		if (!ret)
 			goto rnr_nak;
 		qp->r_rcv_len = 0;
-		/* FALLTHROUGH */
+		fallthrough;
 	case OP(SEND_MIDDLE):
 	case OP(RDMA_WRITE_MIDDLE):
 send_middle:

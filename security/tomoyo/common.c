@@ -1209,7 +1209,7 @@ static bool tomoyo_print_condition(struct tomoyo_io_buffer *head,
 			tomoyo_set_space(head);
 			tomoyo_set_string(head, cond->transit->name);
 		}
-		/* fall through */
+		fallthrough;
 	case 1:
 		{
 			const u16 condc = cond->condc;
@@ -1314,12 +1314,12 @@ static bool tomoyo_print_condition(struct tomoyo_io_buffer *head,
 			}
 		}
 		head->r.cond_step++;
-		/* fall through */
+		fallthrough;
 	case 2:
 		if (!tomoyo_flush(head))
 			break;
 		head->r.cond_step++;
-		/* fall through */
+		fallthrough;
 	case 3:
 		if (cond->grant_log != TOMOYO_GRANTLOG_AUTO)
 			tomoyo_io_printf(head, " grant_log=%s",
@@ -2024,7 +2024,7 @@ int tomoyo_supervisor(struct tomoyo_request_info *r, const char *fmt, ...)
 		/* Check max_learning_entry parameter. */
 		if (tomoyo_domain_quota_is_ok(r))
 			break;
-		/* fall through */
+		fallthrough;
 	default:
 		return 0;
 	}
@@ -2638,13 +2638,13 @@ ssize_t tomoyo_write_control(struct tomoyo_io_buffer *head,
 		case TOMOYO_DOMAINPOLICY:
 			if (tomoyo_select_domain(head, cp0))
 				continue;
-			/* fall through */
+			fallthrough;
 		case TOMOYO_EXCEPTIONPOLICY:
 			if (!strcmp(cp0, "select transition_only")) {
 				head->r.print_transition_related_only = true;
 				continue;
 			}
-			/* fall through */
+			fallthrough;
 		default:
 			if (!tomoyo_manager()) {
 				error = -EPERM;

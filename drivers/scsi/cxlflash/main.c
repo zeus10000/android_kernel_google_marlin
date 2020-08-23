@@ -758,7 +758,7 @@ static void cxlflash_remove(struct pci_dev *pdev)
 	case INIT_STATE_SCSI:
 		cxlflash_term_local_luns(cfg);
 		scsi_remove_host(cfg->host);
-		/* fall through */
+		fallthrough;
 	case INIT_STATE_AFU:
 		cancel_work_sync(&cfg->work_q);
 		term_afu(cfg);
@@ -1999,12 +1999,12 @@ static int cxlflash_eh_host_reset_handler(struct scsi_cmnd *scp)
 			cfg->state = STATE_NORMAL;
 		wake_up_all(&cfg->reset_waitq);
 		ssleep(1);
-		/* fall through */
+		fallthrough;
 	case STATE_RESET:
 		wait_event(cfg->reset_waitq, cfg->state != STATE_RESET);
 		if (cfg->state == STATE_NORMAL)
 			break;
-		/* fall through */
+		fallthrough;
 	default:
 		rc = FAILED;
 		break;

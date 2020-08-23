@@ -2217,7 +2217,7 @@ int fcntl_setlk(unsigned int fd, struct file *filp, unsigned int cmd,
 		cmd = F_SETLKW;
 		file_lock->fl_flags |= FL_OFDLCK;
 		file_lock->fl_owner = filp;
-		/* Fallthrough */
+		fallthrough;
 	case F_SETLKW:
 		file_lock->fl_flags |= FL_SLEEP;
 	}
@@ -2362,7 +2362,7 @@ int fcntl_setlk64(unsigned int fd, struct file *filp, unsigned int cmd,
 		cmd = F_SETLKW64;
 		file_lock->fl_flags |= FL_OFDLCK;
 		file_lock->fl_owner = filp;
-		/* Fallthrough */
+		fallthrough;
 	case F_SETLKW64:
 		file_lock->fl_flags |= FL_SLEEP;
 	}

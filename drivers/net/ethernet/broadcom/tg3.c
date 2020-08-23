@@ -4380,7 +4380,7 @@ static int tg3_phy_autoneg_cfg(struct tg3 *tp, u32 advertise, u32 flowctrl)
 				      MII_TG3_DSP_TAP26_RMRXSTO |
 				      MII_TG3_DSP_TAP26_OPCSINPT;
 			tg3_phydsp_write(tp, MII_TG3_DSP_TAP26, val);
-			/* Fall through */
+			fallthrough;
 		case ASIC_REV_5720:
 		case ASIC_REV_5762:
 			if (!tg3_phydsp_read(tp, MII_TG3_DSP_CH34TP2, &val))
@@ -4528,7 +4528,7 @@ static int tg3_phy_pull_config(struct tg3 *tp)
 				tp->link_config.speed = SPEED_1000;
 				break;
 			}
-			/* Fall through */
+			fallthrough;
 		default:
 			goto done;
 		}
@@ -17154,7 +17154,7 @@ static u32 tg3_calc_dma_bndry(struct tg3 *tp, u32 val)
 				val |= DMA_RWCTRL_WRITE_BNDRY_64_PCIE;
 				break;
 			}
-			/* fallthrough */
+			fallthrough;
 		case 128:
 		default:
 			val &= ~DMA_RWCTRL_WRITE_BNDRY_DISAB_PCIE;
@@ -17169,28 +17169,28 @@ static u32 tg3_calc_dma_bndry(struct tg3 *tp, u32 val)
 					DMA_RWCTRL_WRITE_BNDRY_16);
 				break;
 			}
-			/* fallthrough */
+			fallthrough;
 		case 32:
 			if (goal == BOUNDARY_SINGLE_CACHELINE) {
 				val |= (DMA_RWCTRL_READ_BNDRY_32 |
 					DMA_RWCTRL_WRITE_BNDRY_32);
 				break;
 			}
-			/* fallthrough */
+			fallthrough;
 		case 64:
 			if (goal == BOUNDARY_SINGLE_CACHELINE) {
 				val |= (DMA_RWCTRL_READ_BNDRY_64 |
 					DMA_RWCTRL_WRITE_BNDRY_64);
 				break;
 			}
-			/* fallthrough */
+			fallthrough;
 		case 128:
 			if (goal == BOUNDARY_SINGLE_CACHELINE) {
 				val |= (DMA_RWCTRL_READ_BNDRY_128 |
 					DMA_RWCTRL_WRITE_BNDRY_128);
 				break;
 			}
-			/* fallthrough */
+			fallthrough;
 		case 256:
 			val |= (DMA_RWCTRL_READ_BNDRY_256 |
 				DMA_RWCTRL_WRITE_BNDRY_256);

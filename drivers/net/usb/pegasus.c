@@ -628,7 +628,7 @@ static void write_bulk_callback(struct urb *urb)
 		return;
 	default:
 		netif_info(pegasus, tx_err, net, "TX status %d\n", status);
-		/* FALL THROUGH */
+		fallthrough;
 	case 0:
 		break;
 	}

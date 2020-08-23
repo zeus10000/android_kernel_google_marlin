@@ -4164,7 +4164,7 @@ static bool nl80211_put_sta_rate(struct sk_buff *msg, struct rate_info *info,
 		break;
 	default:
 		WARN_ON(1);
-		/* fall through */
+		fallthrough;
 	case RATE_INFO_BW_20:
 		rate_flg = 0;
 		break;

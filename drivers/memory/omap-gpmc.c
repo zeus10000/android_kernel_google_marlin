@@ -309,7 +309,6 @@ static unsigned long gpmc_get_clk_period(int cs, enum gpmc_clk_domain cd)
 		tick_ps *= div;
 		break;
 	case GPMC_CD_FCLK:
-		/* FALL-THROUGH */
 	default:
 		break;
 	}

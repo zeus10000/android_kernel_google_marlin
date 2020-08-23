@@ -936,7 +936,7 @@ static int crypt_convert(struct crypt_config *cc,
 		case -EBUSY:
 			wait_for_completion(&ctx->restart);
 			reinit_completion(&ctx->restart);
-			/* fall through */
+			fallthrough;
 		/*
 		 * The request is queued and processed asynchronously,
 		 * completion function kcryptd_async_done() will be called.

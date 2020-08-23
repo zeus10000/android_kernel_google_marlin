@@ -42,7 +42,7 @@ static void handle_signal(struct ksignal *ksig, struct pt_regs *regs)
 				PT_REGS_SYSCALL_RET(regs) = -EINTR;
 				break;
 			}
-		/* fallthrough */
+			fallthrough;
 		case -ERESTARTNOINTR:
 			PT_REGS_RESTART_SYSCALL(regs);
 			PT_REGS_ORIG_SYSCALL(regs) = PT_REGS_SYSCALL_NR(regs);

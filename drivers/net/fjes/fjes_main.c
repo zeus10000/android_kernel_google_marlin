@@ -873,7 +873,7 @@ static void fjes_stop_req_irq(struct fjes_adapter *adapter, int src_epid)
 		hw->ep_shm_info[src_epid].tx.info->v1i.rx_status |=
 				FJES_RX_STOP_REQ_DONE;
 		clear_bit(src_epid, &hw->txrx_stop_req_bit);
-		/* fall through */
+		fallthrough;
 	case EP_PARTNER_UNSHARE:
 	case EP_PARTNER_COMPLETE:
 	default:

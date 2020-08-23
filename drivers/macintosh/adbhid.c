@@ -881,7 +881,7 @@ adbhid_input_register(int id, int default_id, int original_handler_id,
 		}
 		if (hid->name[0])
 			break;
-		/* else fall through */
+		fallthrough;
 
 	default:
 		printk(KERN_INFO "Trying to register unknown ADB device to input layer.\n");

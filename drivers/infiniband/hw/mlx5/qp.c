@@ -268,7 +268,7 @@ static int sq_overhead(enum ib_qp_type qp_type)
 	switch (qp_type) {
 	case IB_QPT_XRC_INI:
 		size += sizeof(struct mlx5_wqe_xrc_seg);
-		/* fall through */
+		fallthrough;
 	case IB_QPT_RC:
 		size += sizeof(struct mlx5_wqe_ctrl_seg) +
 			max(sizeof(struct mlx5_wqe_atomic_seg) +

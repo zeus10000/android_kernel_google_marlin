@@ -414,7 +414,7 @@ static void qed_mcp_handle_link_change(struct qed_hwfn *p_hwfn,
 		break;
 	case LINK_STATUS_SPEED_AND_DUPLEX_1000THD:
 		p_link->full_duplex = false;
-	/* Fall-through */
+		fallthrough;
 	case LINK_STATUS_SPEED_AND_DUPLEX_1000TFD:
 		p_link->speed = 1000;
 		break;

@@ -3690,7 +3690,7 @@ static int nfsd4_cb_recall_done(struct nfsd4_callback *cb,
 			rpc_delay(task, 2 * HZ);
 			return 0;
 		}
-		/*FALLTHRU*/
+		fallthrough;
 	default:
 		return -1;
 	}
@@ -4748,7 +4748,7 @@ static __be32 nfsd4_validate_stateid(struct nfs4_client *cl, stateid_t *stateid)
 		break;
 	default:
 		printk("unknown stateid type %x\n", s->sc_type);
-		/* Fallthrough */
+		fallthrough;
 	case NFS4_CLOSED_STID:
 	case NFS4_CLOSED_DELEG_STID:
 		status = nfserr_bad_stateid;

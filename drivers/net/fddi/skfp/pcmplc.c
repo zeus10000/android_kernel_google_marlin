@@ -949,7 +949,7 @@ static void pcm_fsm(struct s_smc *smc, struct s_phy *phy, int cmd)
 		SETMASK(PLC(np,PL_CNTRL_B),PL_PC_JOIN,PL_PC_JOIN) ;
 		ACTIONS_DONE() ;
 		cmd = 0 ;
-		/* fall thru */
+		fallthrough;
 	case PC6_JOIN :
 		switch (plc->p_state) {
 		case PS_ACTIVE:

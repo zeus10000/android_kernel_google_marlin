@@ -3836,7 +3836,7 @@ static bool hotkey_notify_6xxx(const u32 hkey,
 		 * AC status changed; can be triggered by plugging or
 		 * unplugging AC adapter, docking or undocking. */
 
-		/* fallthrough */
+		fallthrough;
 
 	case TP_HKEY_EV_KEY_NUMLOCK:
 	case TP_HKEY_EV_KEY_FN:

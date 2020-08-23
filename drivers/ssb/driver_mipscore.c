@@ -341,7 +341,7 @@ void ssb_mipscore_init(struct ssb_mipscore *mcore)
 				set_irq(dev, irq++);
 				break;
 			}
-			/* fallthrough */
+			fallthrough;
 		case SSB_DEV_EXTIF:
 			set_irq(dev, 0);
 			break;

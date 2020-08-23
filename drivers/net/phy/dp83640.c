@@ -1481,7 +1481,7 @@ static void dp83640_txtstamp(struct phy_device *phydev,
 			kfree_skb(skb);
 			return;
 		}
-		/* fall through */
+		fallthrough;
 	case HWTSTAMP_TX_ON:
 		skb_shinfo(skb)->tx_flags |= SKBTX_IN_PROGRESS;
 		skb_info->tmo = jiffies + SKB_TIMESTAMP_TIMEOUT;

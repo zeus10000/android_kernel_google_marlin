@@ -2427,7 +2427,7 @@ ahc_validate_width(struct ahc_softc *ahc, struct ahc_initiator_tinfo *tinfo,
 			*bus_width = MSG_EXT_WDTR_BUS_16_BIT;
 			break;
 		}
-		/* FALLTHROUGH */
+		fallthrough;
 	case MSG_EXT_WDTR_BUS_8_BIT:
 		*bus_width = MSG_EXT_WDTR_BUS_8_BIT;
 		break;
@@ -3622,7 +3622,7 @@ ahc_parse_msg(struct ahc_softc *ahc, struct ahc_devinfo *devinfo)
 		break;
 	case MSG_MESSAGE_REJECT:
 		response = ahc_handle_msg_reject(ahc, devinfo);
-		/* FALLTHROUGH */
+		fallthrough;
 	case MSG_NOOP:
 		done = MSGLOOP_MSGCOMPLETE;
 		break;
@@ -4495,17 +4495,17 @@ ahc_free(struct ahc_softc *ahc)
 	default:
 	case 5:
 		ahc_shutdown(ahc);
-		/* FALLTHROUGH */
+		fallthrough;
 	case 4:
 		ahc_dmamap_unload(ahc, ahc->shared_data_dmat,
 				  ahc->shared_data_dmamap);
-		/* FALLTHROUGH */
+		fallthrough;
 	case 3:
 		ahc_dmamem_free(ahc, ahc->shared_data_dmat, ahc->qoutfifo,
 				ahc->shared_data_dmamap);
 		ahc_dmamap_destroy(ahc, ahc->shared_data_dmat,
 				   ahc->shared_data_dmamap);
-		/* FALLTHROUGH */
+		fallthrough;
 	case 2:
 		ahc_dma_tag_destroy(ahc, ahc->shared_data_dmat);
 	case 1:

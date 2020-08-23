@@ -669,7 +669,7 @@ static void ssip_rx_bootinforeq(struct hsi_client *cl, u32 cmd)
 	case ACTIVE:
 		dev_err(&cl->device, "Boot info req on active state\n");
 		ssip_error(cl);
-		/* Fall through */
+		fallthrough;
 	case INIT:
 		spin_lock(&ssi->lock);
 		ssi->main_state = HANDSHAKE;

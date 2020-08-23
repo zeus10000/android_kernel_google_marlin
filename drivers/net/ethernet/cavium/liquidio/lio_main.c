@@ -1053,15 +1053,14 @@ static void octeon_destroy_resources(struct octeon_device *oct)
 
 		schedule_timeout_uninterruptible(HZ / 10);
 
-		/* fallthrough */
+		fallthrough;
 	case OCT_DEV_HOST_OK:
 
-		/* fallthrough */
 	case OCT_DEV_CONSOLE_INIT_DONE:
 		/* Remove any consoles */
 		octeon_remove_consoles(oct);
 
-		/* fallthrough */
+		fallthrough;
 	case OCT_DEV_IO_QUEUES_DONE:
 		if (wait_for_pending_requests(oct))
 			dev_err(&oct->pci_dev->dev, "There were pending requests\n");
@@ -1116,7 +1115,7 @@ static void octeon_destroy_resources(struct octeon_device *oct)
 			}
 		}
 
-		/* fallthrough */
+		fallthrough;
 	case OCT_DEV_RESP_LIST_INIT_DONE:
 		octeon_delete_response_list(oct);
 
@@ -1132,12 +1131,12 @@ static void octeon_destroy_resources(struct octeon_device *oct)
 			octeon_delete_instr_queue(oct, i);
 		}
 
-		/* fallthrough */
+		fallthrough;
 	case OCT_DEV_DISPATCH_INIT_DONE:
 		octeon_delete_dispatch_list(oct);
 		cancel_delayed_work_sync(&oct->nic_poll_work.work);
 
-		/* fallthrough */
+		fallthrough;
 	case OCT_DEV_PCI_MAP_DONE:
 		octeon_unmap_pci_barx(oct, 0);
 		octeon_unmap_pci_barx(oct, 1);

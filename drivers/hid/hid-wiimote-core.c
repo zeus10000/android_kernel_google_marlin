@@ -1658,7 +1658,6 @@ static ssize_t wiimote_ext_show(struct device *dev,
 	case WIIMOTE_EXT_PRO_CONTROLLER:
 		return sprintf(buf, "procontroller\n");
 	case WIIMOTE_EXT_UNKNOWN:
-		/* fallthrough */
 	default:
 		return sprintf(buf, "unknown\n");
 	}
@@ -1708,7 +1707,6 @@ static ssize_t wiimote_dev_show(struct device *dev,
 	case WIIMOTE_DEV_PENDING:
 		return sprintf(buf, "pending\n");
 	case WIIMOTE_DEV_UNKNOWN:
-		/* fallthrough */
 	default:
 		return sprintf(buf, "unknown\n");
 	}

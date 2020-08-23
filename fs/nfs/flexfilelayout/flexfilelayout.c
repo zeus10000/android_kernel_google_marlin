@@ -1070,7 +1070,7 @@ static int ff_layout_async_handle_error_v4(struct rpc_task *task,
 			task->tk_status);
 		nfs4_mark_deviceid_unavailable(devid);
 		rpc_wake_up(&tbl->slot_tbl_waitq);
-		/* fall through */
+		fallthrough;
 	default:
 		if (ff_layout_no_fallback_to_mds(lseg) ||
 		    ff_layout_has_available_ds(lseg))

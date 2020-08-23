@@ -1298,7 +1298,7 @@ static struct f71882fg_data *f71882fg_update_device(struct device *dev)
 				data->pwm_auto_point_pwm[nr][0] =
 					f71882fg_read8(data,
 						F71882FG_REG_POINT_PWM(nr, 0));
-				/* Fall through */
+				fallthrough;
 			case f71862fg:
 				data->pwm_auto_point_pwm[nr][1] =
 					f71882fg_read8(data,

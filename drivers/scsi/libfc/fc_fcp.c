@@ -717,7 +717,7 @@ static void fc_fcp_abts_resp(struct fc_fcp_pkt *fsp, struct fc_frame *fp)
 		brp = fc_frame_payload_get(fp, sizeof(*brp));
 		if (brp && brp->br_reason == FC_BA_RJT_LOG_ERR)
 			break;
-		/* fall thru */
+		fallthrough;
 	default:
 		/*
 		 * we will let the command timeout
@@ -1490,7 +1490,7 @@ static void fc_fcp_rec_resp(struct fc_seq *seq, struct fc_frame *fp, void *arg)
 				   "reason %d expl %d\n",
 				   fsp->rport->port_id, rjt->er_reason,
 				   rjt->er_explan);
-			/* fall through */
+			fallthrough;
 		case ELS_RJT_UNSUP:
 			FC_FCP_DBG(fsp, "device does not support REC\n");
 			rpriv = fsp->rport->dd_data;
@@ -1615,7 +1615,7 @@ static void fc_fcp_rec_error(struct fc_fcp_pkt *fsp, struct fc_frame *fp)
 		FC_FCP_DBG(fsp, "REC %p fid %6.6x error unexpected error %d\n",
 			   fsp, fsp->rport->port_id, error);
 		fsp->status_code = FC_CMD_PLOGO;
-		/* fall through */
+		fallthrough;
 
 	case -FC_EX_TIMEOUT:
 		/*

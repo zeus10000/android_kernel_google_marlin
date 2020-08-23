@@ -825,7 +825,7 @@ static int subn_set_portinfo(struct ib_smp *smp, struct ib_device *ibdev,
 	case IB_PORT_NOP:
 		if (lstate == 0)
 			break;
-		/* FALLTHROUGH */
+		fallthrough;
 	case IB_PORT_DOWN:
 		if (lstate == 0)
 			lstate = QIB_IB_LINKDOWN_ONLY;
@@ -1925,7 +1925,7 @@ static int process_subn(struct ib_device *ibdev, int mad_flags,
 				ret = IB_MAD_RESULT_SUCCESS;
 				goto bail;
 			}
-			/* FALLTHROUGH */
+			fallthrough;
 		default:
 			smp->status |= IB_SMP_UNSUP_METH_ATTR;
 			ret = reply(smp);
@@ -1959,7 +1959,7 @@ static int process_subn(struct ib_device *ibdev, int mad_flags,
 				ret = IB_MAD_RESULT_SUCCESS;
 				goto bail;
 			}
-			/* FALLTHROUGH */
+			fallthrough;
 		default:
 			smp->status |= IB_SMP_UNSUP_METH_ATTR;
 			ret = reply(smp);
@@ -2338,7 +2338,7 @@ static int process_cc(struct ib_device *ibdev, int mad_flags,
 			ret = cc_get_congestion_control_table(ccp, ibdev, port);
 			goto bail;
 
-			/* FALLTHROUGH */
+			fallthrough;
 		default:
 			ccp->status |= IB_SMP_UNSUP_METH_ATTR;
 			ret = reply((struct ib_smp *) ccp);
@@ -2355,7 +2355,7 @@ static int process_cc(struct ib_device *ibdev, int mad_flags,
 			ret = cc_set_congestion_control_table(ccp, ibdev, port);
 			goto bail;
 
-			/* FALLTHROUGH */
+			fallthrough;
 		default:
 			ccp->status |= IB_SMP_UNSUP_METH_ATTR;
 			ret = reply((struct ib_smp *) ccp);

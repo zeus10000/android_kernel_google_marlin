@@ -509,7 +509,7 @@ int asd_abort_task(struct sas_task *task)
 		switch (tcs.dl_opcode) {
 		default:
 			res = asd_clear_nexus(task);
-			/* fallthrough */
+			fallthrough;
 		case TC_NO_ERROR:
 			break;
 			/* The task hasn't been sent to the device xor

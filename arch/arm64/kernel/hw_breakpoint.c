@@ -258,7 +258,7 @@ static int hw_breakpoint_control(struct perf_event *bp,
 		 * level.
 		 */
 		enable_debug_monitors(dbg_el);
-		/* Fall through */
+		fallthrough;
 	case HW_BREAKPOINT_RESTORE:
 		/* Setup the address register. */
 		write_wb_reg(val_reg, i, info->address);

@@ -124,7 +124,7 @@ int usbnet_get_endpoints(struct usbnet *dev, struct usb_interface *intf)
 				if (!usb_endpoint_dir_in(&e->desc))
 					continue;
 				intr = 1;
-				/* FALLTHROUGH */
+				fallthrough;
 			case USB_ENDPOINT_XFER_BULK:
 				break;
 			default:
@@ -635,7 +635,7 @@ block:
 	/* data overrun ... flush fifo? */
 	case -EOVERFLOW:
 		dev->net->stats.rx_over_errors++;
-		// FALLTHROUGH
+		fallthrough;
 
 	default:
 		state = rx_cleanup;

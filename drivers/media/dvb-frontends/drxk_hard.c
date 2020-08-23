@@ -1781,7 +1781,7 @@ static int setoperation_mode(struct drxk_state *state,
 			goto error;
 		state->m_operation_mode = OM_NONE;
 		break;
-	case OM_QAM_ITU_A:	/* fallthrough */
+	case OM_QAM_ITU_A:
 	case OM_QAM_ITU_C:
 		status = mpegts_stop(state);
 		if (status < 0)
@@ -1808,7 +1808,7 @@ static int setoperation_mode(struct drxk_state *state,
 		if (status < 0)
 			goto error;
 		break;
-	case OM_QAM_ITU_A:	/* fallthrough */
+	case OM_QAM_ITU_A:
 	case OM_QAM_ITU_C:
 		dprintk(1, ": DVB-C Annex %c\n",
 			(state->m_operation_mode == OM_QAM_ITU_A) ? 'A' : 'C');
@@ -2035,7 +2035,7 @@ static int mpegts_dto_setup(struct drxk_state *state,
 		fec_oc_rcn_ctl_rate = 0xC00000;
 		static_clk = state->m_dvbt_static_clk;
 		break;
-	case OM_QAM_ITU_A:	/* fallthrough */
+	case OM_QAM_ITU_A:
 	case OM_QAM_ITU_C:
 		fec_oc_tmd_mode = 0x0004;
 		fec_oc_rcn_ctl_rate = 0xD2B4EE;	/* good for >63 Mb/s */
@@ -3864,7 +3864,7 @@ static int set_dvbt(struct drxk_state *state, u16 intermediate_freqk_hz,
 		WR16(dev_addr, OFDM_EC_SB_PRIOR__A,
 			OFDM_EC_SB_PRIOR_HI));
 		break;
-	case DRX_PRIORITY_UNKNOWN:	/* fall through */
+	case DRX_PRIORITY_UNKNOWN:
 	default:
 		status = -EINVAL;
 		goto error;

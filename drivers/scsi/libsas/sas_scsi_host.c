@@ -635,7 +635,7 @@ static void sas_eh_handle_sas_errors(struct Scsi_Host *shost, struct list_head *
 				sas_scsi_clear_queue_lu(work_q, cmd);
 				goto Again;
 			}
-			/* fallthrough */
+			fallthrough;
 		case TASK_IS_NOT_AT_LU:
 		case TASK_ABORT_FAILED:
 			SAS_DPRINTK("task 0x%p is not at LU: I_T recover\n",

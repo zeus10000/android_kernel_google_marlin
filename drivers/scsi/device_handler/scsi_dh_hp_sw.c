@@ -83,7 +83,7 @@ static int tur_done(struct scsi_device *sdev, unsigned char *sense)
 			ret = SCSI_DH_DEV_OFFLINED;
 			break;
 		}
-		/* Fallthrough */
+		fallthrough;
 	default:
 		sdev_printk(KERN_WARNING, sdev,
 			   "%s: sending tur failed, sense %x/%x/%x\n",

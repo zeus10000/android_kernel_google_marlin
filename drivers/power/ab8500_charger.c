@@ -2488,7 +2488,7 @@ static void ab8500_charger_usb_state_changed_work(struct work_struct *work)
 		 * of 1sec for enabling charging
 		 */
 		msleep(1000);
-		/* Intentional fall through */
+		fallthrough;
 	case AB8500_BM_USB_STATE_CONFIGURED:
 		/*
 		 * USB is configured, enable charging with the charging

@@ -277,7 +277,7 @@ static int iscsi_check_tmf_restrictions(struct iscsi_task *task, int opcode)
 		hdr_lun = scsilun_to_int(&tmf->lun);
 		if (hdr_lun != task->sc->device->lun)
 			return 0;
-		/* fall through */
+		fallthrough;
 	case ISCSI_TM_FUNC_TARGET_WARM_RESET:
 		/*
 		 * Fail all SCSI cmd PDUs
@@ -2277,7 +2277,7 @@ int iscsi_eh_abort(struct scsi_cmnd *sc)
 					      "progress\n");
 			goto success;
 		}
-		/* fall through */
+		fallthrough;
 	default:
 		conn->tmf_state = TMF_INITIAL;
 		goto failed;

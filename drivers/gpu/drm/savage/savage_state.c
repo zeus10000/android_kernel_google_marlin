@@ -1060,7 +1060,7 @@ int savage_bci_cmdbuf(struct drm_device *dev, void *data, struct drm_file *file_
 				ret = -EINVAL;
 				goto done;
 			}
-			/* fall through */
+			fallthrough;
 		case SAVAGE_CMD_DMA_PRIM:
 		case SAVAGE_CMD_VB_PRIM:
 			if (!first_draw_cmd)

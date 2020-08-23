@@ -470,7 +470,7 @@ static void musb_do_idle(unsigned long _musb)
 			dev_dbg(musb->controller, "Nothing connected %s, turning off VBUS\n",
 					usb_otg_state_string(musb->xceiv->otg->state));
 		}
-		/* FALLTHROUGH */
+		fallthrough;
 	case OTG_STATE_A_IDLE:
 		tusb_musb_set_vbus(musb, 0);
 	default:

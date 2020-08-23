@@ -591,7 +591,7 @@ static void qib_qp_rcv(struct qib_ctxtdata *rcd, struct qib_ib_header *hdr,
 	case IB_QPT_GSI:
 		if (ib_qib_disable_sma)
 			break;
-		/* FALLTHROUGH */
+		fallthrough;
 	case IB_QPT_UD:
 		qib_ud_rcv(ibp, hdr, has_grh, data, tlen, qp);
 		break;

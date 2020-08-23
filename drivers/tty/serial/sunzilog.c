@@ -309,7 +309,7 @@ static void sunzilog_kbdms_receive_chars(struct uart_sunzilog_port *up,
 		switch (ret) {
 		case 2:
 			sunzilog_change_mouse_baud(up);
-			/* fallthru */
+			fallthrough;
 		case 1:
 			break;
 

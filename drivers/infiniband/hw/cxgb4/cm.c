@@ -2714,7 +2714,7 @@ static int peer_abort(struct c4iw_dev *dev, struct sk_buff *skb)
 	case MORIBUND:
 	case CLOSING:
 		stop_ep_timer(ep);
-		/*FALLTHROUGH*/
+		fallthrough;
 	case FPDU_MODE:
 		if (ep->com.cm_id && ep->com.qp) {
 			attrs.next_state = C4IW_QP_STATE_ERROR;

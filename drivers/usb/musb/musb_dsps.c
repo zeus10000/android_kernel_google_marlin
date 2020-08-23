@@ -767,7 +767,7 @@ static int dsps_create_musb_pdev(struct dsps_glue *glue,
 	case USB_SPEED_SUPER:
 		dev_warn(dev, "ignore incorrect maximum_speed "
 				"(super-speed) setting in dts");
-		/* fall through */
+		fallthrough;
 	default:
 		config->maximum_speed = USB_SPEED_HIGH;
 	}

@@ -668,7 +668,7 @@ static void gpioirq(unsigned long cookie)
 			iwdebi(av7110, DEBINOSWAP, RX_BUFF, 0, 2);
 			break;
 		}
-		/* fall through */
+		fallthrough;
 
 	case DATA_TS_RECORD:
 	case DATA_PES_RECORD:

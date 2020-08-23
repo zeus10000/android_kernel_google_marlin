@@ -1035,7 +1035,7 @@ handle_restart(struct pt_regs *regs, struct k_sigaction *ka, int has_handler)
 			regs->d0 = -EINTR;
 			break;
 		}
-	/* fallthrough */
+		fallthrough;
 	case -ERESTARTNOINTR:
 	do_restart:
 		regs->d0 = regs->orig_d0;

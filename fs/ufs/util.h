@@ -197,7 +197,7 @@ ufs_get_inode_uid(struct super_block *sb, struct ufs_inode *inode)
 	case UFS_UID_EFT:
 		if (inode->ui_u1.oldids.ui_suid == 0xFFFF)
 			return fs32_to_cpu(sb, inode->ui_u3.ui_sun.ui_uid);
-		/* Fall through */
+		fallthrough;
 	default:
 		return fs16_to_cpu(sb, inode->ui_u1.oldids.ui_suid);
 	}
@@ -215,7 +215,7 @@ ufs_set_inode_uid(struct super_block *sb, struct ufs_inode *inode, u32 value)
 		inode->ui_u3.ui_sun.ui_uid = cpu_to_fs32(sb, value);
 		if (value > 0xFFFF)
 			value = 0xFFFF;
-		/* Fall through */
+		fallthrough;
 	default:
 		inode->ui_u1.oldids.ui_suid = cpu_to_fs16(sb, value);
 		break;
@@ -231,7 +231,7 @@ ufs_get_inode_gid(struct super_block *sb, struct ufs_inode *inode)
 	case UFS_UID_EFT:
 		if (inode->ui_u1.oldids.ui_sgid == 0xFFFF)
 			return fs32_to_cpu(sb, inode->ui_u3.ui_sun.ui_gid);
-		/* Fall through */
+		fallthrough;
 	default:
 		return fs16_to_cpu(sb, inode->ui_u1.oldids.ui_sgid);
 	}
@@ -249,7 +249,7 @@ ufs_set_inode_gid(struct super_block *sb, struct ufs_inode *inode, u32 value)
 		inode->ui_u3.ui_sun.ui_gid = cpu_to_fs32(sb, value);
 		if (value > 0xFFFF)
 			value = 0xFFFF;
-		/* Fall through */
+		fallthrough;
 	default:
 		inode->ui_u1.oldids.ui_sgid =  cpu_to_fs16(sb, value);
 		break;

@@ -3314,7 +3314,7 @@ static int cnic_ctl(void *data, struct cnic_ctl_info *info)
 	}
 	case CNIC_CTL_FCOE_STATS_GET_CMD:
 		ulp_type = CNIC_ULP_FCOE;
-		/* fall through */
+		fallthrough;
 	case CNIC_CTL_ISCSI_STATS_GET_CMD:
 		cnic_hold(dev);
 		cnic_copy_ulp_stats(dev, ulp_type);

@@ -847,7 +847,7 @@ static int sctp_outq_flush(struct sctp_outq *q, int rtx_timeout)
 		case SCTP_CID_ECN_CWR:
 		case SCTP_CID_ASCONF_ACK:
 			one_packet = 1;
-			/* Fall through */
+			fallthrough;
 
 		case SCTP_CID_SACK:
 		case SCTP_CID_HEARTBEAT:

@@ -883,7 +883,6 @@ static int __kvm_set_dr(struct kvm_vcpu *vcpu, int dr, unsigned long val)
 			vcpu->arch.eff_db[dr] = val;
 		break;
 	case 4:
-		/* fall through */
 	case 6:
 		if (val & 0xffffffff00000000ULL)
 			return -1; /* #GP */
@@ -891,7 +890,6 @@ static int __kvm_set_dr(struct kvm_vcpu *vcpu, int dr, unsigned long val)
 		kvm_update_dr6(vcpu);
 		break;
 	case 5:
-		/* fall through */
 	default: /* 7 */
 		if (val & 0xffffffff00000000ULL)
 			return -1; /* #GP */
@@ -922,7 +920,6 @@ int kvm_get_dr(struct kvm_vcpu *vcpu, int dr, unsigned long *val)
 		*val = vcpu->arch.db[array_index_nospec(dr, size)];
 		break;
 	case 4:
-		/* fall through */
 	case 6:
 		if (vcpu->guest_debug & KVM_GUESTDBG_USE_HW_BP)
 			*val = vcpu->arch.dr6;
@@ -930,7 +927,6 @@ int kvm_get_dr(struct kvm_vcpu *vcpu, int dr, unsigned long *val)
 			*val = kvm_x86_ops->get_dr6(vcpu);
 		break;
 	case 5:
-		/* fall through */
 	default: /* 7 */
 		*val = vcpu->arch.dr7;
 		break;
@@ -2265,7 +2261,8 @@ int kvm_set_msr_common(struct kvm_vcpu *vcpu, struct msr_data *msr_info)
 
 	case MSR_K7_PERFCTR0 ... MSR_K7_PERFCTR3:
 	case MSR_P6_PERFCTR0 ... MSR_P6_PERFCTR1:
-		pr = true; /* fall through */
+		pr = true;
+		fallthrough;
 	case MSR_K7_EVNTSEL0 ... MSR_K7_EVNTSEL3:
 	case MSR_P6_EVNTSEL0 ... MSR_P6_EVNTSEL1:
 		if (kvm_pmu_is_valid_msr(vcpu, msr))

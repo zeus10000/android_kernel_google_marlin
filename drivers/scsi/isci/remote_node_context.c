@@ -225,7 +225,7 @@ static void sci_remote_node_context_continue_state_transitions(struct sci_remote
 	case RNC_DEST_READY:
 	case RNC_DEST_SUSPENDED_RESUME:
 		rnc->destination_state = RNC_DEST_READY;
-		/* Fall through... */
+		fallthrough;
 	case RNC_DEST_FINAL:
 		sci_remote_node_context_resume(rnc, rnc->user_callback,
 					       rnc->user_cookie);

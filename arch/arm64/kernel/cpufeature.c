@@ -352,7 +352,7 @@ static s64 arm64_ftr_safe_value(struct arm64_ftr_bits *ftrp, s64 new, s64 cur)
 	case FTR_HIGHER_OR_ZERO_SAFE:
 		if (!cur || !new)
 			break;
-		/* Fallthrough */
+		fallthrough;
 	case FTR_HIGHER_SAFE:
 		ret = new > cur ? new : cur;
 		break;

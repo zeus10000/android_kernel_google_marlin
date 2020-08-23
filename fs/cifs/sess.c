@@ -519,7 +519,7 @@ select_sectype(struct TCP_Server_Info *server, enum securityEnum requested)
 			if ((server->sec_kerberos || server->sec_mskerberos) &&
 			    (global_secflags & CIFSSEC_MAY_KRB5))
 				return Kerberos;
-			/* Fallthrough */
+			fallthrough;
 		default:
 			return Unspecified;
 		}
@@ -544,7 +544,7 @@ select_sectype(struct TCP_Server_Info *server, enum securityEnum requested)
 		case Unspecified:
 			if (global_secflags & CIFSSEC_MAY_LANMAN)
 				return LANMAN;
-			/* Fallthrough */
+			fallthrough;
 		default:
 			return Unspecified;
 		}

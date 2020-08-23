@@ -1777,7 +1777,7 @@ static void dw_mci_tasklet_func(unsigned long priv)
 			}
 
 			prev_state = state = STATE_SENDING_DATA;
-			/* fall through */
+			fallthrough;
 
 		case STATE_SENDING_DATA:
 			/*
@@ -1836,7 +1836,7 @@ static void dw_mci_tasklet_func(unsigned long priv)
 			}
 			prev_state = state = STATE_DATA_BUSY;
 
-			/* fall through */
+			fallthrough;
 
 		case STATE_DATA_BUSY:
 			if (!test_and_clear_bit(EVENT_DATA_COMPLETE,
@@ -1891,7 +1891,7 @@ static void dw_mci_tasklet_func(unsigned long priv)
 			 */
 			prev_state = state = STATE_SENDING_STOP;
 
-			/* fall through */
+			fallthrough;
 
 		case STATE_SENDING_STOP:
 			if (!test_and_clear_bit(EVENT_CMD_COMPLETE,

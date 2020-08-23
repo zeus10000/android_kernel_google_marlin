@@ -903,7 +903,7 @@ char *mac_address_string(char *buf, char *end, u8 *addr,
 
 	case 'R':
 		reversed = true;
-		/* fall through */
+		fallthrough;
 
 	default:
 		separator = ':';
@@ -1269,7 +1269,8 @@ char *uuid_string(char *buf, char *end, const u8 *addr,
 
 	switch (*(++fmt)) {
 	case 'L':
-		uc = true;		/* fall-through */
+		uc = true;
+		fallthrough;
 	case 'l':
 		index = le;
 		break;
@@ -1773,7 +1774,7 @@ qualifier:
 		 * utility, treat it as any other invalid or
 		 * unsupported format specifier.
 		 */
-		/* Fall-through */
+		fallthrough;
 
 	default:
 		WARN_ONCE(1, "Please remove unsupported %%%c in format string\n", *fmt);

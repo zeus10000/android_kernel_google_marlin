@@ -340,7 +340,7 @@ static int cdrom_decode_status(ide_drive_t *drive, u8 stat)
 		 */
 		if (rq->cmd[0] == GPCMD_START_STOP_UNIT)
 			break;
-		/* fall-through */
+		fallthrough;
 	case DATA_PROTECT:
 		/*
 		 * No point in retrying after an illegal request or data

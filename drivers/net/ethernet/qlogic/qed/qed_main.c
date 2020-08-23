@@ -380,7 +380,7 @@ static int qed_set_int_mode(struct qed_dev *cdev, bool force_mode)
 		kfree(int_params->msix_table);
 		if (force_mode)
 			goto out;
-		/* Fallthrough */
+		fallthrough;
 
 	case QED_INT_MODE_MSI:
 		rc = pci_enable_msi(cdev->pdev);
