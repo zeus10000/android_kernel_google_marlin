@@ -124,6 +124,7 @@ enum bpf_cmd {
 	BPF_ENABLE_STATS,
 	BPF_ITER_CREATE,
 	BPF_LINK_DETACH,
+	BPF_PROG_BIND_MAP,
 };
 
 enum bpf_map_type {
@@ -431,6 +432,9 @@ enum {
 
 /* Enable memory-mapping BPF map */
 	BPF_F_MMAPABLE		= (1U << 10),
+
+/* Share perf_event among processes */
+	BPF_F_PRESERVE_ELEMS	= (1U << 11),
 };
 
 /* Flags for BPF_PROG_QUERY. */
@@ -440,6 +444,11 @@ enum {
  * attach_flags with this flag are returned only for directly attached programs.
  */
 #define BPF_F_QUERY_EFFECTIVE	(1U << 0)
+
+/* Flags for BPF_PROG_TEST_RUN */
+
+/* If set, run the test on the cpu specified by bpf_attr.test.cpu */
+#define BPF_F_TEST_RUN_ON_CPU	(1U << 0)
 
 /* type for BPF_ENABLE_STATS */
 enum bpf_stats_type {
@@ -583,6 +592,8 @@ union bpf_attr {
 						 */
 		__aligned_u64	ctx_in;
 		__aligned_u64	ctx_out;
+		__u32		flags;
+		__u32		cpu;
 	} test;
 
 	struct { /* anonymous struct used by BPF_*_GET_*_ID */
@@ -680,6 +691,12 @@ union bpf_attr {
 		__u32		link_fd;
 		__u32		flags;
 	} iter_create;
+
+	struct { /* struct used by BPF_PROG_BIND_MAP command */
+		__u32		prog_fd;
+		__u32		map_fd;
+		__u32		flags;		/* extra flags */
+	} prog_bind_map;
 
 } __attribute__((aligned(8)));
 
@@ -799,7 +816,7 @@ union bpf_attr {
  *
  * 		Also, note that **bpf_trace_printk**\ () is slow, and should
  * 		only be used for debugging purposes. For this reason, a notice
- * 		bloc (spanning several lines) is printed to kernel logs and
+ * 		block (spanning several lines) is printed to kernel logs and
  * 		states that the helper should not be used "for production use"
  * 		the first time this helper is used (or more precisely, when
  * 		**trace_printk**\ () buffers are allocated). For passing values
@@ -1065,14 +1082,14 @@ union bpf_attr {
  *
  * 			int ret;
  * 			struct bpf_tunnel_key key = {};
- * 			
+ *
  * 			ret = bpf_skb_get_tunnel_key(skb, &key, sizeof(key), 0);
  * 			if (ret < 0)
  * 				return TC_ACT_SHOT;	// drop packet
- * 			
+ *
  * 			if (key.remote_ipv4 != 0x0a000001)
  * 				return TC_ACT_SHOT;	// drop packet
- * 			
+ *
  * 			return TC_ACT_OK;		// accept packet
  *
  * 		This interface can also be used with all encapsulation devices
@@ -1179,7 +1196,7 @@ union bpf_attr {
  * 	Description
  * 		Retrieve the realm or the route, that is to say the
  * 		**tclassid** field of the destination for the *skb*. The
- * 		indentifier retrieved is a user-provided tag, similar to the
+ * 		identifier retrieved is a user-provided tag, similar to the
  * 		one used with the net_cls cgroup (see description for
  * 		**bpf_get_cgroup_classid**\ () helper), but here this tag is
  * 		held by a route (a destination entry), not by a task.
@@ -1470,8 +1487,8 @@ union bpf_attr {
  * 	Return
  * 		The return value depends on the result of the test, and can be:
  *
- * 		* 0, if the *skb* task belongs to the cgroup2.
- * 		* 1, if the *skb* task does not belong to the cgroup2.
+ *		* 0, if current task belongs to the cgroup2.
+ *		* 1, if current task does not belong to the cgroup2.
  * 		* A negative error code, if an error occurred.
  *
  * long bpf_skb_change_tail(struct sk_buff *skb, u32 len, u64 flags)
@@ -2528,7 +2545,7 @@ union bpf_attr {
  *		result is from *reuse*\ **->socks**\ [] using the hash of the
  *		tuple.
  *
- * long bpf_sk_release(struct bpf_sock *sock)
+ * long bpf_sk_release(void *sock)
  *	Description
  *		Release the reference held by *sock*. *sock* must be a
  *		non-**NULL** pointer that was returned from
@@ -2708,7 +2725,7 @@ union bpf_attr {
  *		result is from *reuse*\ **->socks**\ [] using the hash of the
  *		tuple.
  *
- * long bpf_tcp_check_syncookie(struct bpf_sock *sk, void *iph, u32 iph_len, struct tcphdr *th, u32 th_len)
+ * long bpf_tcp_check_syncookie(void *sk, void *iph, u32 iph_len, struct tcphdr *th, u32 th_len)
  * 	Description
  * 		Check whether *iph* and *th* contain a valid SYN cookie ACK for
  * 		the listening socket in *sk*.
@@ -2839,7 +2856,7 @@ union bpf_attr {
  *
  *		**-ERANGE** if resulting value was out of range.
  *
- * void *bpf_sk_storage_get(struct bpf_map *map, struct bpf_sock *sk, void *value, u64 flags)
+ * void *bpf_sk_storage_get(struct bpf_map *map, void *sk, void *value, u64 flags)
  *	Description
  *		Get a bpf-local-storage from a *sk*.
  *
@@ -2855,6 +2872,9 @@ union bpf_attr {
  *		"type". The bpf-local-storage "type" (i.e. the *map*) is
  *		searched against all bpf-local-storages residing at *sk*.
  *
+ *		*sk* is a kernel **struct sock** pointer for LSM program.
+ *		*sk* is a **struct bpf_sock** pointer for other program types.
+ *
  *		An optional *flags* (**BPF_SK_STORAGE_GET_F_CREATE**) can be
  *		used such that a new bpf-local-storage will be
  *		created if one does not exist.  *value* can be used
@@ -2867,13 +2887,14 @@ union bpf_attr {
  *		**NULL** if not found or there was an error in adding
  *		a new bpf-local-storage.
  *
- * long bpf_sk_storage_delete(struct bpf_map *map, struct bpf_sock *sk)
+ * long bpf_sk_storage_delete(struct bpf_map *map, void *sk)
  *	Description
  *		Delete a bpf-local-storage from a *sk*.
  *	Return
  *		0 on success.
  *
  *		**-ENOENT** if the bpf-local-storage cannot be found.
+ *		**-EINVAL** if sk is not a fullsock (e.g. a request_sock).
  *
  * long bpf_send_signal(u32 sig)
  *	Description
@@ -2890,7 +2911,7 @@ union bpf_attr {
  *
  *		**-EAGAIN** if bpf program can try again.
  *
- * s64 bpf_tcp_gen_syncookie(struct bpf_sock *sk, void *iph, u32 iph_len, struct tcphdr *th, u32 th_len)
+ * s64 bpf_tcp_gen_syncookie(void *sk, void *iph, u32 iph_len, struct tcphdr *th, u32 th_len)
  *	Description
  *		Try to issue a SYN cookie for the packet with corresponding
  *		IP/TCP headers, *iph* and *th*, on the listening socket in *sk*.
@@ -3119,7 +3140,7 @@ union bpf_attr {
  * 	Return
  * 		The id is returned or 0 in case the id could not be retrieved.
  *
- * long bpf_sk_assign(struct sk_buff *skb, struct bpf_sock *sk, u64 flags)
+ * long bpf_sk_assign(struct sk_buff *skb, void *sk, u64 flags)
  *	Description
  *		Helper is overloaded depending on BPF program type. This
  *		description applies to **BPF_PROG_TYPE_SCHED_CLS** and
@@ -3247,11 +3268,11 @@ union bpf_attr {
  *
  *		**-EOVERFLOW** if an overflow happened: The same object will be tried again.
  *
- * u64 bpf_sk_cgroup_id(struct bpf_sock *sk)
+ * u64 bpf_sk_cgroup_id(void *sk)
  *	Description
  *		Return the cgroup v2 id of the socket *sk*.
  *
- *		*sk* must be a non-**NULL** pointer to a full socket, e.g. one
+ *		*sk* must be a non-**NULL** pointer to a socket, e.g. one
  *		returned from **bpf_sk_lookup_xxx**\ (),
  *		**bpf_sk_fullsock**\ (), etc. The format of returned id is
  *		same as in **bpf_skb_cgroup_id**\ ().
@@ -3261,7 +3282,7 @@ union bpf_attr {
  *	Return
  *		The id is returned or 0 in case the id could not be retrieved.
  *
- * u64 bpf_sk_ancestor_cgroup_id(struct bpf_sock *sk, int ancestor_level)
+ * u64 bpf_sk_ancestor_cgroup_id(void *sk, int ancestor_level)
  *	Description
  *		Return id of cgroup v2 that is ancestor of cgroup associated
  *		with the *sk* at the *ancestor_level*.  The root cgroup is at
@@ -3369,38 +3390,38 @@ union bpf_attr {
  *	Description
  *		Dynamically cast a *sk* pointer to a *tcp6_sock* pointer.
  *	Return
- *		*sk* if casting is valid, or NULL otherwise.
+ *		*sk* if casting is valid, or **NULL** otherwise.
  *
  * struct tcp_sock *bpf_skc_to_tcp_sock(void *sk)
  *	Description
  *		Dynamically cast a *sk* pointer to a *tcp_sock* pointer.
  *	Return
- *		*sk* if casting is valid, or NULL otherwise.
+ *		*sk* if casting is valid, or **NULL** otherwise.
  *
  * struct tcp_timewait_sock *bpf_skc_to_tcp_timewait_sock(void *sk)
  * 	Description
  *		Dynamically cast a *sk* pointer to a *tcp_timewait_sock* pointer.
  *	Return
- *		*sk* if casting is valid, or NULL otherwise.
+ *		*sk* if casting is valid, or **NULL** otherwise.
  *
  * struct tcp_request_sock *bpf_skc_to_tcp_request_sock(void *sk)
  * 	Description
  *		Dynamically cast a *sk* pointer to a *tcp_request_sock* pointer.
  *	Return
- *		*sk* if casting is valid, or NULL otherwise.
+ *		*sk* if casting is valid, or **NULL** otherwise.
  *
  * struct udp6_sock *bpf_skc_to_udp6_sock(void *sk)
  * 	Description
  *		Dynamically cast a *sk* pointer to a *udp6_sock* pointer.
  *	Return
- *		*sk* if casting is valid, or NULL otherwise.
+ *		*sk* if casting is valid, or **NULL** otherwise.
  *
  * long bpf_get_task_stack(struct task_struct *task, void *buf, u32 size, u64 flags)
  *	Description
  *		Return a user or a kernel stack in bpf program provided buffer.
  *		To achieve this, the helper needs *task*, which is a valid
- *		pointer to struct task_struct. To store the stacktrace, the
- *		bpf program provides *buf* with	a nonnegative *size*.
+ *		pointer to **struct task_struct**. To store the stacktrace, the
+ *		bpf program provides *buf* with a nonnegative *size*.
  *
  *		The last argument, *flags*, holds the number of stack frames to
  *		skip (from 0 to 255), masked with
@@ -3430,12 +3451,12 @@ union bpf_attr {
  * long bpf_load_hdr_opt(struct bpf_sock_ops *skops, void *searchby_res, u32 len, u64 flags)
  *	Description
  *		Load header option.  Support reading a particular TCP header
- *		option for bpf program (BPF_PROG_TYPE_SOCK_OPS).
+ *		option for bpf program (**BPF_PROG_TYPE_SOCK_OPS**).
  *
  *		If *flags* is 0, it will search the option from the
- *		sock_ops->skb_data.  The comment in "struct bpf_sock_ops"
+ *		*skops*\ **->skb_data**.  The comment in **struct bpf_sock_ops**
  *		has details on what skb_data contains under different
- *		sock_ops->op.
+ *		*skops*\ **->op**.
  *
  *		The first byte of the *searchby_res* specifies the
  *		kind that it wants to search.
@@ -3455,7 +3476,7 @@ union bpf_attr {
  *		[ 254, 4, 0xeB, 0x9F, 0, 0, .... 0 ].
  *
  *		To search for the standard window scale option (3),
- *		the searchby_res should be [ 3, 0, 0, .... 0 ].
+ *		the *searchby_res* should be [ 3, 0, 0, .... 0 ].
  *		Note, kind-length must be 0 for regular option.
  *
  *		Searching for No-Op (0) and End-of-Option-List (1) are
@@ -3465,27 +3486,30 @@ union bpf_attr {
  *		of a header option.
  *
  *		Supported flags:
+ *
  *		* **BPF_LOAD_HDR_OPT_TCP_SYN** to search from the
  *		  saved_syn packet or the just-received syn packet.
  *
  *	Return
- *		>0 when found, the header option is copied to *searchby_res*.
- *		The return value is the total length copied.
+ *		> 0 when found, the header option is copied to *searchby_res*.
+ *		The return value is the total length copied. On failure, a
+ *		negative error code is returned:
  *
- *		**-EINVAL** If param is invalid
+ *		**-EINVAL** if a parameter is invalid.
  *
- *		**-ENOMSG** The option is not found
+ *		**-ENOMSG** if the option is not found.
  *
- *		**-ENOENT** No syn packet available when
- *			    **BPF_LOAD_HDR_OPT_TCP_SYN** is used
+ *		**-ENOENT** if no syn packet is available when
+ *		**BPF_LOAD_HDR_OPT_TCP_SYN** is used.
  *
- *		**-ENOSPC** Not enough space.  Only *len* number of
- *			    bytes are copied.
+ *		**-ENOSPC** if there is not enough space.  Only *len* number of
+ *		bytes are copied.
  *
- *		**-EFAULT** Cannot parse the header options in the packet
+ *		**-EFAULT** on failure to parse the header options in the
+ *		packet.
  *
- *		**-EPERM** This helper cannot be used under the
- *			   current sock_ops->op.
+ *		**-EPERM** if the helper cannot be used under the current
+ *		*skops*\ **->op**.
  *
  * long bpf_store_hdr_opt(struct bpf_sock_ops *skops, const void *from, u32 len, u64 flags)
  *	Description
@@ -3503,44 +3527,45 @@ union bpf_attr {
  *		by searching the same option in the outgoing skb.
  *
  *		This helper can only be called during
- *		BPF_SOCK_OPS_WRITE_HDR_OPT_CB.
+ *		**BPF_SOCK_OPS_WRITE_HDR_OPT_CB**.
  *
  *	Return
  *		0 on success, or negative error in case of failure:
  *
- *		**-EINVAL** If param is invalid
+ *		**-EINVAL** If param is invalid.
  *
- *		**-ENOSPC** Not enough space in the header.
- *			    Nothing has been written
+ *		**-ENOSPC** if there is not enough space in the header.
+ *		Nothing has been written
  *
- *		**-EEXIST** The option has already existed
+ *		**-EEXIST** if the option already exists.
  *
- *		**-EFAULT** Cannot parse the existing header options
+ *		**-EFAULT** on failrue to parse the existing header options.
  *
- *		**-EPERM** This helper cannot be used under the
- *			   current sock_ops->op.
+ *		**-EPERM** if the helper cannot be used under the current
+ *		*skops*\ **->op**.
  *
  * long bpf_reserve_hdr_opt(struct bpf_sock_ops *skops, u32 len, u64 flags)
  *	Description
  *		Reserve *len* bytes for the bpf header option.  The
- *		space will be used by bpf_store_hdr_opt() later in
- *		BPF_SOCK_OPS_WRITE_HDR_OPT_CB.
+ *		space will be used by **bpf_store_hdr_opt**\ () later in
+ *		**BPF_SOCK_OPS_WRITE_HDR_OPT_CB**.
  *
- *		If bpf_reserve_hdr_opt() is called multiple times,
+ *		If **bpf_reserve_hdr_opt**\ () is called multiple times,
  *		the total number of bytes will be reserved.
  *
  *		This helper can only be called during
- *		BPF_SOCK_OPS_HDR_OPT_LEN_CB.
+ *		**BPF_SOCK_OPS_HDR_OPT_LEN_CB**.
  *
  *	Return
  *		0 on success, or negative error in case of failure:
  *
- *		**-EINVAL** if param is invalid
+ *		**-EINVAL** if a parameter is invalid.
  *
- *		**-ENOSPC** Not enough space in the header.
+ *		**-ENOSPC** if there is not enough space in the header.
  *
- *		**-EPERM** This helper cannot be used under the
- *			   current sock_ops->op.
+ *		**-EPERM** if the helper cannot be used under the current
+ *		*skops*\ **->op**.
+ *
  * void *bpf_inode_storage_get(struct bpf_map *map, void *inode, void *value, u64 flags)
  *	Description
  *		Get a bpf_local_storage from an *inode*.
@@ -3576,6 +3601,108 @@ union bpf_attr {
  *		0 on success.
  *
  *		**-ENOENT** if the bpf_local_storage cannot be found.
+ *
+ * long bpf_d_path(struct path *path, char *buf, u32 sz)
+ *	Description
+ *		Return full path for given **struct path** object, which
+ *		needs to be the kernel BTF *path* object. The path is
+ *		returned in the provided buffer *buf* of size *sz* and
+ *		is zero terminated.
+ *
+ *	Return
+ *		On success, the strictly positive length of the string,
+ *		including the trailing NUL character. On error, a negative
+ *		value.
+ *
+ * long bpf_copy_from_user(void *dst, u32 size, const void *user_ptr)
+ * 	Description
+ * 		Read *size* bytes from user space address *user_ptr* and store
+ * 		the data in *dst*. This is a wrapper of **copy_from_user**\ ().
+ * 	Return
+ * 		0 on success, or a negative error in case of failure.
+ *
+ * long bpf_snprintf_btf(char *str, u32 str_size, struct btf_ptr *ptr, u32 btf_ptr_size, u64 flags)
+ *	Description
+ *		Use BTF to store a string representation of *ptr*->ptr in *str*,
+ *		using *ptr*->type_id.  This value should specify the type
+ *		that *ptr*->ptr points to. LLVM __builtin_btf_type_id(type, 1)
+ *		can be used to look up vmlinux BTF type ids. Traversing the
+ *		data structure using BTF, the type information and values are
+ *		stored in the first *str_size* - 1 bytes of *str*.  Safe copy of
+ *		the pointer data is carried out to avoid kernel crashes during
+ *		operation.  Smaller types can use string space on the stack;
+ *		larger programs can use map data to store the string
+ *		representation.
+ *
+ *		The string can be subsequently shared with userspace via
+ *		bpf_perf_event_output() or ring buffer interfaces.
+ *		bpf_trace_printk() is to be avoided as it places too small
+ *		a limit on string size to be useful.
+ *
+ *		*flags* is a combination of
+ *
+ *		**BTF_F_COMPACT**
+ *			no formatting around type information
+ *		**BTF_F_NONAME**
+ *			no struct/union member names/types
+ *		**BTF_F_PTR_RAW**
+ *			show raw (unobfuscated) pointer values;
+ *			equivalent to printk specifier %px.
+ *		**BTF_F_ZERO**
+ *			show zero-valued struct/union members; they
+ *			are not displayed by default
+ *
+ *	Return
+ *		The number of bytes that were written (or would have been
+ *		written if output had to be truncated due to string size),
+ *		or a negative error in cases of failure.
+ *
+ * long bpf_seq_printf_btf(struct seq_file *m, struct btf_ptr *ptr, u32 ptr_size, u64 flags)
+ *	Description
+ *		Use BTF to write to seq_write a string representation of
+ *		*ptr*->ptr, using *ptr*->type_id as per bpf_snprintf_btf().
+ *		*flags* are identical to those used for bpf_snprintf_btf.
+ *	Return
+ *		0 on success or a negative error in case of failure.
+ *
+ * u64 bpf_skb_cgroup_classid(struct sk_buff *skb)
+ * 	Description
+ * 		See **bpf_get_cgroup_classid**\ () for the main description.
+ * 		This helper differs from **bpf_get_cgroup_classid**\ () in that
+ * 		the cgroup v1 net_cls class is retrieved only from the *skb*'s
+ * 		associated socket instead of the current process.
+ * 	Return
+ * 		The id is returned or 0 in case the id could not be retrieved.
+ *
+ * long bpf_redirect_neigh(u32 ifindex, u64 flags)
+ * 	Description
+ * 		Redirect the packet to another net device of index *ifindex*
+ * 		and fill in L2 addresses from neighboring subsystem. This helper
+ * 		is somewhat similar to **bpf_redirect**\ (), except that it
+ * 		fills in e.g. MAC addresses based on the L3 information from
+ * 		the packet. This helper is supported for IPv4 and IPv6 protocols.
+ * 		The *flags* argument is reserved and must be 0. The helper is
+ * 		currently only supported for tc BPF program types.
+ * 	Return
+ * 		The helper returns **TC_ACT_REDIRECT** on success or
+ * 		**TC_ACT_SHOT** on error.
+ *
+ * void *bpf_per_cpu_ptr(const void *percpu_ptr, u32 cpu)
+ *     Description
+ *             Take a pointer to a percpu ksym, *percpu_ptr*, and return a
+ *             pointer to the percpu kernel variable on *cpu*. A ksym is an
+ *             extern variable decorated with '__ksym'. For ksym, there is a
+ *             global var (either static or global) defined of the same name
+ *             in the kernel. The ksym is percpu if the global var is percpu.
+ *             The returned pointer points to the global percpu var on *cpu*.
+ *
+ *             bpf_per_cpu_ptr() has the same semantic as per_cpu_ptr() in the
+ *             kernel, except that bpf_per_cpu_ptr() may return NULL. This
+ *             happens if *cpu* is larger than nr_cpu_ids. The caller of
+ *             bpf_per_cpu_ptr() must check the returned value.
+ *     Return
+ *             A pointer pointing to the kernel percpu variable on *cpu*, or
+ *             NULL, if *cpu* is invalid.
  */
 #define __BPF_FUNC_MAPPER(FN)		\
 	FN(unspec),			\
@@ -3725,6 +3852,13 @@ union bpf_attr {
 	FN(reserve_hdr_opt),		\
 	FN(inode_storage_get),		\
 	FN(inode_storage_delete),	\
+	FN(d_path),			\
+	FN(copy_from_user),		\
+	FN(snprintf_btf),		\
+	FN(seq_printf_btf),		\
+	FN(skb_cgroup_classid),		\
+	FN(redirect_neigh),		\
+	FN(bpf_per_cpu_ptr),            \
 	/* */
 
 /* integer value in 'imm' field of BPF_CALL instruction selects which helper
@@ -4265,8 +4399,10 @@ struct bpf_link_info {
 			__aligned_u64 target_name; /* in/out: target_name buffer ptr */
 			__u32 target_name_len;	   /* in/out: target_name buffer len */
 			union {
-				__u32 map_id;
-			} map;
+				struct {
+					__u32 map_id;
+				} map;
+			};
 		} iter;
 		struct  {
 			__u32 netns_ino;
@@ -4829,6 +4965,36 @@ struct bpf_sk_lookup {
 	__u32 local_ip4;	/* Network byte order */
 	__u32 local_ip6[4];	/* Network byte order */
 	__u32 local_port;	/* Host byte order */
+};
+
+/*
+ * struct btf_ptr is used for typed pointer representation; the
+ * type id is used to render the pointer data as the appropriate type
+ * via the bpf_snprintf_btf() helper described above.  A flags field -
+ * potentially to specify additional details about the BTF pointer
+ * (rather than its mode of display) - is included for future use.
+ * Display flags - BTF_F_* - are passed to bpf_snprintf_btf separately.
+ */
+struct btf_ptr {
+	void *ptr;
+	__u32 type_id;
+	__u32 flags;		/* BTF ptr flags; unused at present. */
+};
+
+/*
+ * Flags to control bpf_snprintf_btf() behaviour.
+ *     - BTF_F_COMPACT: no formatting around type information
+ *     - BTF_F_NONAME: no struct/union member names/types
+ *     - BTF_F_PTR_RAW: show raw (unobfuscated) pointer values;
+ *       equivalent to %px.
+ *     - BTF_F_ZERO: show zero-valued struct/union members; they
+ *       are not displayed by default
+ */
+enum {
+	BTF_F_COMPACT	=	(1ULL << 0),
+	BTF_F_NONAME	=	(1ULL << 1),
+	BTF_F_PTR_RAW	=	(1ULL << 2),
+	BTF_F_ZERO	=	(1ULL << 3),
 };
 
 #endif /* _UAPI__LINUX_BPF_H__ */
