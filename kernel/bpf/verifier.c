@@ -5475,7 +5475,7 @@ static int adjust_ptr_min_max_vals(struct bpf_verifier_env *env,
 		/* smin_val represents the known value */
 		if (known && smin_val == 0 && opcode == BPF_ADD)
 			break;
-		/* fall-through */
+		fallthrough;
 	case PTR_TO_PACKET_END:
 	case PTR_TO_SOCKET:
 	case PTR_TO_SOCKET_OR_NULL:
