@@ -216,6 +216,7 @@ enum bpf_attach_type {
 #define BPF_F_ALLOW_MULTI	(1U << 1)
 
 #define BPF_PSEUDO_MAP_FD	1
+#define BPF_PSEUDO_CALL		1	/* reg[imm] is address of another bpf prog */
 
 /* flags for BPF_MAP_UPDATE_ELEM command */
 #define BPF_ANY		0 /* create new element or update existing */
