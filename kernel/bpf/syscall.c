@@ -354,7 +354,7 @@ static int bpf_obj_name_cpy(char *dst, const char *src)
 	return 0;
 }
 
-#define BPF_MAP_CREATE_LAST_FIELD map_name
+#define BPF_MAP_CREATE_LAST_FIELD btf_value_type_id
 /* called via syscall */
 static int map_create(union bpf_attr *attr)
 {
@@ -364,6 +364,13 @@ static int map_create(union bpf_attr *attr)
 
 	err = CHECK_ATTR(BPF_MAP_CREATE);
 	if (err)
+		return -EINVAL;
+
+	/* Reject BTF usage - not supported in this kernel */
+	if (attr->btf_fd || attr->btf_key_type_id || attr->btf_value_type_id)
+		return -EINVAL;
+	/* Reject hardware offload - not supported */
+	if (attr->map_ifindex)
 		return -EINVAL;
 
 	f_flags = bpf_get_file_flag(attr->map_flags);

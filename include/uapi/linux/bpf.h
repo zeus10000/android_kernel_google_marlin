@@ -231,6 +231,7 @@ enum bpf_attach_type {
  * across different LRU lists.
  */
 #define BPF_F_NO_COMMON_LRU	(1U << 1)
+#define BPF_F_NUMA_NODE		(1U << 2)	/* the map has a numa node */
 
 /* Flags for accessing BPF object */
 #define BPF_F_RDONLY		(1U << 3)
@@ -248,7 +249,14 @@ union bpf_attr {
 		__u32	value_size;	/* size of value in bytes */
 		__u32	max_entries;	/* max number of entries in a map */
 		__u32	map_flags;	/* prealloc or not */
+		__u32	inner_map_fd;	/* fd pointing to the inner map */
+		__u32	numa_node;	/* numa node (effective only if
+					 * BPF_F_NUMA_NODE is set) */
 		__u8	map_name[BPF_OBJ_NAME_LEN];
+		__u32	map_ifindex;	/* ifindex of netdev to create on */
+		__u32	btf_fd;		/* fd pointing to a BTF type data */
+		__u32	btf_key_type_id;	/* BTF type_id of the key */
+		__u32	btf_value_type_id;	/* BTF type_id of the value */
 	};
 
 	struct { /* anonymous struct used by BPF_MAP_*_ELEM commands */
