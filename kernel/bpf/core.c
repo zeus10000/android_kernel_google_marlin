@@ -1006,6 +1006,30 @@ static unsigned int __bpf_prog_run(const struct sk_buff *ctx, const struct bpf_i
 		[BPF_JMP | BPF_JSET | BPF_K] = &&JMP_JSET_K,
 		/* Program return */
 		[BPF_JMP | BPF_EXIT] = &&JMP_EXIT,
+		/* 32-bit jump instructions */
+		[BPF_JMP32 | BPF_JA] = &&JMP_JA,
+		[BPF_JMP32 | BPF_JEQ | BPF_X] = &&JMP32_JEQ_X,
+		[BPF_JMP32 | BPF_JEQ | BPF_K] = &&JMP32_JEQ_K,
+		[BPF_JMP32 | BPF_JNE | BPF_X] = &&JMP32_JNE_X,
+		[BPF_JMP32 | BPF_JNE | BPF_K] = &&JMP32_JNE_K,
+		[BPF_JMP32 | BPF_JGT | BPF_X] = &&JMP32_JGT_X,
+		[BPF_JMP32 | BPF_JGT | BPF_K] = &&JMP32_JGT_K,
+		[BPF_JMP32 | BPF_JLT | BPF_X] = &&JMP32_JLT_X,
+		[BPF_JMP32 | BPF_JLT | BPF_K] = &&JMP32_JLT_K,
+		[BPF_JMP32 | BPF_JGE | BPF_X] = &&JMP32_JGE_X,
+		[BPF_JMP32 | BPF_JGE | BPF_K] = &&JMP32_JGE_K,
+		[BPF_JMP32 | BPF_JLE | BPF_X] = &&JMP32_JLE_X,
+		[BPF_JMP32 | BPF_JLE | BPF_K] = &&JMP32_JLE_K,
+		[BPF_JMP32 | BPF_JSGT | BPF_X] = &&JMP32_JSGT_X,
+		[BPF_JMP32 | BPF_JSGT | BPF_K] = &&JMP32_JSGT_K,
+		[BPF_JMP32 | BPF_JSLT | BPF_X] = &&JMP32_JSLT_X,
+		[BPF_JMP32 | BPF_JSLT | BPF_K] = &&JMP32_JSLT_K,
+		[BPF_JMP32 | BPF_JSGE | BPF_X] = &&JMP32_JSGE_X,
+		[BPF_JMP32 | BPF_JSGE | BPF_K] = &&JMP32_JSGE_K,
+		[BPF_JMP32 | BPF_JSLE | BPF_X] = &&JMP32_JSLE_X,
+		[BPF_JMP32 | BPF_JSLE | BPF_K] = &&JMP32_JSLE_K,
+		[BPF_JMP32 | BPF_JSET | BPF_X] = &&JMP32_JSET_X,
+		[BPF_JMP32 | BPF_JSET | BPF_K] = &&JMP32_JSET_K,
 		/* Store instructions */
 		[BPF_STX | BPF_MEM | BPF_B] = &&STX_MEM_B,
 		[BPF_STX | BPF_MEM | BPF_H] = &&STX_MEM_H,
@@ -1331,6 +1355,139 @@ out:
 		CONT;
 	JMP_JSET_K:
 		if (DST & IMM) {
+			insn += insn->off;
+			CONT_JMP;
+		}
+		CONT;
+	/* 32-bit JMP instructions (compare low 32 bits only) */
+	JMP32_JEQ_X:
+		if ((u32)DST == (u32)SRC) {
+			insn += insn->off;
+			CONT_JMP;
+		}
+		CONT;
+	JMP32_JEQ_K:
+		if ((u32)DST == (u32)IMM) {
+			insn += insn->off;
+			CONT_JMP;
+		}
+		CONT;
+	JMP32_JNE_X:
+		if ((u32)DST != (u32)SRC) {
+			insn += insn->off;
+			CONT_JMP;
+		}
+		CONT;
+	JMP32_JNE_K:
+		if ((u32)DST != (u32)IMM) {
+			insn += insn->off;
+			CONT_JMP;
+		}
+		CONT;
+	JMP32_JGT_X:
+		if ((u32)DST > (u32)SRC) {
+			insn += insn->off;
+			CONT_JMP;
+		}
+		CONT;
+	JMP32_JGT_K:
+		if ((u32)DST > (u32)IMM) {
+			insn += insn->off;
+			CONT_JMP;
+		}
+		CONT;
+	JMP32_JLT_X:
+		if ((u32)DST < (u32)SRC) {
+			insn += insn->off;
+			CONT_JMP;
+		}
+		CONT;
+	JMP32_JLT_K:
+		if ((u32)DST < (u32)IMM) {
+			insn += insn->off;
+			CONT_JMP;
+		}
+		CONT;
+	JMP32_JGE_X:
+		if ((u32)DST >= (u32)SRC) {
+			insn += insn->off;
+			CONT_JMP;
+		}
+		CONT;
+	JMP32_JGE_K:
+		if ((u32)DST >= (u32)IMM) {
+			insn += insn->off;
+			CONT_JMP;
+		}
+		CONT;
+	JMP32_JLE_X:
+		if ((u32)DST <= (u32)SRC) {
+			insn += insn->off;
+			CONT_JMP;
+		}
+		CONT;
+	JMP32_JLE_K:
+		if ((u32)DST <= (u32)IMM) {
+			insn += insn->off;
+			CONT_JMP;
+		}
+		CONT;
+	JMP32_JSGT_X:
+		if (((s32)DST) > ((s32)SRC)) {
+			insn += insn->off;
+			CONT_JMP;
+		}
+		CONT;
+	JMP32_JSGT_K:
+		if (((s32)DST) > ((s32)IMM)) {
+			insn += insn->off;
+			CONT_JMP;
+		}
+		CONT;
+	JMP32_JSLT_X:
+		if (((s32)DST) < ((s32)SRC)) {
+			insn += insn->off;
+			CONT_JMP;
+		}
+		CONT;
+	JMP32_JSLT_K:
+		if (((s32)DST) < ((s32)IMM)) {
+			insn += insn->off;
+			CONT_JMP;
+		}
+		CONT;
+	JMP32_JSGE_X:
+		if (((s32)DST) >= ((s32)SRC)) {
+			insn += insn->off;
+			CONT_JMP;
+		}
+		CONT;
+	JMP32_JSGE_K:
+		if (((s32)DST) >= ((s32)IMM)) {
+			insn += insn->off;
+			CONT_JMP;
+		}
+		CONT;
+	JMP32_JSLE_X:
+		if (((s32)DST) <= ((s32)SRC)) {
+			insn += insn->off;
+			CONT_JMP;
+		}
+		CONT;
+	JMP32_JSLE_K:
+		if (((s32)DST) <= ((s32)IMM)) {
+			insn += insn->off;
+			CONT_JMP;
+		}
+		CONT;
+	JMP32_JSET_X:
+		if ((u32)DST & (u32)SRC) {
+			insn += insn->off;
+			CONT_JMP;
+		}
+		CONT;
+	JMP32_JSET_K:
+		if ((u32)DST & (u32)IMM) {
 			insn += insn->off;
 			CONT_JMP;
 		}

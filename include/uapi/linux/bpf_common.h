@@ -9,6 +9,7 @@
 #define		BPF_STX		0x03
 #define		BPF_ALU		0x04
 #define		BPF_JMP		0x05
+#define		BPF_JMP32	0x06	/* jmp mode in 32-bit subregisters */
 #define		BPF_RET		0x06
 #define		BPF_MISC        0x07
 

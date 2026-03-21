@@ -238,7 +238,7 @@ static const char *const bpf_class_string[] = {
 	[BPF_STX]   = "stx",
 	[BPF_ALU]   = "alu",
 	[BPF_JMP]   = "jmp",
-	[BPF_RET]   = "BUG",
+	[BPF_JMP32] = "jmp32",
 	[BPF_ALU64] = "alu64",
 };
 
@@ -2644,6 +2644,34 @@ peek_stack:
 			else if (ret < 0)
 				goto err_free;
 		}
+	} else if (BPF_CLASS(insns[t].code) == BPF_JMP32) {
+		u8 opcode = BPF_OP(insns[t].code);
+
+		if (opcode == BPF_JA) {
+			/* unconditional jump with single edge */
+			ret = push_insn(t, t + insns[t].off + 1,
+					FALLTHROUGH, env, true);
+			if (ret == 1)
+				goto peek_stack;
+			else if (ret < 0)
+				goto err_free;
+			if (t + 1 < insn_cnt)
+				env->explored_states[t + 1] = STATE_LIST_MARK;
+		} else {
+			/* conditional jump with two edges */
+			env->explored_states[t] = STATE_LIST_MARK;
+			ret = push_insn(t, t + 1, FALLTHROUGH, env, true);
+			if (ret == 1)
+				goto peek_stack;
+			else if (ret < 0)
+				goto err_free;
+
+			ret = push_insn(t, t + insns[t].off + 1, BRANCH, env, true);
+			if (ret == 1)
+				goto peek_stack;
+			else if (ret < 0)
+				goto err_free;
+		}
 	} else {
 		/* all other non-branch instructions with single
 		 * fall-through edge
@@ -3137,6 +3165,24 @@ process_bpf_exit:
 					do_print_state = true;
 					continue;
 				}
+			} else {
+				err = check_cond_jmp_op(env, insn, &insn_idx);
+				if (err)
+					return err;
+			}
+		} else if (class == BPF_JMP32) {
+			u8 opcode = BPF_OP(insn->code);
+
+			if (opcode == BPF_JA) {
+				if (BPF_SRC(insn->code) != BPF_K ||
+				    insn->imm != 0 ||
+				    insn->src_reg != BPF_REG_0 ||
+				    insn->dst_reg != BPF_REG_0) {
+					verbose("BPF_JMP32 JA uses reserved fields\n");
+					return -EINVAL;
+				}
+				insn_idx += insn->off + 1;
+				continue;
 			} else {
 				err = check_cond_jmp_op(env, insn, &insn_idx);
 				if (err)
