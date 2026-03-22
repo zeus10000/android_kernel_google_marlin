@@ -69,7 +69,6 @@
 #include <net/netns/generic.h>
 #include <net/rtnetlink.h>
 #include <net/sock.h>
-#include <net/xdp.h>
 #include <linux/seq_file.h>
 #include <linux/uio.h>
 #include <linux/ieee802154.h>
@@ -81,7 +80,7 @@
 #include <net/rose.h>
 #include <net/6lowpan.h>
 
-#include <linux/uaccess.h>
+#include <asm/uaccess.h>
 
 /* Uncomment to enable debugging */
 /* #define TUN_DEBUG 1 */
@@ -636,7 +635,8 @@ static int tun_attach(struct tun_struct *tun, struct file *file,
 		lock_sock(tfile->socket.sk);
 		err = sk_attach_filter(&tun->fprog, tfile->socket.sk);
 		release_sock(tfile->socket.sk);
-		if (!err)			goto out;
+		if (!err)
+			goto out;
 	}
 	tfile->queue_index = tun->numqueues;
 	tfile->socket.sk->sk_shutdown &= ~RCV_SHUTDOWN;
@@ -1839,6 +1839,7 @@ static void tun_detach_filter(struct tun_struct *tun, int n)
 		sk_detach_filter(tfile->socket.sk);
 		release_sock(tfile->socket.sk);
 	}
+
 	tun->filter_attached = false;
 }
 
@@ -1852,7 +1853,8 @@ static int tun_attach_filter(struct tun_struct *tun)
 		lock_sock(tfile->socket.sk);
 		ret = sk_attach_filter(&tun->fprog, tfile->socket.sk);
 		release_sock(tfile->socket.sk);
-		if (ret) {			tun_detach_filter(tun, i);
+		if (ret) {
+			tun_detach_filter(tun, i);
 			return ret;
 		}
 	}

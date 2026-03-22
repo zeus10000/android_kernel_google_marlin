@@ -143,6 +143,14 @@ struct bpf_prog_aux;
 		.off   = 0,					\
 		.imm   = IMM })
 
+/* Special form of mov32, used for doing explicit zero extension on dst. */
+#define BPF_ZEXT_REG(DST)						\n	((struct bpf_insn) {						\n		.code  = BPF_ALU | BPF_MOV | BPF_X,			\n		.dst_reg = DST,						\n		.src_reg = DST,						\n		.off   = 0,						\n		.imm   = 1 })
+
+static inline bool insn_is_zext(const struct bpf_insn *insn)
+{
+	return insn->code == (BPF_ALU | BPF_MOV | BPF_X) && insn->imm == 1;
+}
+
 #define BPF_MOV32_IMM(DST, IMM)					\
 	((struct bpf_insn) {					\
 		.code  = BPF_ALU | BPF_MOV | BPF_K,		\
