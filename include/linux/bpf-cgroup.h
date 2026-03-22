@@ -61,6 +61,23 @@ int __cgroup_bpf_run_filter(struct sock *sk,
 int __cgroup_bpf_run_filter_sk(struct sock *sk,
 			    enum bpf_attach_type type);
 
+/* Kernel-side context for BPF_PROG_TYPE_CGROUP_SOCK_ADDR programs.
+ * kern_protocol and kern_type cache the bit-field values from struct sock
+ * so convert_ctx_access can read them with a simple word load.
+ */
+struct bpf_sock_addr_kern {
+	struct sock	*sk;
+	struct sockaddr	*uaddr;
+	u32		kern_protocol;	/* cached sk->sk_protocol */
+	u32		kern_type;	/* cached sk->sk_type */
+};
+
+int __cgroup_bpf_run_filter_sock_addr(struct sock *sk,
+				       struct sockaddr *uaddr,
+				       enum bpf_attach_type type);
+
+
+
 /* Wrappers for __cgroup_bpf_run_filter() guarded by cgroup_bpf_enabled. */
 #define BPF_CGROUP_RUN_PROG_INET_INGRESS(sk,skb)			\
 ({									\
@@ -94,6 +111,25 @@ int __cgroup_bpf_run_filter_sk(struct sock *sk,
 	__ret;								       \
 })
 
+#define BPF_CGROUP_RUN_PROG_INET4_BIND(sk, uaddr)\
+({\
+	int __ret = 0;\
+	if (cgroup_bpf_enabled)\
+		__ret = __cgroup_bpf_run_filter_sock_addr(sk, uaddr,\
+						 BPF_CGROUP_INET4_BIND);\
+	__ret;\
+})
+
+#define BPF_CGROUP_RUN_PROG_INET4_CONNECT(sk, uaddr)\
+({\
+	int __ret = 0;\
+	if (cgroup_bpf_enabled)\
+		__ret = __cgroup_bpf_run_filter_sock_addr(sk, uaddr,\
+						 BPF_CGROUP_INET4_CONNECT);\
+	__ret;\
+})
+
+
 #else
 
 struct cgroup_bpf {};
@@ -103,6 +139,8 @@ static inline int cgroup_bpf_inherit(struct cgroup *cgrp) { return 0; }
 #define BPF_CGROUP_RUN_PROG_INET_INGRESS(sk,skb) ({ 0; })
 #define BPF_CGROUP_RUN_PROG_INET_EGRESS(sk,skb) ({ 0; })
 #define BPF_CGROUP_RUN_PROG_INET_SOCK(sk) ({ 0; })
+#define BPF_CGROUP_RUN_PROG_INET4_BIND(sk, uaddr) ({ 0; })
+#define BPF_CGROUP_RUN_PROG_INET4_CONNECT(sk, uaddr) ({ 0; })
 
 #endif /* CONFIG_CGROUP_BPF */
 

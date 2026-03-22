@@ -503,3 +503,45 @@ int __cgroup_bpf_run_filter_sk(struct sock *sk,
 	return ret;
 }
 EXPORT_SYMBOL(__cgroup_bpf_run_filter_sk);
+/**
+ * __cgroup_bpf_run_filter_sock_addr() - Run a program on a sock and
+ *     sockaddr pair
+ * @sk:    socket to run the program on
+ * @uaddr: sockaddr struct provided by user
+ * @type:  The type of program to be executed (bind/connect)
+ *
+ * This function will return %-EPERM if any attached program returns != 1.
+ * In all other cases, 0 is returned.
+ */
+int __cgroup_bpf_run_filter_sock_addr(struct sock *sk,
+				       struct sockaddr *uaddr,
+				       enum bpf_attach_type type)
+{
+	struct bpf_sock_addr_kern ctx = {
+		.sk		= sk,
+		.uaddr		= uaddr,
+		.kern_protocol	= sk->sk_protocol,
+		.kern_type	= sk->sk_type,
+	};
+	struct cgroup *cgrp;
+	struct bpf_prog *prog;
+	int ret = 0;
+
+	if (!sk_fullsock(sk))
+		return 0;
+
+	if (sk->sk_family != AF_INET && sk->sk_family != AF_INET6)
+		return 0;
+
+	cgrp = sock_cgroup_ptr(&sk->sk_cgrp_data);
+
+	rcu_read_lock();
+	prog = rcu_dereference(cgrp->bpf.effective[type]->progs[0]);
+	if (prog)
+		ret = BPF_PROG_RUN(prog, &ctx) == 1 ? 0 : -EPERM;
+	rcu_read_unlock();
+
+	return ret;
+}
+EXPORT_SYMBOL(__cgroup_bpf_run_filter_sock_addr);
+

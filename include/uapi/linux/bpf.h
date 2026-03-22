@@ -168,6 +168,10 @@ enum bpf_attach_type {
 	BPF_CGROUP_INET_INGRESS,
 	BPF_CGROUP_INET_EGRESS,
 	BPF_CGROUP_INET_SOCK_CREATE,
+	BPF_CGROUP_INET4_BIND,
+	BPF_CGROUP_INET6_BIND,
+	BPF_CGROUP_INET4_CONNECT,
+	BPF_CGROUP_INET6_CONNECT,
 	__MAX_BPF_ATTACH_TYPE
 };
 
@@ -280,6 +284,8 @@ union bpf_attr {
 		__u32		kern_version;	/* checked when prog_type=kprobe */
 		__u32		prog_flags;
 		__u8		prog_name[BPF_OBJ_NAME_LEN];
+		__u32		prog_ifindex;	/* ifindex of netdev to prep for */
+		__u32		expected_attach_type; /* expected attach type for prog */
 	};
 
 	struct { /* anonymous struct used by BPF_OBJ_* commands */
@@ -776,6 +782,22 @@ struct __sk_buff {
 	__u32 data;
 	__u32 data_end;
 };
+
+/* User-accessible context for BPF_PROG_TYPE_CGROUP_SOCK_ADDR programs.
+ * See also 'struct bpf_sock_addr_kern' in include/linux/bpf-cgroup.h.
+ */
+struct bpf_sock_addr {
+	__u32 user_family;	/*     R: address family of the user address */
+	__u32 user_ip4;		/* BE, R: IPv4 address; W: 4-byte */
+	__u32 user_ip6[4];	/* BE, R: IPv6 address; W: 4,8-byte */
+	__u32 user_port;	/* BE, R: port in network byte order */
+	__u32 family;		/*     R: socket address family */
+	__u32 type;		/*     R: socket type (SOCK_STREAM, etc.) */
+	__u32 protocol;		/*     R: IP protocol (IPPROTO_TCP, etc.) */
+	__u32 msg_src_ip4;	/* BE, R: source IPv4 for sendmsg */
+	__u32 msg_src_ip6[4];	/* BE, R: source IPv6 for sendmsg */
+};
+
 
 struct bpf_tunnel_key {
 	__u32 tunnel_id;

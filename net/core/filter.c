@@ -37,6 +37,7 @@
 #include <net/netlink.h>
 #include <linux/skbuff.h>
 #include <net/sock.h>
+#include <net/inet_sock.h>
 #include <net/flow_dissector.h>
 #include <linux/errno.h>
 #include <linux/timer.h>
@@ -3271,6 +3272,116 @@ static struct bpf_prog_type_list cg_sock_type __read_mostly = {
 	.type	= BPF_PROG_TYPE_CGROUP_SOCK
 };
 
+
+/* ── BPF_PROG_TYPE_CGROUP_SOCK_ADDR ──────────────────────────────────────── */
+
+static const struct bpf_func_proto *
+sock_addr_func_proto(enum bpf_func_id func_id)
+{
+	switch (func_id) {
+	case BPF_FUNC_map_lookup_elem:
+		return &bpf_map_lookup_elem_proto;
+	case BPF_FUNC_map_update_elem:
+		return &bpf_map_update_elem_proto;
+	case BPF_FUNC_map_delete_elem:
+		return &bpf_map_delete_elem_proto;
+	case BPF_FUNC_get_current_uid_gid:
+		return &bpf_get_current_uid_gid_proto;
+	case BPF_FUNC_get_socket_cookie:
+		return &bpf_get_socket_cookie_proto;
+	default:
+		return NULL;
+	}
+}
+
+static bool sock_addr_is_valid_access(int off, int size,
+				       enum bpf_access_type type,
+				       enum bpf_reg_type *reg_type)
+{
+	if (off < 0 || off >= (int)sizeof(struct bpf_sock_addr))
+		return false;
+	if (off % size != 0)
+		return false;
+	if (type == BPF_WRITE)
+		return false;
+	if (size != sizeof(__u32))
+		return false;
+	return true;
+}
+
+/* Map struct bpf_sock_addr fields to kernel struct bpf_sock_addr_kern */
+static u32 sock_addr_convert_ctx_access(enum bpf_access_type type,
+					  int dst_reg, int src_reg,
+					  int ctx_off,
+					  struct bpf_insn *insn_buf,
+					  struct bpf_prog *prog)
+{
+	struct bpf_insn *insn = insn_buf;
+
+	switch (ctx_off) {
+	case offsetof(struct bpf_sock_addr, user_family):
+	case offsetof(struct bpf_sock_addr, family):
+		/* Both map to sk->sk_family (u16). */
+		BUILD_BUG_ON(FIELD_SIZEOF(struct sock, sk_family) != 2);
+		*insn++ = BPF_LDX_MEM(BPF_DW, dst_reg, src_reg,
+				       offsetof(struct bpf_sock_addr_kern, sk));
+		*insn++ = BPF_LDX_MEM(BPF_H, dst_reg, dst_reg,
+				       offsetof(struct sock, sk_family));
+		break;
+
+	case offsetof(struct bpf_sock_addr, user_ip4):
+	case offsetof(struct bpf_sock_addr, msg_src_ip4):
+		/* Maps to ((struct sockaddr_in *)uaddr)->sin_addr.s_addr (u32 BE). */
+		BUILD_BUG_ON(FIELD_SIZEOF(struct sockaddr_in, sin_addr.s_addr) != 4);
+		*insn++ = BPF_LDX_MEM(BPF_DW, dst_reg, src_reg,
+				       offsetof(struct bpf_sock_addr_kern, uaddr));
+		*insn++ = BPF_LDX_MEM(BPF_W, dst_reg, dst_reg,
+				       offsetof(struct sockaddr_in, sin_addr.s_addr));
+		break;
+
+	case offsetof(struct bpf_sock_addr, user_port):
+		/* Maps to ((struct sockaddr_in *)uaddr)->sin_port (u16 BE). */
+		BUILD_BUG_ON(FIELD_SIZEOF(struct sockaddr_in, sin_port) != 2);
+		*insn++ = BPF_LDX_MEM(BPF_DW, dst_reg, src_reg,
+				       offsetof(struct bpf_sock_addr_kern, uaddr));
+		*insn++ = BPF_LDX_MEM(BPF_H, dst_reg, dst_reg,
+				       offsetof(struct sockaddr_in, sin_port));
+		break;
+
+	case offsetof(struct bpf_sock_addr, type):
+		/* kern_type caches sk->sk_type (bit-field in 4.4 kernel). */
+		BUILD_BUG_ON(FIELD_SIZEOF(struct bpf_sock_addr_kern, kern_type) != 4);
+		*insn++ = BPF_LDX_MEM(BPF_W, dst_reg, src_reg,
+				       offsetof(struct bpf_sock_addr_kern, kern_type));
+		break;
+
+	case offsetof(struct bpf_sock_addr, protocol):
+		/* kern_protocol caches sk->sk_protocol (bit-field in 4.4 kernel). */
+		BUILD_BUG_ON(FIELD_SIZEOF(struct bpf_sock_addr_kern, kern_protocol) != 4);
+		*insn++ = BPF_LDX_MEM(BPF_W, dst_reg, src_reg,
+				       offsetof(struct bpf_sock_addr_kern, kern_protocol));
+		break;
+
+	default:
+		/* Remaining fields (user_ip6, msg_src_ip6): zero for now. */
+		*insn++ = BPF_MOV64_IMM(dst_reg, 0);
+		break;
+	}
+
+	return insn - insn_buf;
+}
+
+static const struct bpf_verifier_ops cg_sock_addr_ops = {
+	.get_func_proto		= sock_addr_func_proto,
+	.is_valid_access	= sock_addr_is_valid_access,
+	.convert_ctx_access	= sock_addr_convert_ctx_access,
+};
+
+static struct bpf_prog_type_list cg_sock_addr_type __read_mostly = {
+	.ops	= &cg_sock_addr_ops,
+	.type	= BPF_PROG_TYPE_CGROUP_SOCK_ADDR,
+};
+
 static int __init register_sk_filter_ops(void)
 {
 	bpf_register_prog_type(&sk_filter_type);
@@ -3279,6 +3390,7 @@ static int __init register_sk_filter_ops(void)
 	bpf_register_prog_type(&xdp_type);
 	bpf_register_prog_type(&cg_skb_type);
 	bpf_register_prog_type(&cg_sock_type);
+	bpf_register_prog_type(&cg_sock_addr_type);
 
 	return 0;
 }

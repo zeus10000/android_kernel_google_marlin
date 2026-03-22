@@ -512,6 +512,10 @@ int inet_bind(struct socket *sock, struct sockaddr *uaddr, int addr_len)
 	 *      would be illegal to use them (multicast/broadcast) in
 	 *      which case the sending device address is used.
 	 */
+	err = BPF_CGROUP_RUN_PROG_INET4_BIND(sk, uaddr);
+	if (err)
+		goto out;
+
 	lock_sock(sk);
 
 	/* Check these errors (active socket, double bind). */
@@ -551,6 +555,7 @@ int inet_dgram_connect(struct socket *sock, struct sockaddr *uaddr,
 		       int addr_len, int flags)
 {
 	struct sock *sk = sock->sk;
+	int err;
 
 	if (addr_len < sizeof(uaddr->sa_family))
 		return -EINVAL;
@@ -559,6 +564,9 @@ int inet_dgram_connect(struct socket *sock, struct sockaddr *uaddr,
 
 	if (!inet_sk(sk)->inet_num && inet_autobind(sk))
 		return -EAGAIN;
+	err = BPF_CGROUP_RUN_PROG_INET4_CONNECT(sk, uaddr);
+	if (err)
+		return err;
 	return sk->sk_prot->connect(sk, uaddr, addr_len);
 }
 EXPORT_SYMBOL(inet_dgram_connect);
@@ -622,6 +630,10 @@ int __inet_stream_connect(struct socket *sock, struct sockaddr *uaddr,
 	case SS_UNCONNECTED:
 		err = -EISCONN;
 		if (sk->sk_state != TCP_CLOSE)
+			goto out;
+
+		err = BPF_CGROUP_RUN_PROG_INET4_CONNECT(sk, uaddr);
+		if (err)
 			goto out;
 
 		err = sk->sk_prot->connect(sk, uaddr, addr_len);
