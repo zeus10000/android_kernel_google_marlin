@@ -1,10 +1,21 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Based on arch/arm/kernel/signal.c
  *
  * Copyright (C) 1995-2009 Russell King
  * Copyright (C) 2012 ARM Ltd.
  * Modified by Will Deacon <will.deacon@arm.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <linux/compat.h>
@@ -15,7 +26,7 @@
 #include <asm/esr.h>
 #include <asm/fpsimd.h>
 #include <asm/signal32.h>
-#include <linux/uaccess.h>
+#include <asm/uaccess.h>
 #include <asm/unistd.h>
 #include <asm/vdso.h>
 
@@ -326,7 +337,7 @@ asmlinkage int compat_sys_sigreturn(struct pt_regs *regs)
 
 	frame = (struct compat_sigframe __user *)regs->compat_sp;
 
-	if (!access_ok(frame, sizeof (*frame)))
+	if (!access_ok(VERIFY_READ, frame, sizeof (*frame)))
 		goto badframe;
 
 	if (compat_restore_sigframe(regs, frame))
@@ -360,7 +371,7 @@ asmlinkage int compat_sys_rt_sigreturn(struct pt_regs *regs)
 
 	frame = (struct compat_rt_sigframe __user *)regs->compat_sp;
 
-	if (!access_ok(frame, sizeof (*frame)))
+	if (!access_ok(VERIFY_READ, frame, sizeof (*frame)))
 		goto badframe;
 
 	if (compat_restore_sigframe(regs, &frame->sig))
@@ -395,7 +406,7 @@ static void __user *compat_get_sigframe(struct ksignal *ksig,
 	/*
 	 * Check that we can actually write to the signal frame.
 	 */
-	if (!access_ok(frame, framesize))
+	if (!access_ok(VERIFY_WRITE, frame, framesize))
 		frame = NULL;
 
 	return frame;
