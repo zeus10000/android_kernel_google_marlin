@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  *  HID support for Linux
  *
@@ -9,6 +8,10 @@
  */
 
 /*
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by the Free
+ * Software Foundation; either version 2 of the License, or (at your option)
+ * any later version.
  */
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
@@ -129,11 +132,8 @@ static int open_collection(struct hid_parser *parser, unsigned type)
 	}
 
 	if (parser->device->maxcollection == parser->device->collection_size) {
-		collection = kmalloc(
-				array3_size(sizeof(struct hid_collection),
-					    parser->device->collection_size,
-					    2),
-				GFP_KERNEL);
+		collection = kmalloc(sizeof(struct hid_collection) *
+				parser->device->collection_size * 2, GFP_KERNEL);
 		if (collection == NULL) {
 			hid_err(parser->device, "failed to reallocate collection array\n");
 			return -ENOMEM;
@@ -1311,7 +1311,7 @@ static void hid_input_field(struct hid_device *hid, struct hid_field *field,
 	__s32 max = field->logical_maximum;
 	__s32 *value;
 
-	value = kmalloc_array(count, sizeof(__s32), GFP_ATOMIC);
+	value = kmalloc(sizeof(__s32) * count, GFP_ATOMIC);
 	if (!value)
 		return;
 
