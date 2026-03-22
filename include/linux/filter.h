@@ -144,7 +144,7 @@ struct bpf_prog_aux;
 		.imm   = IMM })
 
 /* Special form of mov32, used for doing explicit zero extension on dst. */
-#define BPF_ZEXT_REG(DST)						\n	((struct bpf_insn) {						\n		.code  = BPF_ALU | BPF_MOV | BPF_X,			\n		.dst_reg = DST,						\n		.src_reg = DST,						\n		.off   = 0,						\n		.imm   = 1 })
+#define BPF_ZEXT_REG(DST)						((struct bpf_insn) {							.code  = BPF_ALU | BPF_MOV | BPF_X,				.dst_reg = DST,							.src_reg = DST,							.off   = 0,							.imm   = 1 })
 
 static inline bool insn_is_zext(const struct bpf_insn *insn)
 {
@@ -983,7 +983,7 @@ static inline bool bpf_prog_ebpf_jited(const struct bpf_prog *fp)
 	return fp->jited && bpf_jit_is_ebpf();
 }
 
-static inline bool bpf_jit_blinding_enabled(void)
+static inline bool bpf_jit_blinding_enabled(struct bpf_prog *prog __attribute__((unused)))
 {
 	/* These are the prerequisites, should someone ever have the
 	 * idea to call blinding outside of them, we make sure to
