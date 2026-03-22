@@ -2041,6 +2041,66 @@ static int bpf_skb_net_hdr_pop(struct sk_buff *skb, u32 off, u32 len)
 	return ret;
 }
 
+/*
+ * bpf_skb_adjust_room - adjust room in the packet
+ *
+ * Backport of helper #50 from Linux 4.14 commit 2be7e212723f.
+ * Grows or shrinks room in the sk_buff at the network offset (BPF_ADJ_ROOM_NET),
+ * i.e., adjusts the space between the MAC header and the network header.
+ *
+ * On 4.4 this is implemented using the existing bpf_skb_net_hdr_push/pop
+ * primitives which already handle the skb pointer adjustments correctly.
+ */
+BPF_CALL_4(bpf_skb_adjust_room, struct sk_buff *, skb, s32, len_diff,
+	   u32, mode, u64, flags)
+{
+	u32 len_diff_abs = abs(len_diff);
+	bool shrink = len_diff < 0;
+	u32 off;
+	int ret;
+
+	if (unlikely(flags))
+		return -EINVAL;
+	if (unlikely(len_diff_abs > 0xfffU))
+		return -EINVAL;
+	if (unlikely(skb_is_gso(skb) && !shrink))
+		return -EINVAL;
+
+	switch (mode) {
+	case BPF_ADJ_ROOM_NET:
+		off = skb_network_offset(skb);
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	if (shrink) {
+		ret = skb_ensure_writable(skb, off + len_diff_abs);
+		if (unlikely(ret < 0))
+			return ret;
+		ret = bpf_skb_net_hdr_pop(skb, off, len_diff_abs);
+	} else {
+		ret = skb_cow(skb, len_diff_abs);
+		if (unlikely(ret < 0))
+			return ret;
+		ret = bpf_skb_net_hdr_push(skb, off, len_diff_abs);
+	}
+
+	if (likely(!ret))
+		bpf_compute_data_end(skb);
+	return ret;
+}
+
+static const struct bpf_func_proto bpf_skb_adjust_room_proto = {
+	.func		= bpf_skb_adjust_room,
+	.gpl_only	= false,
+	.ret_type	= RET_INTEGER,
+	.arg1_type	= ARG_PTR_TO_CTX,
+	.arg2_type	= ARG_ANYTHING,
+	.arg3_type	= ARG_ANYTHING,
+	.arg4_type	= ARG_ANYTHING,
+};
+
 static int bpf_skb_proto_4_to_6(struct sk_buff *skb)
 {
 	const u32 len_diff = sizeof(struct ipv6hdr) - sizeof(struct iphdr);
@@ -2268,6 +2328,7 @@ bool bpf_helper_changes_skb_data(void *func)
 	if (func == bpf_skb_vlan_push ||
 	    func == bpf_skb_vlan_pop ||
 	    func == bpf_skb_store_bytes ||
+	    func == bpf_skb_adjust_room ||
 	    func == bpf_skb_change_proto ||
 	    func == bpf_skb_change_tail ||
 	    func == bpf_skb_pull_data ||
@@ -2680,6 +2741,8 @@ tc_cls_act_func_proto(enum bpf_func_id func_id)
 		return &bpf_skb_load_bytes_proto;
 	case BPF_FUNC_skb_load_bytes_relative:
 		return &bpf_skb_load_bytes_relative_proto;
+	case BPF_FUNC_skb_adjust_room:
+		return &bpf_skb_adjust_room_proto;
 	case BPF_FUNC_skb_pull_data:
 		return &bpf_skb_pull_data_proto;
 	case BPF_FUNC_csum_diff:

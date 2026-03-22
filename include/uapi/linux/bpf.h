@@ -699,6 +699,8 @@ enum bpf_func_id {
 	 */
 	BPF_FUNC_get_socket_uid,
 
+	BPF_FUNC_skb_adjust_room = 50,
+
 	BPF_FUNC_skb_load_bytes_relative = 68,
 
 	__BPF_FUNC_MAX_ID,
@@ -708,6 +710,11 @@ enum bpf_func_id {
 enum bpf_hdr_start_off {
 	BPF_HDR_START_MAC = 0,
 	BPF_HDR_START_NET = 1,
+};
+
+/* Mode for BPF_FUNC_skb_adjust_room. */
+enum bpf_adj_room_mode {
+	BPF_ADJ_ROOM_NET = 0,
 };
 
 /* All flags used by eBPF helper functions, placed here. */
