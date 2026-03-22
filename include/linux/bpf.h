@@ -76,6 +76,10 @@ struct bpf_map {
 	 * are also accessed in fast-path (e.g. ops, max_entries).
 	 */
 	const struct bpf_map_ops *ops ____cacheline_aligned;
+	struct bpf_map *inner_map_meta;
+#ifdef CONFIG_SECURITY
+	void *security;
+#endif
 	enum bpf_map_type map_type;
 	u32 key_size;
 	u32 value_size;
@@ -83,6 +87,11 @@ struct bpf_map {
 	u32 map_flags;
 	int spin_lock_off; /* >=0 valid offset, <0 error */
 	u32 id;
+	int numa_node;
+	u32 btf_key_type_id;
+	u32 btf_value_type_id;
+	struct btf *btf;
+	struct bpf_map_memory memory;
 	bool unpriv_array;
 	bool frozen; /* write-once */
 	/* 48 bytes hole */
@@ -93,9 +102,7 @@ struct bpf_map {
 	atomic_t refcnt ____cacheline_aligned;
 	atomic_t usercnt;
 	struct work_struct work;
-#ifdef CONFIG_SECURITY
-	void *security;
-#endif
+	char name[BPF_OBJ_NAME_LEN];
 };
 
 static inline bool map_value_has_spin_lock(const struct bpf_map *map)
@@ -378,9 +385,6 @@ struct bpf_prog_aux {
 	struct bpf_map **used_maps;
 	struct bpf_prog *prog;
 	struct user_struct *user;
-#ifdef CONFIG_SECURITY
-	void *security;
-#endif
 	u64 load_time; /* ns since boottime */
 	struct bpf_map *cgroup_storage[MAX_BPF_CGROUP_STORAGE_TYPE];
 	char name[BPF_OBJ_NAME_LEN];
@@ -491,64 +495,6 @@ typedef u32 (*bpf_convert_ctx_access_t)(enum bpf_access_type type,
 
 u64 bpf_event_output(struct bpf_map *map, u64 flags, void *meta, u64 meta_size,
 		     void *ctx, u64 ctx_size, bpf_ctx_copy_t ctx_copy);
-
-typedef unsigned long (*bpf_ctx_copy_t)(void *dst, const void *src,
-					unsigned long off, unsigned long len);
-
-u64 bpf_event_output(struct bpf_map *map, u64 flags, void *meta, u64 meta_size,
-		     void *ctx, u64 ctx_size, bpf_ctx_copy_t ctx_copy);
-
-/* an array of programs to be executed under rcu_lock.
- *
- * Typical usage:
- * ret = BPF_PROG_RUN_ARRAY(&bpf_prog_array, ctx, BPF_PROG_RUN);
- *
- * the structure returned by bpf_prog_array_alloc() should be populated
- * with program pointers and the last pointer must be NULL.
- * The user has to keep refcnt on the program and make sure the program
- * is removed from the array before bpf_prog_put().
- * The 'struct bpf_prog_array *' should only be replaced with xchg()
- * since other cpus are walking the array of pointers in parallel.
- */
-struct bpf_prog_array {
-	struct rcu_head rcu;
-	struct bpf_prog *progs[0];
-};
-
-struct bpf_prog_array *bpf_prog_array_alloc(u32 prog_cnt, gfp_t flags);
-void bpf_prog_array_free(struct bpf_prog_array __rcu *progs);
-
-void bpf_prog_array_delete_safe(struct bpf_prog_array __rcu *progs,
-				struct bpf_prog *old_prog);
-int bpf_prog_array_copy(struct bpf_prog_array __rcu *old_array,
-			struct bpf_prog *exclude_prog,
-			struct bpf_prog *include_prog,
-			struct bpf_prog_array **new_array);
-
-#define __BPF_PROG_RUN_ARRAY(array, ctx, func, check_non_null)	\
-	({						\
-		struct bpf_prog **_prog, *__prog;	\
-		struct bpf_prog_array *_array;		\
-		u32 _ret = 1;				\
-		rcu_read_lock();			\
-		_array = rcu_dereference(array);	\
-		if (unlikely(check_non_null && !_array))\
-			goto _out;			\
-		_prog = _array->progs;			\
-		while ((__prog = READ_ONCE(*_prog))) {	\
-			_ret &= func(__prog, ctx);	\
-			_prog++;			\
-		}					\
-_out:							\
-		rcu_read_unlock();			\
-		_ret;					\
-	 })
-
-#define BPF_PROG_RUN_ARRAY(array, ctx, func)		\
-	__BPF_PROG_RUN_ARRAY(array, ctx, func, false)
-
-#define BPF_PROG_RUN_ARRAY_CHECK(array, ctx, func)	\
-	__BPF_PROG_RUN_ARRAY(array, ctx, func, true)
 
 /* an array of programs to be executed under rcu_lock.
  *
@@ -683,8 +629,9 @@ extern const struct file_operations bpf_prog_fops;
 #undef BPF_PROG_TYPE
 #undef BPF_MAP_TYPE
 
-extern const struct file_operations bpf_map_fops;
-extern const struct file_operations bpf_prog_fops;
+extern const struct bpf_prog_ops bpf_offload_prog_ops;
+extern const struct bpf_verifier_ops tc_cls_act_analyzer_ops;
+extern const struct bpf_verifier_ops xdp_analyzer_ops;
 
 struct bpf_prog *bpf_prog_get(u32 ufd);
 struct bpf_prog *bpf_prog_get_type_dev(u32 ufd, enum bpf_prog_type type,
@@ -766,7 +713,17 @@ int bpf_check(struct bpf_prog **fp, union bpf_attr *attr,
 	      union bpf_attr __user *uattr);
 void bpf_patch_call_args(struct bpf_insn *insn, u32 stack_depth);
 
-struct bpf_prog *bpf_prog_get_type_path(const char *name, enum bpf_prog_type type);
+/* Map specifics */
+struct xdp_buff;
+struct sk_buff;
+
+struct bpf_dtab_netdev *__dev_map_lookup_elem(struct bpf_map *map, u32 key);
+struct bpf_dtab_netdev *__dev_map_hash_lookup_elem(struct bpf_map *map, u32 key);
+void __dev_map_flush(struct bpf_map *map);
+int dev_map_enqueue(struct bpf_dtab_netdev *dst, struct xdp_buff *xdp,
+		    struct net_device *dev_rx);
+int dev_map_generic_redirect(struct bpf_dtab_netdev *dst, struct sk_buff *skb,
+			     struct bpf_prog *xdp_prog);
 
 struct bpf_cpu_map_entry *__cpu_map_lookup_elem(struct bpf_map *map, u32 key);
 void __cpu_map_flush(struct bpf_map *map);
