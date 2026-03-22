@@ -21,6 +21,9 @@
 #include <net/flow_dissector.h>
 #include <scsi/fc/fc_fcoe.h>
 #include <linux/net_map.h>
+#include <linux/mutex.h>
+
+static DEFINE_MUTEX(flow_dissector_mutex);
 
 static bool dissector_uses_key(const struct flow_dissector *flow_dissector,
 			       enum flow_dissector_key_id key_id)
@@ -210,6 +213,7 @@ bool __skb_flow_dissect(const struct sk_buff *skb,
 	struct flow_dissector_key_ports *key_ports;
 	struct flow_dissector_key_tags *key_tags;
 	struct flow_dissector_key_keyid *key_keyid;
+	struct bpf_prog *attached;
 	u8 ip_proto = 0;
 	bool ret;
 
@@ -657,6 +661,26 @@ out_bad:
 	goto out;
 }
 EXPORT_SYMBOL(__skb_flow_dissect);
+
+u32 __skb_flow_bpf_dissect(struct bpf_prog *prog,
+                            const struct sk_buff *skb,
+                            struct flow_dissector *flow_dissector,
+                            struct bpf_flow_keys *flow_keys)
+{
+	struct bpf_skb_data_end *cb = (struct bpf_skb_data_end *)skb->cb;
+	struct bpf_skb_data_end cb_saved;
+	u32 result;
+
+	memcpy(&cb_saved, cb, sizeof(cb_saved));
+	memset(cb, 0, sizeof(cb_saved));
+	cb->qdisc_cb.flow_keys = flow_keys;
+	flow_keys->nhoff = skb_network_offset(skb);
+	bpf_compute_data_pointers((struct sk_buff *)skb);
+	result = BPF_PROG_RUN(prog, skb);
+	memcpy(cb, &cb_saved, sizeof(cb_saved));
+	return result;
+}
+EXPORT_SYMBOL_GPL(__skb_flow_bpf_dissect);
 
 static siphash_key_t hashrnd __read_mostly;
 static __always_inline void __flow_hash_secret_init(void)

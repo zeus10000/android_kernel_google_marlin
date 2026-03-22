@@ -260,7 +260,10 @@ struct qdisc_skb_cb {
 		u16			tc_classid;
 	};
 #define QDISC_CB_PRIV_LEN 20
-	unsigned char		data[QDISC_CB_PRIV_LEN];
+	union {
+		struct bpf_flow_keys	*flow_keys;
+		unsigned char		data[QDISC_CB_PRIV_LEN];
+	};
 };
 
 static inline void qdisc_cb_private_validate(const struct sk_buff *skb, int sz)
