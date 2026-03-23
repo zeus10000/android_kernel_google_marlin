@@ -1118,22 +1118,28 @@ DECLARE_RWSEM(uts_sem);
  */
 static int override_release(char __user *release, size_t len)
 {
-	char buf[65] = { 0 };
-	size_t copy;
-	const char *rest = UTS_RELEASE;
-	int ndots = 0;
+	int ret = 0;
 
-	/* Skip major.minor.sublevel; keep any suffix (e.g. -gXXXXXX) */
-	while (*rest) {
-		if (*rest == '-' || (*rest == '.' && ++ndots >= 3))
-			break;
-		rest++;
+	if (current->personality & UNAME26) {
+		const char *rest = UTS_RELEASE;
+		char buf[65] = { 0 };
+		int ndots = 0;
+		unsigned v;
+		size_t copy;
+
+		while (*rest) {
+			if (*rest == '.' && ++ndots >= 3)
+				break;
+			if (!isdigit(*rest) && *rest != '.')
+				break;
+			rest++;
+		}
+		v = ((LINUX_VERSION_CODE >> 8) & 0xff) + 60;
+		copy = clamp_t(size_t, len, 1, sizeof(buf));
+		copy = scnprintf(buf, copy, "2.6.%u%s", v, rest);
+		ret = copy_to_user(release, buf, copy + 1);
 	}
-	/* Report 5.4.312 to userspace for Android 16 minimum kernel compat.
-	 * LINUX_VERSION_CODE stays at 4.4 so in-kernel version checks work. */
-	copy = clamp_t(size_t, len, 1, sizeof(buf));
-	copy = scnprintf(buf, copy, "5.4.312%s", rest);
-	return copy_to_user(release, buf, copy + 1);
+	return ret;
 }
 
 SYSCALL_DEFINE1(newuname, struct new_utsname __user *, name)
