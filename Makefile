@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0
-VERSION = 4
+VERSION = 5
 PATCHLEVEL = 4
-SUBLEVEL = 302
+SUBLEVEL = 312
 EXTRAVERSION =
 NAME = Blurry Fish Butt
 
