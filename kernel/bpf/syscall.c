@@ -22,11 +22,24 @@
 #include <linux/cred.h>
 #include <linux/timekeeping.h>
 #include <linux/ctype.h>
-#include <linux/btf.h>
+#include <linux/nospec.h>
+#include <linux/bpf-cgroup.h>
+
+#define IS_FD_ARRAY(map) ((map)->map_type == BPF_MAP_TYPE_PROG_ARRAY || \
+			   (map)->map_type == BPF_MAP_TYPE_PERF_EVENT_ARRAY || \
+			   (map)->map_type == BPF_MAP_TYPE_CGROUP_ARRAY || \
+			   (map)->map_type == BPF_MAP_TYPE_ARRAY_OF_MAPS)
+#define IS_FD_HASH(map) ((map)->map_type == BPF_MAP_TYPE_HASH_OF_MAPS)
+#define IS_FD_MAP(map) (IS_FD_ARRAY(map) || IS_FD_HASH(map))
 
 #define BPF_OBJ_FLAG_MASK   (BPF_F_RDONLY | BPF_F_WRONLY)
 
-#define BPF_OBJ_FLAG_MASK   (BPF_F_RDONLY | BPF_F_WRONLY)
+/* 5.4 compat: u64_to_ptr is u64_to_user_ptr in 4.4 */
+#define u64_to_ptr(x) u64_to_user_ptr(x)
+
+/* Forward declarations for functions defined in other modules */
+int sockmap_get_from_fd(const union bpf_attr *attr, int type, struct bpf_prog *prog);
+int skb_flow_dissector_prog_query(const union bpf_attr *attr, union bpf_attr __user *uattr);
 
 DEFINE_PER_CPU(int, bpf_prog_active);
 static DEFINE_IDR(prog_idr);
@@ -67,7 +80,7 @@ int bpf_check_uarg_tail_zero(void __user *uaddr,
 	if (unlikely(actual_size > PAGE_SIZE))	/* silly large */
 		return -E2BIG;
 
-	if (unlikely(!access_ok(uaddr, actual_size)))
+	if (unlikely(!access_ok(VERIFY_NONE, uaddr, actual_size)))
 		return -EFAULT;
 
 	if (actual_size <= expected_size)
@@ -147,9 +160,11 @@ void *bpf_map_area_alloc(u64 size, int numa_node)
 			return area;
 	}
 
-	return __vmalloc_node_flags_caller(size, numa_node,
-					   GFP_KERNEL | __GFP_RETRY_MAYFAIL |
-					   flags, __builtin_return_address(0));
+	/* 4.4 compat: use __vmalloc_node_range; __GFP_REPEAT replaces __GFP_RETRY_MAYFAIL */
+	return __vmalloc_node_range(size, 1, VMALLOC_START, VMALLOC_END,
+				    GFP_KERNEL | __GFP_REPEAT | flags,
+				    PAGE_KERNEL, 0, numa_node,
+				    __builtin_return_address(0));
 }
 
 void bpf_map_area_free(void *area)
@@ -592,6 +607,8 @@ static int map_create(union bpf_attr *attr)
 
 	return err;
 
+free_id:
+	bpf_map_free_id(map, true);
 free_map_sec:
 	security_bpf_map_free(map);
 free_map:
@@ -728,7 +745,6 @@ static int map_lookup_elem(union bpf_attr *attr)
 	key = kmalloc(map->key_size, GFP_USER);
 	if (!key)
 		goto err_put;
-	}
 
 	if (map->map_type == BPF_MAP_TYPE_PERCPU_HASH ||
 	    map->map_type == BPF_MAP_TYPE_LRU_PERCPU_HASH ||
@@ -765,8 +781,6 @@ static int map_lookup_elem(union bpf_attr *attr)
 		err = bpf_fd_array_map_lookup_elem(map, key, value);
 	} else if (IS_FD_HASH(map)) {
 		err = bpf_fd_htab_map_lookup_elem(map, key, value);
-	} else if (map->map_type == BPF_MAP_TYPE_REUSEPORT_SOCKARRAY) {
-		err = bpf_fd_reuseport_array_lookup_elem(map, key, value);
 	} else if (map->map_type == BPF_MAP_TYPE_QUEUE ||
 		   map->map_type == BPF_MAP_TYPE_STACK) {
 		err = map->ops->map_peek_elem(map, value);
@@ -854,7 +868,6 @@ static int map_update_elem(union bpf_attr *attr)
 	key = kmalloc(map->key_size, GFP_USER);
 	if (!key)
 		goto err_put;
-	}
 
 	if (map->map_type == BPF_MAP_TYPE_PERCPU_HASH ||
 	    map->map_type == BPF_MAP_TYPE_LRU_PERCPU_HASH ||
@@ -907,10 +920,6 @@ static int map_update_elem(union bpf_attr *attr)
 		err = bpf_fd_htab_map_update_elem(map, f.file, key, value,
 						  attr->flags);
 		rcu_read_unlock();
-	} else if (map->map_type == BPF_MAP_TYPE_REUSEPORT_SOCKARRAY) {
-		/* rcu_read_lock() is not needed */
-		err = bpf_fd_reuseport_array_update_elem(map, key, value,
-							 attr->flags);
 	} else if (map->map_type == BPF_MAP_TYPE_QUEUE ||
 		   map->map_type == BPF_MAP_TYPE_STACK) {
 		err = map->ops->map_push_elem(map, value, attr->flags);
@@ -959,7 +968,6 @@ static int map_delete_elem(union bpf_attr *attr)
 	key = kmalloc(map->key_size, GFP_USER);
 	if (!key)
 		goto err_put;
-	}
 
 	if (bpf_map_is_dev_bound(map)) {
 		err = bpf_map_offload_delete_elem(map, key);
@@ -1847,6 +1855,7 @@ static int bpf_prog_attach(const union bpf_attr *attr)
 {
 	enum bpf_prog_type ptype;
 	struct bpf_prog *prog;
+	struct cgroup *cgrp = NULL;
 	int ret;
 
 	if (!capable(CAP_NET_ADMIN))
@@ -1951,11 +1960,13 @@ static int bpf_prog_detach(const union bpf_attr *attr)
 	case BPF_CGROUP_DEVICE:
 		ptype = BPF_PROG_TYPE_CGROUP_DEVICE;
 		break;
+#ifdef CONFIG_BPF_STREAM_PARSER
 	case BPF_SK_MSG_VERDICT:
 		return sockmap_get_from_fd(attr, BPF_PROG_TYPE_SK_MSG, NULL);
 	case BPF_SK_SKB_STREAM_PARSER:
 	case BPF_SK_SKB_STREAM_VERDICT:
-		return sockmap_get_from_fd(attr, true);
+		return sockmap_get_from_fd(attr, BPF_PROG_TYPE_SK_SKB, NULL);
+#endif
 	default:
 		return -EINVAL;
 	}

@@ -14,6 +14,18 @@
 
 #include "../../lib/kstrtox.h"
 
+/* 4.4 compat: atomic ops added post-4.4 */
+#ifndef atomic_cond_read_relaxed
+#define atomic_cond_read_relaxed(v, c) ({			\
+	typeof((v)->counter) VAL;			\
+	do { VAL = atomic_read(v); } while (!(c));	\
+	VAL;						\
+})
+#endif
+#ifndef atomic_set_release
+#define atomic_set_release(v, i) atomic_set(v, i)
+#endif
+
 /* If kernel subsystem is allowing eBPF programs to call this function,
  * inside its own verifier_ops->get_func_proto() callback it should return
  * bpf_map_lookup_elem_proto, so that verifier can properly check the arguments
@@ -317,7 +329,7 @@ BPF_CALL_0(bpf_get_current_cgroup_id)
 {
 	struct cgroup *cgrp = task_dfl_cgroup(current);
 
-	return cgrp->kn->id.id;
+	return (u64)cgrp->kn->ino;
 }
 
 const struct bpf_func_proto bpf_get_current_cgroup_id_proto = {
@@ -330,6 +342,7 @@ const struct bpf_func_proto bpf_get_current_cgroup_id_proto = {
 DECLARE_PER_CPU(struct bpf_cgroup_storage*,
 		bpf_cgroup_storage[MAX_BPF_CGROUP_STORAGE_TYPE]);
 
+
 BPF_CALL_2(bpf_get_local_storage, struct bpf_map *, map, u64, flags)
 {
 	/* flags argument is not used now,
@@ -340,7 +353,7 @@ BPF_CALL_2(bpf_get_local_storage, struct bpf_map *, map, u64, flags)
 	struct bpf_cgroup_storage *storage;
 	void *ptr;
 
-	storage = this_cpu_read(bpf_cgroup_storage[stype]);
+	storage = (*this_cpu_ptr(&bpf_cgroup_storage))[stype];
 
 	if (stype == BPF_CGROUP_STORAGE_SHARED)
 		ptr = &READ_ONCE(storage->buf)->data[0];

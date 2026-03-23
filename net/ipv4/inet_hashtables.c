@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * INET		An implementation of the TCP/IP protocol suite for the LINUX
  *		operating system.  INET is implemented using the BSD Socket
@@ -7,6 +6,11 @@
  *		Generic INET transport hashtables
  *
  * Authors:	Lotsa people, from code originally in tcp
+ *
+ *	This program is free software; you can redistribute it and/or
+ *      modify it under the terms of the GNU General Public License
+ *      as published by the Free Software Foundation; either version
+ *      2 of the License, or (at your option) any later version.
  */
 
 #include <linux/module.h>
@@ -483,7 +487,7 @@ static int inet_reuseport_add_sock(struct sock *sk,
 			return reuseport_add_sock(sk, sk2);
 	}
 
-	return reuseport_alloc(sk, inet_rcv_saddr_any(sk));
+	return reuseport_alloc(sk);
 }
 
 int __inet_hash(struct sock *sk, struct sock *osk,

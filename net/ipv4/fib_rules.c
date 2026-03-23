@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * INET		An implementation of the TCP/IP protocol suite for the LINUX
  *		operating system.  INET is implemented using the  BSD Socket
@@ -8,6 +7,11 @@
  *
  * Authors:	Alexey Kuznetsov, <kuznet@ms2.inr.ac.ru>
  *		Thomas Graf <tgraf@suug.ch>
+ *
+ *		This program is free software; you can redistribute it and/or
+ *		modify it under the terms of the GNU General Public License
+ *		as published by the Free Software Foundation; either version
+ *		2 of the License, or (at your option) any later version.
  *
  * Fixes:
  *		Rani Assaf	:	local_rule cannot be deleted
@@ -27,7 +31,6 @@
 #include <net/route.h>
 #include <net/tcp.h>
 #include <net/ip_fib.h>
-#include <net/nexthop.h>
 #include <net/fib_rules.h>
 
 struct fib4_rule {
@@ -106,11 +109,8 @@ static bool fib4_rule_suppress(struct fib_rule *rule, struct fib_lookup_arg *arg
 	struct fib_result *result = (struct fib_result *) arg->result;
 	struct net_device *dev = NULL;
 
-	if (result->fi) {
-		struct fib_nh *nh = fib_info_nh(result->fi, 0);
-
-		dev = nh->fib_nh_dev;
-	}
+	if (result->fi)
+		dev = result->fi->fib_dev;
 
 	/* do not accept result if the route does
 	 * not meet the required prefix length

@@ -9,6 +9,12 @@
 #include <linux/filter.h>
 #include <linux/tracepoint.h>
 
+/* 4.4 compat: __print_hex_str was added in 4.14 */
+#ifndef __print_hex_str
+#define __print_hex_str(buf, len) "(prog)"
+#endif
+
+
 #define __XDP_ACT_MAP(FN)	\
 	FN(ABORTED)		\
 	FN(DROP)		\
@@ -145,9 +151,8 @@ DEFINE_EVENT_PRINT(xdp_redirect_template, xdp_redirect_map,
 		 int to_ifindex, int err,
 		 const struct bpf_map *map, u32 map_index),
 	TP_ARGS(dev, xdp, to_ifindex, err, map, map_index),
-	TP_printk("prog_id=%d action=%s ifindex=%d to_ifindex=%d err=%d"
+	TP_printk("action=%s ifindex=%d to_ifindex=%d err=%d"
 		  " map_id=%d map_index=%d",
-		  __entry->prog_id,
 		  __print_symbolic(__entry->act, __XDP_ACT_SYM_TAB),
 		  __entry->ifindex, __entry->to_ifindex,
 		  __entry->err,
@@ -160,9 +165,8 @@ DEFINE_EVENT_PRINT(xdp_redirect_template, xdp_redirect_map_err,
 		 int to_ifindex, int err,
 		 const struct bpf_map *map, u32 map_index),
 	TP_ARGS(dev, xdp, to_ifindex, err, map, map_index),
-	TP_printk("prog_id=%d action=%s ifindex=%d to_ifindex=%d err=%d"
+	TP_printk("action=%s ifindex=%d to_ifindex=%d err=%d"
 		  " map_id=%d map_index=%d",
-		  __entry->prog_id,
 		  __print_symbolic(__entry->act, __XDP_ACT_SYM_TAB),
 		  __entry->ifindex, __entry->to_ifindex,
 		  __entry->err,

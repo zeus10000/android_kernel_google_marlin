@@ -94,7 +94,8 @@ DEFINE_SPINLOCK(css_set_lock);
 EXPORT_SYMBOL_GPL(cgroup_mutex);
 EXPORT_SYMBOL_GPL(css_set_lock);
 #else
-static DEFINE_MUTEX(cgroup_mutex);
+DEFINE_MUTEX(cgroup_mutex);
+EXPORT_SYMBOL_GPL(cgroup_mutex);
 static DEFINE_SPINLOCK(css_set_lock);
 #endif
 

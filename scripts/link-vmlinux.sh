@@ -1,5 +1,4 @@
 #!/bin/sh
-# SPDX-License-Identifier: GPL-2.0
 #
 # link vmlinux
 #
@@ -88,8 +87,8 @@ modpost_link()
 }
 
 # Link of vmlinux
-# ${1} - output file
-# ${@:2} - optional extra .o files
+# ${1} - optional extra .o files
+# ${2} - output file
 vmlinux_link()
 {
 	local lds="${objtree}/${KBUILD_LDS}"
@@ -285,11 +284,11 @@ if [ -n "${CONFIG_KALLSYMS}" ]; then
 	kallsyms_vmlinux=.tmp_vmlinux2
 
 	# step 1
-	vmlinux_link .tmp_vmlinux1 ${btf_vmlinux_bin_o}
+	vmlinux_link "" .tmp_vmlinux1
 	kallsyms .tmp_vmlinux1 .tmp_kallsyms1.o
 
 	# step 2
-	vmlinux_link .tmp_vmlinux2 .tmp_kallsyms1.o ${btf_vmlinux_bin_o}
+	vmlinux_link .tmp_kallsyms1.o .tmp_vmlinux2
 	kallsyms .tmp_vmlinux2 .tmp_kallsyms2.o
 
 	# step 2a
@@ -297,7 +296,8 @@ if [ -n "${CONFIG_KALLSYMS}" ]; then
 		kallsymso=.tmp_kallsyms3.o
 		kallsyms_vmlinux=.tmp_vmlinux3
 
-		vmlinux_link .tmp_vmlinux3 .tmp_kallsyms2.o ${btf_vmlinux_bin_o}
+		vmlinux_link .tmp_kallsyms2.o .tmp_vmlinux3
+
 		kallsyms .tmp_vmlinux3 .tmp_kallsyms3.o
 	fi
 fi

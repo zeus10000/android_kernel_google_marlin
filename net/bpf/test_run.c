@@ -9,6 +9,7 @@
 #include <linux/sched/signal.h>
 #include <net/sock.h>
 #include <net/flow_dissector.h>
+#include <net/xdp.h>
 
 static __always_inline u32 bpf_test_run_one(struct bpf_prog *prog, void *ctx)
 {

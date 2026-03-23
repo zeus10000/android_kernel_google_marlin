@@ -800,3 +800,19 @@ static int __init dev_map_init(void)
 }
 
 subsys_initcall(dev_map_init);
+
+/* 4.4 compat: cpu_map stubs (cpumap.c deleted — uses 5.3+ APIs) */
+struct bpf_cpu_map_entry *__cpu_map_lookup_elem(struct bpf_map *map, u32 key)
+{
+	return NULL;
+}
+
+void __cpu_map_flush(struct bpf_map *map)
+{
+}
+
+int cpu_map_enqueue(struct bpf_cpu_map_entry *rcpu, struct xdp_buff *xdp,
+		    struct net_device *dev_rx)
+{
+	return -EOPNOTSUPP;
+}
