@@ -515,17 +515,14 @@ int avtab_read_item(struct avtab *a, void *fp, struct policydb *pol,
 	key.target_class = le16_to_cpu(buf16[items++]);
 	key.specified = le16_to_cpu(buf16[items++]);
 
-	if ((key.specified & AVTAB_OPTYPE) &&
-			(vers == POLICYDB_VERSION_XPERMS_IOCTL)) {
+	/* Android M compat removed: LOS 23.2 (Android 16) uses standard xperms format */
+	if (key.specified & AVTAB_OPTYPE)
 		key.specified = avtab_optype_to_xperms(key.specified);
-		android_m_compat_optype = 1;
-		avtab_android_m_compat_set();
-	}
 
 	if (!policydb_type_isvalid(pol, key.source_type) ||
 	    !policydb_type_isvalid(pol, key.target_type) ||
 	    !policydb_class_isvalid(pol, key.target_class)) {
-		printk(KERN_ERR "SELinux: avtab: invalid type or class\n");
+		printk(KERN_ERR "SELinux: avtab: invalid type or class: src=%u tgt=%u cls=%u (max_type=%u max_class=%u)\n", key.source_type, key.target_type, key.target_class, pol->p_types.nprim, pol->p_classes.nprim);
 		return -EINVAL;
 	}
 
@@ -552,22 +549,11 @@ int avtab_read_item(struct avtab *a, void *fp, struct policydb *pol,
 			printk(KERN_ERR "SELinux: avtab: truncated entry\n");
 			return rc;
 		}
-		if (avtab_android_m_compat ||
-			    ((xperms.specified != AVTAB_XPERMS_IOCTLFUNCTION) &&
-			    (xperms.specified != AVTAB_XPERMS_IOCTLDRIVER) &&
-			    (vers == POLICYDB_VERSION_XPERMS_IOCTL))) {
-			xperms.driver = xperms.specified;
-			if (android_m_compat_optype)
-				xperms.specified = AVTAB_XPERMS_IOCTLDRIVER;
-			else
-				xperms.specified = AVTAB_XPERMS_IOCTLFUNCTION;
-			avtab_android_m_compat_set();
-		} else {
-			rc = next_entry(&xperms.driver, fp, sizeof(u8));
-			if (rc) {
-				printk(KERN_ERR "SELinux: avtab: truncated entry\n");
-				return rc;
-			}
+		/* Always use standard xperms format: separate specified + driver bytes */
+		rc = next_entry(&xperms.driver, fp, sizeof(u8));
+		if (rc) {
+			printk(KERN_ERR "SELinux: avtab: truncated entry\n");
+			return rc;
 		}
 		rc = next_entry(buf32, fp, sizeof(u32)*ARRAY_SIZE(xperms.perms.p));
 		if (rc) {

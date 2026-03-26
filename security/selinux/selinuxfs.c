@@ -331,7 +331,7 @@ static ssize_t sel_read_policyvers(struct file *filp, char __user *buf,
 	char tmpbuf[TMPBUFLEN];
 	ssize_t length;
 
-	length = scnprintf(tmpbuf, TMPBUFLEN, "%u", POLICYDB_VERSION_MAX);
+	length = scnprintf(tmpbuf, TMPBUFLEN, "%u", POLICYDB_VERSION_XPERMS_IOCTL); /* Report v30 to userspace; kernel accepts up to v33 internally */
 	return simple_read_from_buffer(buf, count, ppos, tmpbuf, length);
 }
 
