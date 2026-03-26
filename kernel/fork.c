@@ -520,6 +520,11 @@ static int dup_mmap(struct mm_struct *mm, struct mm_struct *oldmm)
 		mm->map_count++;
 		retval = copy_page_range(mm, oldmm, mpnt);
 
+		/* Clear forked pages for VM_WIPEONFORK VMAs. */
+		if ((tmp->vm_flags & VM_WIPEONFORK) && vma_is_anonymous(tmp)) {
+			zap_page_range(tmp, tmp->vm_start, tmp->vm_end - tmp->vm_start, NULL);
+		}
+
 		if (tmp->vm_ops && tmp->vm_ops->open)
 			tmp->vm_ops->open(tmp);
 
