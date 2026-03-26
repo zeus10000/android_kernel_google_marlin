@@ -1402,8 +1402,7 @@ bool bpf_prog_array_compatible(struct bpf_array *array,
 		return true;
 	}
 
-	return array->owner_prog_type == fp->type &&
-	       array->owner_jited == fp->jited;
+	return array->owner_prog_type == fp->type;
 }
 
 static int bpf_check_tail_call(const struct bpf_prog *fp)
