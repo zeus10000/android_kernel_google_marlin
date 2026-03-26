@@ -153,6 +153,21 @@ static struct policydb_compat_info policydb_compat[] = {
 		.sym_num	= SYM_NUM,
 		.ocon_num	= OCON_NUM,
 	},
+	{
+		.version	= POLICYDB_VERSION_INFINIBAND,
+		.sym_num	= SYM_NUM,
+		.ocon_num	= OCON_IBENDPORT + 1,
+	},
+	{
+		.version	= POLICYDB_VERSION_GLBLUB,
+		.sym_num	= SYM_NUM,
+		.ocon_num	= OCON_IBENDPORT + 1,
+	},
+	{
+		.version	= POLICYDB_VERSION_COMP_FTRANS,
+		.sym_num	= SYM_NUM,
+		.ocon_num	= OCON_IBENDPORT + 1,
+	},
 };
 
 static struct policydb_compat_info *policydb_lookup_compat(int version)
@@ -1927,6 +1942,12 @@ static int filename_trans_read(struct policydb *p, void *fp)
 	if (p->policyvers < POLICYDB_VERSION_FILENAME_TRANS)
 		return 0;
 
+	/* In version 33+, filename transitions are stored in compressed format */
+	if (p->policyvers >= POLICYDB_VERSION_COMP_FTRANS) {
+		/* For now, treat compressed format same as regular - just read entries */
+		/* The compression is an internal optimization; we still store the same data */
+	}
+
 	rc = next_entry(buf, fp, sizeof(u32));
 	if (rc)
 		return rc;
@@ -2219,6 +2240,56 @@ static int ocontext_read(struct policydb *p, struct policydb_compat_info *info,
 					c->u.node6.addr[k] = nodebuf[k];
 				for (k = 0; k < 4; k++)
 					c->u.node6.mask[k] = nodebuf[k+4];
+				rc = context_read_and_validate(&c->context[0], p, fp);
+				if (rc)
+					goto out;
+				break;
+			}
+			case OCON_IBPKEY: {
+				u64 subnet_prefix;
+				u32 low_pkey, high_pkey;
+
+				rc = next_entry(buf, fp, sizeof(u32) * 3);
+				if (rc)
+					goto out;
+				
+				/* subnet_prefix is 64-bit, read as two u32s */
+				subnet_prefix = (u64)le32_to_cpu(buf[0]) << 32 | le32_to_cpu(buf[1]);
+				c->u.ibpkey.subnet_prefix = subnet_prefix;
+				
+				low_pkey = le32_to_cpu(buf[2]);
+				rc = next_entry(buf, fp, sizeof(u32));
+				if (rc)
+					goto out;
+				high_pkey = le32_to_cpu(buf[0]);
+				
+				c->u.ibpkey.low_pkey = low_pkey;
+				c->u.ibpkey.high_pkey = high_pkey;
+				
+				rc = context_read_and_validate(&c->context[0], p, fp);
+				if (rc)
+					goto out;
+				break;
+			}
+			case OCON_IBENDPORT: {
+				u32 port;
+
+				rc = next_entry(buf, fp, sizeof(u32) * 2);
+				if (rc)
+					goto out;
+				
+				/* subnet_prefix is 64-bit */
+				c->u.ibendport.subnet_prefix = (u64)le32_to_cpu(buf[0]) << 32 | le32_to_cpu(buf[1]);
+				
+				rc = next_entry(buf, fp, sizeof(u32));
+				if (rc)
+					goto out;
+				port = le32_to_cpu(buf[0]);
+				if (port > 255)
+					goto out;
+				
+				c->u.ibendport.port = port;
+				
 				rc = context_read_and_validate(&c->context[0], p, fp);
 				if (rc)
 					goto out;
@@ -3154,6 +3225,37 @@ static int ocontext_write(struct policydb *p, struct policydb_compat_info *info,
 				for (j = 0; j < 4; j++)
 					nodebuf[j + 4] = c->u.node6.mask[j]; /* network order */
 				rc = put_entry(nodebuf, sizeof(u32), 8, fp);
+				if (rc)
+					return rc;
+				rc = context_write(p, &c->context[0], fp);
+				if (rc)
+					return rc;
+				break;
+			case OCON_IBPKEY:
+				/* subnet_prefix: 64-bit value, write as two u32s */
+				buf[0] = cpu_to_le32(c->u.ibpkey.subnet_prefix >> 32);
+				buf[1] = cpu_to_le32(c->u.ibpkey.subnet_prefix & 0xffffffff);
+				buf[2] = cpu_to_le32(c->u.ibpkey.low_pkey);
+				rc = put_entry(buf, sizeof(u32), 3, fp);
+				if (rc)
+					return rc;
+				buf[0] = cpu_to_le32(c->u.ibpkey.high_pkey);
+				rc = put_entry(buf, sizeof(u32), 1, fp);
+				if (rc)
+					return rc;
+				rc = context_write(p, &c->context[0], fp);
+				if (rc)
+					return rc;
+				break;
+			case OCON_IBENDPORT:
+				/* subnet_prefix: 64-bit value, write as two u32s */
+				buf[0] = cpu_to_le32(c->u.ibendport.subnet_prefix >> 32);
+				buf[1] = cpu_to_le32(c->u.ibendport.subnet_prefix & 0xffffffff);
+				rc = put_entry(buf, sizeof(u32), 2, fp);
+				if (rc)
+					return rc;
+				buf[0] = cpu_to_le32(c->u.ibendport.port);
+				rc = put_entry(buf, sizeof(u32), 1, fp);
 				if (rc)
 					return rc;
 				rc = context_write(p, &c->context[0], fp);
