@@ -18,17 +18,12 @@
 #define MAP_PRIVATE	0x02		/* Changes are private */
 #define MAP_TYPE	0x0f		/* Mask for type of mapping */
 #define MAP_FIXED	0x10		/* Interpret addr exactly */
-#define MAP_ANONYMOUS	0x20		/* don't use a file */
+#define MAP_ANONYMOUS	0x20		/* dont use a file */
 #ifdef CONFIG_MMAP_ALLOW_UNINITIALIZED
 # define MAP_UNINITIALIZED 0x4000000	/* For anonymous mmap, memory could be uninitialized */
 #else
-# define MAP_UNINITIALIZED 0x0		/* Don't support this flag */
+# define MAP_UNINITIALIZED 0x0		/* Dont support this flag */
 #endif
-
-/*
- * Flags for mlock
- */
-#define MLOCK_ONFAULT	0x01		/* Lock pages in range after they are faulted in, do not prefault */
 
 #define MS_ASYNC	1		/* sync memory asynchronously */
 #define MS_INVALIDATE	2		/* invalidate the caches */
@@ -38,11 +33,11 @@
 #define MADV_RANDOM	1		/* expect random page references */
 #define MADV_SEQUENTIAL	2		/* expect sequential page references */
 #define MADV_WILLNEED	3		/* will need these pages */
-#define MADV_DONTNEED	4		/* don't need these pages */
+#define MADV_DONTNEED	4		/* dont need these pages */
 
 /* common parameters: try to keep these consistent across architectures */
 #define MADV_REMOVE	9		/* remove these pages & resources */
-#define MADV_DONTFORK	10		/* don't inherit across fork */
+#define MADV_DONTFORK	10		/* dont inherit across fork */
 #define MADV_DOFORK	11		/* do inherit across fork */
 #define MADV_HWPOISON	100		/* poison a page for testing */
 #define MADV_SOFT_OFFLINE 101		/* soft offline page for testing */
@@ -54,8 +49,12 @@
 #define MADV_NOHUGEPAGE	15		/* Not worth backing with hugepages */
 
 #define MADV_DONTDUMP   16		/* Explicity exclude from the core dump,
-					   overrides the coredump filter bits */
+				   overrides the coredump filter bits */
 #define MADV_DODUMP	17		/* Clear the MADV_DONTDUMP flag */
+
+#define MADV_WIPEONFORK	18		/* Zero memory on fork, child only */
+#define MADV_KEEPONFORK	19		/* Undo MADV_WIPEONFORK */
+#define MLOCK_ONFAULT	1		/* Lock pages in range after they are faulted in */
 
 /* compatibility flags */
 #define MAP_FILE	0
