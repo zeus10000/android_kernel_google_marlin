@@ -73,6 +73,7 @@ struct class_datum {
 #define DEFAULT_TARGET_LOW     4
 #define DEFAULT_TARGET_HIGH    5
 #define DEFAULT_TARGET_LOW_HIGH        6
+#define DEFAULT_GLBLUB         4
 	char default_range;
 };
 
@@ -187,6 +188,15 @@ struct ocontext {
 			u32 addr[4];
 			u32 mask[4];
 		} node6;        /* IPv6 node information */
+		struct {
+			u64 subnet_prefix;
+			u16 low_pkey;
+			u16 high_pkey;
+		} ibpkey;	/* InfiniBand pkey information */
+		struct {
+			u64 subnet_prefix;
+			u8 port;
+		} ibendport;	/* InfiniBand end port information */
 	} u;
 	union {
 		u32 sclass;  /* security class for genfs */
@@ -222,6 +232,8 @@ struct genfs {
 #define OCON_NODE  4	/* nodes */
 #define OCON_FSUSE 5	/* fs_use */
 #define OCON_NODE6 6	/* IPv6 nodes */
+#define OCON_IBPKEY 7	/* InfiniBand pkeys */
+#define OCON_IBENDPORT 8	/* InfiniBand end ports */
 #define OCON_NUM   7
 
 /* The policy database */
@@ -274,7 +286,7 @@ struct policydb {
 
 	/* security contexts of initial SIDs, unlabeled file systems,
 	   TCP or UDP port numbers, network interfaces and nodes */
-	struct ocontext *ocontexts[OCON_NUM];
+	struct ocontext *ocontexts[OCON_IBENDPORT + 1];
 
 	/* security contexts for files in filesystems that cannot support
 	   a persistent label mapping or use another
