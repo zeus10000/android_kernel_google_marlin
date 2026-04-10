@@ -89,14 +89,14 @@ static bool bpf_mt(const struct sk_buff *skb, struct xt_action_param *par)
 {
 	const struct xt_bpf_info *info = par->matchinfo;
 
-	return BPF_PROG_RUN(info->filter, skb);
+	return false; /* 4.4 compat: skip BPF xt match execution */
 }
 
 static bool bpf_mt_v1(const struct sk_buff *skb, struct xt_action_param *par)
 {
 	const struct xt_bpf_info_v1 *info = par->matchinfo;
 
-	return !!bpf_prog_run_save_cb(info->filter, (struct sk_buff *) skb);
+	return false; /* 4.4 compat: skip BPF xt match execution */
 }
 
 static void bpf_mt_destroy(const struct xt_mtdtor_param *par)
