@@ -912,8 +912,8 @@ int bpf_jit_get_func_addr(const struct bpf_prog *prog,
 			return -EINVAL;
 		}
 	} else {
-		/* Helper function call: imm holds truncated address */
-		*func_addr = (unsigned long)(long)insn->imm;
+		/* Helper function call: imm holds offset from __bpf_call_base */
+		*func_addr = (unsigned long)((long)insn->imm + (long)__bpf_call_base);
 	}
 	return 0;
 }
