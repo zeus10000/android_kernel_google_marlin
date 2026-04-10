@@ -639,11 +639,6 @@ int __cgroup_bpf_run_filter_skb(struct sock *sk,
 				struct sk_buff *skb,
 				enum bpf_attach_type type)
 {
-	/* 4.4 compat: skip cgroup skb/sock BPF execution to avoid
-	 * JIT crash at unmapped address. Programs load and pin but
-	 * do not execute at runtime.
-	 */
-	return 0;
 	unsigned int offset = skb->data - skb_network_header(skb);
 	struct sock *save_sk;
 	void *saved_data_end;
@@ -696,7 +691,9 @@ EXPORT_SYMBOL(__cgroup_bpf_run_filter_skb);
 int __cgroup_bpf_run_filter_sk(struct sock *sk,
 			       enum bpf_attach_type type)
 {
-	return 0;
+	struct cgroup *cgrp = sock_cgroup_ptr(&sk->sk_cgrp_data);
+
+	return BPF_PROG_RUN_ARRAY(cgrp->bpf.effective[type], sk, BPF_PROG_RUN);
 }
 EXPORT_SYMBOL(__cgroup_bpf_run_filter_sk);
 
