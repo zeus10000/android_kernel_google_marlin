@@ -8032,6 +8032,7 @@ u32 bpf_sock_convert_ctx_access(enum bpf_access_type type,
 		break;
 	default:
 		/* Unknown field: return 0 — programs using these fields will get 0 */
+		*target_size = 4;
 		*insn++ = BPF_MOV64_IMM(si->dst_reg, 0);
 		break;
 	}
