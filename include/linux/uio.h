@@ -71,6 +71,7 @@ unsigned long iov_shorten(struct iovec *iov, unsigned long nr_segs, size_t to);
 size_t iov_iter_copy_from_user_atomic(struct page *page,
 		struct iov_iter *i, unsigned long offset, size_t bytes);
 void iov_iter_advance(struct iov_iter *i, size_t bytes);
+void iov_iter_revert(struct iov_iter *i, size_t bytes);
 int iov_iter_fault_in_readable(struct iov_iter *i, size_t bytes);
 #define iov_iter_fault_in_multipages_readable iov_iter_fault_in_readable
 size_t iov_iter_single_seg_count(const struct iov_iter *i);
@@ -157,5 +158,11 @@ int compat_import_iovec(int type, const struct compat_iovec __user * uvector,
 
 int import_single_range(int type, void __user *buf, size_t len,
 		 struct iovec *iov, struct iov_iter *i);
+
+
+static inline bool iov_iter_is_kvec(const struct iov_iter *i)
+{
+	return (i->type & ITER_KVEC);
+}
 
 #endif

@@ -374,4 +374,44 @@ static inline void psock_progs_drop(struct sk_psock_progs *progs)
 	psock_set_prog(&progs->skb_verdict, NULL);
 }
 
+
+#ifdef CONFIG_BPF_STREAM_PARSER
+int tcp_bpf_init(struct sock *sk);
+void tcp_bpf_reinit(struct sock *sk);
+#ifdef CONFIG_BPF_STREAM_PARSER
+int tcp_bpf_sendmsg_redir(struct sock *sk, struct sk_msg *msg, u32 bytes, int flags);
+int __tcp_bpf_recvmsg(struct sock *sk, struct sk_psock *psock, struct msghdr *msg, int len, int flags);
+#endif
+#endif
+static inline bool sk_psock_queue_empty(const struct sk_psock *psock)
+{
+	return psock ? list_empty(&psock->ingress_msg) : true;
+}
+int sk_msg_clone(struct sock *sk, struct sk_msg *dst, struct sk_msg *src,
+		 u32 off, u32 len);
+void sk_msg_return_zero(struct sock *sk, struct sk_msg *msg, int bytes);
+static inline void sk_msg_xfer_full(struct sk_msg *dst, struct sk_msg *src)
+{
+	memcpy(dst, src, sizeof(*src));
+	sk_msg_init(src);
+}
+static inline void sk_msg_sg_copy(struct sk_msg *msg, u32 i, bool copy_state)
+{
+	do {
+		if (msg->sg.copy)
+			msg->sg.copy[i] = copy_state;
+		sk_msg_iter_var_next(i);
+		if (i == msg->sg.end)
+			break;
+	} while (1);
+}
+static inline void sk_msg_sg_copy_set(struct sk_msg *msg, u32 start)
+{
+	sk_msg_sg_copy(msg, start, true);
+}
+static inline void sk_msg_sg_copy_clear(struct sk_msg *msg, u32 start)
+{
+	sk_msg_sg_copy(msg, start, false);
+}
+
 #endif /* _LINUX_SKMSG_H */

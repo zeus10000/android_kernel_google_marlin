@@ -142,3 +142,4 @@ int strp_process(struct strparser *strp, struct sk_buff *orig_skb,
 		 size_t max_msg_size, long timeo);
 
 #endif /* __NET_STRPARSER_H_ */
+void __strp_unpause(struct strparser *strp);

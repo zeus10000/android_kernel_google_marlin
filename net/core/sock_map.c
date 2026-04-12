@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0
+
 /* Copyright (c) 2017 - 2018 Covalent IO, Inc. http://covalent.io */
 
 #include <linux/bpf.h>
@@ -995,3 +996,4 @@ void sk_psock_unlink(struct sock *sk, struct sk_psock_link *link)
 		break;
 	}
 }
+

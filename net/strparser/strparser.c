@@ -565,3 +565,15 @@ static void __exit strp_mod_exit(void)
 module_init(strp_mod_init);
 module_exit(strp_mod_exit);
 MODULE_LICENSE("GPL");
+
+void __strp_unpause(struct strparser *strp)
+{
+	strp->paused = 0;
+
+	if (strp->need_bytes) {
+		if (strp_peek_len(strp) < strp->need_bytes)
+			return;
+	}
+	strp_read_sock(strp);
+}
+EXPORT_SYMBOL_GPL(__strp_unpause);

@@ -315,6 +315,7 @@ struct cg_proto;
   *	@sk_destruct: called at sock freeing time, i.e. when all refcnt == 0
   *	@sk_reuseport_cb: reuseport group container
  */
+struct bpf_sk_storage;
 struct sock {
 	/*
 	 * Now struct inet_timewait_sock also uses sock_common, so please just
@@ -452,6 +453,7 @@ struct sock {
 #endif
 	kuid_t			sk_uid;
 	struct sock_cgroup_data	sk_cgrp_data;
+	struct bpf_sk_storage __rcu	*sk_bpf_storage;
 	struct cg_proto		*sk_cgrp;
 	void			(*sk_state_change)(struct sock *sk);
 	void			(*sk_data_ready)(struct sock *sk);
@@ -2402,3 +2404,4 @@ int sockev_register_notify(struct notifier_block *nb);
 int sockev_unregister_notify(struct notifier_block *nb);
 
 #endif	/* _SOCK_H */
+#define sock_owned_by_me(sk) sock_owned_by_user(sk)
