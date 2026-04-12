@@ -4650,3 +4650,70 @@ failure:
 	return NULL;
 }
 EXPORT_SYMBOL(alloc_skb_with_frags);
+
+/*
+ * Send skb data through a connected socket with the socket lock held.
+ * Backported from Linux 5.4; adapted for 4.4 API (no kernel_sendpage_locked,
+ * uses kernel_sendmsg_locked for all data).
+ */
+int skb_send_sock_locked(struct sock *sk, struct sk_buff *skb, int offset,
+			 int len)
+{
+	unsigned int orig_len = len;
+	struct kvec kv;
+	struct msghdr msg;
+	int slen, ret;
+
+	/* Send head data */
+	while (offset < skb_headlen(skb) && len) {
+		slen = min_t(int, len, skb_headlen(skb) - offset);
+		kv.iov_base = skb->data + offset;
+		kv.iov_len = slen;
+		memset(&msg, 0, sizeof(msg));
+		msg.msg_flags = MSG_DONTWAIT;
+
+		ret = kernel_sendmsg(sk->sk_socket, &msg, &kv, 1, slen);
+		if (ret <= 0)
+			goto error;
+
+		offset += ret;
+		len -= ret;
+	}
+
+	/* Send paged data (frags) */
+	if (skb_shinfo(skb)->nr_frags) {
+		int i;
+		for (i = 0; i < skb_shinfo(skb)->nr_frags && len; i++) {
+			skb_frag_t *frag = &skb_shinfo(skb)->frags[i];
+			int frag_off = frag->page_offset;
+			int frag_len = skb_frag_size(frag);
+			void *frag_data;
+
+			if (offset >= frag_len) {
+				offset -= frag_len;
+				continue;
+			}
+
+			slen = min_t(int, len, frag_len - offset);
+			frag_data = kmap(skb_frag_page(frag)) + frag_off + offset;
+			kv.iov_base = frag_data;
+			kv.iov_len = slen;
+			memset(&msg, 0, sizeof(msg));
+			msg.msg_flags = MSG_DONTWAIT;
+
+			ret = kernel_sendmsg(sk->sk_socket, &msg, &kv, 1, slen);
+			kunmap(skb_frag_page(frag));
+
+			if (ret <= 0)
+				goto error;
+
+			offset = 0;
+			len -= ret;
+		}
+	}
+
+	return orig_len - len;
+error:
+	return orig_len == len ? ret : orig_len - len;
+}
+EXPORT_SYMBOL(skb_send_sock_locked);
