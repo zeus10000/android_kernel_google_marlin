@@ -7983,7 +7983,11 @@ const struct bpf_prog_ops sk_skb_prog_ops = {};
 const struct bpf_prog_ops sk_msg_prog_ops = {};
 
 /* 4.4 compat: verifier_ops stubs for BPF program types */
-const struct bpf_verifier_ops cg_sock_addr_verifier_ops = {};
+const struct bpf_verifier_ops cg_sock_addr_verifier_ops = {
+	.get_func_proto		= sock_addr_func_proto,
+	.is_valid_access	= sock_addr_is_valid_access,
+	.convert_ctx_access	= sock_addr_convert_ctx_access,
+};
 const struct bpf_verifier_ops sock_ops_verifier_ops = {};
 const struct bpf_verifier_ops sk_skb_verifier_ops = {};
 const struct bpf_verifier_ops sk_msg_verifier_ops = {};
