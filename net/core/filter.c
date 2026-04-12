@@ -4321,8 +4321,80 @@ static int bpf_fib_set_fwd_params(struct bpf_fib_lookup *params,
 static int bpf_ipv4_fib_lookup(struct net *net, struct bpf_fib_lookup *params,
 			       u32 flags, bool check_mtu)
 {
-	/* 4.4 compat: fib_nh field names changed in 5.x, fib lookup unsupported */
-	return BPF_FIB_LKUP_RET_NOT_FWDED;
+	struct fib_result res = {};
+	struct neighbour *neigh;
+	struct net_device *dev;
+	struct fib_nh *nh;
+	struct flowi4 fl4;
+	int err;
+	u32 mtu;
+
+	dev = dev_get_by_index_rcu(net, params->ifindex);
+	if (unlikely(!dev))
+		return -ENODEV;
+
+	memset(&fl4, 0, sizeof(fl4));
+	fl4.flowi4_tos = params->tos & IPTOS_RT_MASK;
+	fl4.flowi4_scope = RT_SCOPE_UNIVERSE;
+	fl4.flowi4_flags = 0;
+	fl4.flowi4_iif = params->ifindex;
+	fl4.daddr = params->ipv4_dst;
+	fl4.saddr = params->ipv4_src;
+	fl4.flowi4_proto = params->l4_protocol;
+	fl4.fl4_sport = params->sport;
+	fl4.fl4_dport = params->dport;
+
+	if (flags & BPF_FIB_LOOKUP_DIRECT) {
+		
+		fl4.flowi4_scope = RT_SCOPE_LINK;
+	}
+
+	err = fib_lookup(net, &fl4, &res, FIB_LOOKUP_NOREF);
+	if (err)
+		return BPF_FIB_LKUP_RET_NOT_FWDED;
+
+	if (res.type != RTN_UNICAST)
+		return BPF_FIB_LKUP_RET_NOT_FWDED;
+
+	if (res.fi->fib_nhs == 0)
+		return BPF_FIB_LKUP_RET_NOT_FWDED;
+
+	nh = &res.fi->fib_nh[res.nh_sel];
+	if (!nh)
+		return BPF_FIB_LKUP_RET_NOT_FWDED;
+
+	if (check_mtu) {
+		mtu = res.fi->fib_mtu;
+		if (!mtu)
+			mtu = dev->mtu;
+		if (params->tot_len > mtu)
+			return BPF_FIB_LKUP_RET_FRAG_NEEDED;
+	}
+
+	if (nh->nh_lwtstate)
+		return BPF_FIB_LKUP_RET_UNSUPP_LWT;
+
+	dev = nh->nh_dev;
+	if (!dev)
+		return BPF_FIB_LKUP_RET_NOT_FWDED;
+
+	if (nh->nh_gw)
+		params->ipv4_dst = nh->nh_gw;
+
+	neigh = __ipv4_neigh_lookup_noref(dev, (__force u32)params->ipv4_dst);
+	if (!neigh)
+		return BPF_FIB_LKUP_RET_NO_NEIGH;
+
+	if (!(neigh->nud_state & NUD_VALID))
+		return BPF_FIB_LKUP_RET_NO_NEIGH;
+
+	memcpy(params->dmac, neigh->ha, ETH_ALEN);
+	memcpy(params->smac, dev->dev_addr, ETH_ALEN);
+	params->h_vlan_TCI = 0;
+	params->h_vlan_proto = 0;
+	params->ifindex = dev->ifindex;
+
+	return BPF_FIB_LKUP_RET_SUCCESS;
 }
 #endif
 
@@ -4330,8 +4402,77 @@ static int bpf_ipv4_fib_lookup(struct net *net, struct bpf_fib_lookup *params,
 static int bpf_ipv6_fib_lookup(struct net *net, struct bpf_fib_lookup *params,
 			       u32 flags, bool check_mtu)
 {
-	/* 4.4 compat: IPv6 fib6 types not available, fib lookup unsupported */
-	return BPF_FIB_LKUP_RET_NOT_FWDED;
+	struct neighbour *neigh;
+	struct net_device *dev;
+	struct in6_addr *src = (struct in6_addr *)params->ipv6_src;
+	struct in6_addr *dst = (struct in6_addr *)params->ipv6_dst;
+	struct flowi6 fl6;
+	struct dst_entry *dst_entry;
+	struct rt6_info *rt;
+	u32 mtu;
+
+	dev = dev_get_by_index_rcu(net, params->ifindex);
+	if (unlikely(!dev))
+		return -ENODEV;
+
+	memset(&fl6, 0, sizeof(fl6));
+	fl6.flowi6_iif = params->ifindex;
+	fl6.daddr = *dst;
+	fl6.saddr = *src;
+	fl6.flowlabel = params->flowinfo;
+	fl6.flowi6_scope = RT_SCOPE_UNIVERSE;
+	fl6.flowi6_proto = params->l4_protocol;
+	fl6.fl6_sport = params->sport;
+	fl6.fl6_dport = params->dport;
+
+	dst_entry = ip6_route_lookup(net, &fl6, 0);
+	if (IS_ERR(dst_entry))
+		return BPF_FIB_LKUP_RET_NOT_FWDED;
+
+	rt = container_of(dst_entry, struct rt6_info, dst);
+
+	if (rt->rt6i_flags & (RTF_REJECT | RTF_ANYCAST)) {
+		dst_release(dst_entry);
+		return BPF_FIB_LKUP_RET_NOT_FWDED;
+	}
+
+	if (check_mtu) {
+		mtu = dst_mtu(dst_entry);
+		if (params->tot_len > mtu) {
+			dst_release(dst_entry);
+			return BPF_FIB_LKUP_RET_FRAG_NEEDED;
+		}
+	}
+
+	dev = dst_entry->dev;
+	if (!dev) {
+		dst_release(dst_entry);
+		return BPF_FIB_LKUP_RET_NOT_FWDED;
+	}
+
+	if (rt->rt6i_gateway.s6_addr32[0] | rt->rt6i_gateway.s6_addr32[1] |
+	    rt->rt6i_gateway.s6_addr32[2] | rt->rt6i_gateway.s6_addr32[3])
+		*dst = rt->rt6i_gateway;
+
+	neigh = __ipv6_neigh_lookup_noref(dev, dst);
+	if (!neigh) {
+		dst_release(dst_entry);
+		return BPF_FIB_LKUP_RET_NO_NEIGH;
+	}
+
+	if (!(neigh->nud_state & NUD_VALID)) {
+		dst_release(dst_entry);
+		return BPF_FIB_LKUP_RET_NO_NEIGH;
+	}
+
+	memcpy(params->dmac, neigh->ha, ETH_ALEN);
+	memcpy(params->smac, dev->dev_addr, ETH_ALEN);
+	params->h_vlan_TCI = 0;
+	params->h_vlan_proto = 0;
+	params->ifindex = dev->ifindex;
+
+	dst_release(dst_entry);
+	return BPF_FIB_LKUP_RET_SUCCESS;
 }
 #endif
 
@@ -8043,11 +8184,7 @@ u32 bpf_sock_convert_ctx_access(enum bpf_access_type type,
 	return insn - insn_buf;
 }
 
-/* 4.4 compat: bpf_sk_storage_free stub (struct sock lacks sk_bpf_storage) */
-void bpf_sk_storage_free(struct sock *sk)
-{
-}
-EXPORT_SYMBOL_GPL(bpf_sk_storage_free);
+
 
 /* 4.4 compat: generic_xdp_tx — transmit skb via normal stack */
 void generic_xdp_tx(struct sk_buff *skb, struct bpf_prog *xdp_prog)
