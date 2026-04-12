@@ -6,3 +6,19 @@ config QCA_CLD_WLAN
 	default n
 	help
 	Add support for the Qualcomm Atheros CLD WLAN module
+
+config WLAN_FEATURE_11W
+	bool "Enable 802.11w Protected Management Frames (PMF)"
+	depends on QCA_CLD_WLAN
+	default y
+	help
+	  Enable 802.11w PMF support. Required for WPA3-SAE connections.
+	  QCA6174A firmware supports PMF natively.
+
+config WLAN_FEATURE_SAE
+	bool "Enable WPA3-SAE (Simultaneous Authentication of Equals)"
+	depends on QCA_CLD_WLAN
+	default y
+	help
+	  Enable SAE authentication support for WPA3 connections.
+	  Requires CFG80211_EXTERNAL_AUTH_SUPPORT in the cfg80211 stack.
