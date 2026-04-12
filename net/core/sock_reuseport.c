@@ -11,7 +11,8 @@
 
 #define INIT_SOCKS 128
 
-static DEFINE_SPINLOCK(reuseport_lock);
+DEFINE_SPINLOCK(reuseport_lock);
+EXPORT_SYMBOL(reuseport_lock);
 
 static struct sock_reuseport *__reuseport_alloc(u16 max_socks)
 {
@@ -269,3 +270,26 @@ reuseport_attach_prog(struct sock *sk, struct bpf_prog *prog)
 	return 0;
 }
 EXPORT_SYMBOL(reuseport_attach_prog);
+
+
+/* 5.4 backport: reuseport_get_id for BPF reuseport_array */
+#include <linux/idr.h>
+#define REUSEPORT_MIN_ID 1
+static DEFINE_IDA(reuseport_ida);
+
+int reuseport_get_id(struct sock_reuseport *reuse)
+{
+	int id;
+
+	if (reuse->reuseport_id)
+		return reuse->reuseport_id;
+
+	id = ida_simple_get(&reuseport_ida, REUSEPORT_MIN_ID, 0,
+			    GFP_ATOMIC);
+	if (id < 0)
+		return id;
+
+	reuse->reuseport_id = id;
+	return reuse->reuseport_id;
+}
+EXPORT_SYMBOL(reuseport_get_id);

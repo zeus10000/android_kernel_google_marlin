@@ -69,6 +69,8 @@ struct page_pool {
 	struct rcu_head rcu;
 	struct page_pool_params p;
 
+	u32 pages_state_hold_cnt;
+
 	/*
 	 * Data structure for allocation side
 	 *
@@ -96,6 +98,11 @@ struct page_pool {
 	 * TODO: Implement bulk return pages into this structure.
 	 */
 	struct ptr_ring ring;
+
+	atomic_t pages_state_release_cnt;
+
+	/* refcnt to simplify drivers error handling */
+	atomic_t user_cnt;
 };
 
 struct page *page_pool_alloc_pages(struct page_pool *pool, gfp_t gfp);

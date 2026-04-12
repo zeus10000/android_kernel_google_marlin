@@ -262,3 +262,26 @@ static inline void ptr_ring_cleanup(struct ptr_ring *r)
 }
 
 #endif /* _LINUX_PTR_RING_H  */
+
+/* 4.4 compat: added in 4.17 */
+static inline bool __ptr_ring_empty(struct ptr_ring *r)
+{
+	return !r->queue[r->consumer];
+}
+
+static inline int ptr_ring_consume_batched(struct ptr_ring *r,
+					   void **array, int n)
+{
+	int i;
+	unsigned long flags;
+
+	spin_lock_irqsave(&r->consumer_lock, flags);
+	for (i = 0; i < n; i++) {
+		void *ptr = __ptr_ring_consume(r);
+		if (!ptr)
+			break;
+		array[i] = ptr;
+	}
+	spin_unlock_irqrestore(&r->consumer_lock, flags);
+	return i;
+}
