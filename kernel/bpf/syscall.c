@@ -746,6 +746,10 @@ static int map_lookup_elem(union bpf_attr *attr)
 	if (!key)
 		goto err_put;
 
+	err = -EFAULT;
+	if (copy_from_user(key, ukey, map->key_size) != 0)
+		goto free_key;
+
 	if (map->map_type == BPF_MAP_TYPE_PERCPU_HASH ||
 	    map->map_type == BPF_MAP_TYPE_LRU_PERCPU_HASH ||
 	    map->map_type == BPF_MAP_TYPE_PERCPU_ARRAY ||
@@ -869,6 +873,10 @@ static int map_update_elem(union bpf_attr *attr)
 	if (!key)
 		goto err_put;
 
+	err = -EFAULT;
+	if (copy_from_user(key, ukey, map->key_size) != 0)
+		goto free_key;
+
 	if (map->map_type == BPF_MAP_TYPE_PERCPU_HASH ||
 	    map->map_type == BPF_MAP_TYPE_LRU_PERCPU_HASH ||
 	    map->map_type == BPF_MAP_TYPE_PERCPU_ARRAY ||
@@ -968,6 +976,10 @@ static int map_delete_elem(union bpf_attr *attr)
 	key = kmalloc(map->key_size, GFP_USER);
 	if (!key)
 		goto err_put;
+
+	err = -EFAULT;
+	if (copy_from_user(key, ukey, map->key_size) != 0)
+		goto out;
 
 	if (bpf_map_is_dev_bound(map)) {
 		err = bpf_map_offload_delete_elem(map, key);

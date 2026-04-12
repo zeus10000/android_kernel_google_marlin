@@ -4,8 +4,12 @@
  * but whose implementation files cannot be compiled on 4.4 without
  * extensive backporting.
  *
- * sockmap.c  — omitted: uses strparser/psock APIs added in 5.x
- * reuseport_array.c — omitted: references static reuseport_lock not exported
+ * sockmap.c — omitted: uses strparser/psock APIs added in 5.x
+ *
+ * Note: cpumap and reuseport_array stubs moved to their proper files
+ * (kernel/bpf/cpumap.c, kernel/bpf/reuseport_array.c) so the layout
+ * matches upstream and auditors can find the stub rationale in the
+ * expected location.
  */
 #include <linux/bpf.h>
 #include <linux/errno.h>
@@ -16,23 +20,4 @@ int sockmap_get_from_fd(const union bpf_attr *attr, int type,
 			struct bpf_prog *prog)
 {
 	return -EOPNOTSUPP;
-}
-
-/* reuseport array helpers: called by bpf_map_{lookup,update}_elem for
- * BPF_MAP_TYPE_REUSEPORT_SOCKARRAY */
-int bpf_fd_reuseport_array_lookup_elem(struct bpf_map *map, void *key,
-				       void *value)
-{
-	return -EOPNOTSUPP;
-}
-
-int bpf_fd_reuseport_array_update_elem(struct bpf_map *map, void *key,
-				       void *value, u64 map_flags)
-{
-	return -EOPNOTSUPP;
-}
-
-/* reuseport detach: called from sock_reuseport_free() */
-void bpf_sk_reuseport_detach(struct sock *sk)
-{
 }
