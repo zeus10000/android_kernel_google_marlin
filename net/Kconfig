@@ -435,3 +435,13 @@ config HAVE_CBPF_JIT
 config HAVE_EBPF_JIT
 	bool
 
+
+config BPF_STREAM_PARSER
+	bool "BPF stream parser and sockmap"
+	depends on BPF_SYSCALL && INET
+	default y
+	help
+	  Enable BPF stream parser (sockmap/sockhash) support. This allows
+	  BPF programs to redirect data between TCP sockets via BPF_MAP_TYPE_SOCKMAP
+	  and BPF_MAP_TYPE_SOCKHASH maps.
+source "net/tls/Kconfig"

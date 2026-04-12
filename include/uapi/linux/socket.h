@@ -19,3 +19,4 @@ struct __kernel_sockaddr_storage {
 } __attribute__ ((aligned(_K_SS_ALIGNSIZE)));	/* force desired alignment */
 
 #endif /* _UAPI_LINUX_SOCKET_H */
+#define SOL_TLS 282

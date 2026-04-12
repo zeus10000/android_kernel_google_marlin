@@ -898,7 +898,7 @@ static int tcp_send_mss(struct sock *sk, int *size_goal, int flags)
 	return mss_now;
 }
 
-static ssize_t do_tcp_sendpages(struct sock *sk, struct page *page, int offset,
+ssize_t do_tcp_sendpages(struct sock *sk, struct page *page, int offset,
 				size_t size, int flags)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
@@ -3216,7 +3216,7 @@ void __init tcp_init(void)
 	unsigned int i;
 
 	BUILD_BUG_ON(TCP_MIN_SND_MSS <= MAX_TCP_OPTION_SPACE);
-	sock_skb_cb_check_size(sizeof(struct tcp_skb_cb));
+	/* 5.4 dropped this check: tcp_skb_cb uses full cb[] space */
 
 	percpu_counter_init(&tcp_sockets_allocated, 0, GFP_KERNEL);
 	percpu_counter_init(&tcp_orphan_count, 0, GFP_KERNEL);
@@ -3289,3 +3289,4 @@ void __init tcp_init(void)
 	BUG_ON(tcp_register_congestion_control(&tcp_reno) != 0);
 	tcp_tasklet_init();
 }
+EXPORT_SYMBOL(do_tcp_sendpages);

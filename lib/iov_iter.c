@@ -830,3 +830,41 @@ int import_single_range(int rw, void __user *buf, size_t len,
 	iov_iter_init(i, rw, iov, 1, len);
 	return 0;
 }
+
+/*
+ * Revert iov_iter state by @unroll bytes.
+ * Backported from Linux 4.12; simplified for 4.4 which only has
+ * iovec and bvec iterator types (no pipe or discard).
+ */
+void iov_iter_revert(struct iov_iter *i, size_t unroll)
+{
+	if (!unroll)
+		return;
+	i->count += unroll;
+	if (i->type & ITER_BVEC) {
+		const struct bio_vec *bvec = i->bvec;
+		while (1) {
+			size_t n = (--bvec)->bv_len;
+			i->nr_segs++;
+			if (unroll <= n) {
+				i->bvec = bvec;
+				i->iov_offset = bvec->bv_len - unroll;
+				return;
+			}
+			unroll -= n;
+		}
+	} else { /* ITER_IOVEC or ITER_KVEC */
+		const struct iovec *iov = i->iov;
+		while (1) {
+			size_t n = (--iov)->iov_len;
+			i->nr_segs++;
+			if (unroll <= n) {
+				i->iov = iov;
+				i->iov_offset = iov->iov_len - unroll;
+				return;
+			}
+			unroll -= n;
+		}
+	}
+}
+EXPORT_SYMBOL(iov_iter_revert);

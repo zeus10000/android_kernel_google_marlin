@@ -29,3 +29,5 @@ obj-$(CONFIG_SOCKEV_NLMCAST) += sockev_nlmcast.o
 obj-$(CONFIG_DST_CACHE) += dst_cache.o
 
 obj-y += xdp.o
+obj-$(CONFIG_BPF_SYSCALL) += sock_map.o skmsg.o bpf_sk_storage.o
+obj-$(CONFIG_NET) += page_pool.o

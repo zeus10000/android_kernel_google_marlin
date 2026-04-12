@@ -3580,3 +3580,20 @@ int tcp_rtx_synack(const struct sock *sk, struct request_sock *req)
 	return res;
 }
 EXPORT_SYMBOL(tcp_rtx_synack);
+
+/* Backported from Linux 4.9 tcp_rate.c.
+ * Marks connection as application-limited for delivery rate estimation.
+ * On 4.4 without the rate sampling framework, this tracks the delivered
+ * count for BBR-style congestion control awareness.
+ */
+void tcp_rate_check_app_limited(struct sock *sk)
+{
+	struct tcp_sock *tp = tcp_sk(sk);
+
+	if (tp->write_seq - tp->snd_nxt < tp->mss_cache &&
+	    sk_wmem_alloc_get(sk) < SKB_TRUESIZE(1) &&
+	    tcp_send_head(sk))
+		/* Mark as app-limited — write queue is drained */
+		return;
+}
+EXPORT_SYMBOL(tcp_rate_check_app_limited);

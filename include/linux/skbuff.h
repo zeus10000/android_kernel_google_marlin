@@ -3821,3 +3821,5 @@ skb_gso_validate_mac_len(const struct sk_buff *skb, unsigned int len)
 
 #endif	/* __KERNEL__ */
 #endif	/* _LINUX_SKBUFF_H */
+
+int skb_send_sock_locked(struct sock *sk, struct sk_buff *skb, int offset, int len);
