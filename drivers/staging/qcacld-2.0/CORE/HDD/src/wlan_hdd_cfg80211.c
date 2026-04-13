@@ -24695,8 +24695,12 @@ int wlan_hdd_cfg80211_set_privacy(hdd_adapter_t *pAdapter,
         {
             pWextState->wpaVersion = IW_AUTH_WPA_VERSION_WPA;
         }
-        else if (NL80211_WPA_VERSION_2 == req->crypto.wpa_versions)
+        else if ((NL80211_WPA_VERSION_2 == req->crypto.wpa_versions) ||
+                 (NL80211_WPA_VERSION_3 == req->crypto.wpa_versions))
         {
+            /* WPA3 (SAE) uses RSN like WPA2; treat identically so that
+             * hdd_SetGENIEToCsr() is called and MFPRequired/MFPCapable
+             * are populated from the RSN IE. */
             pWextState->wpaVersion = IW_AUTH_WPA_VERSION_WPA2;
         }
     }
