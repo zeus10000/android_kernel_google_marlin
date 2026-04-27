@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 
 #undef TRACE_SYSTEM_VAR
 
@@ -48,7 +47,8 @@ perf_trace_##call(void *__data, proto)					\
 	head = this_cpu_ptr(event_call->perf_events);			\
 	if (!bpf_prog_array_valid(event_call) &&			\
 	    __builtin_constant_p(!__task) && !__task &&			\
-	    hlist_empty(head))						\		return;							\
+	    hlist_empty(head))						\
+		return;							\
 									\
 	__entry_size = ALIGN(__data_size + sizeof(*entry) + sizeof(u32),\
 			     sizeof(u64));				\
@@ -66,7 +66,8 @@ perf_trace_##call(void *__data, proto)					\
 									\
 	perf_trace_run_bpf_submit(entry, __entry_size, rctx,		\
 				  event_call, __count, __regs,		\
-				  head, __task);			\}
+				  head, __task);			\
+}
 
 /*
  * This part is compiled out, it is only here as a build time check
