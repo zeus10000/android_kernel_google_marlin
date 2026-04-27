@@ -654,7 +654,9 @@ int tls_proccess_cmsg(struct sock *sk, struct msghdr *msg,
 		      unsigned char *record_type);
 void tls_register_device(struct tls_device *device);
 void tls_unregister_device(struct tls_device *device);
+#ifdef CONFIG_TLS_DEVICE
 int tls_device_decrypted(struct sock *sk, struct sk_buff *skb);
+#endif
 int decrypt_skb(struct sock *sk, struct sk_buff *skb,
 		struct scatterlist *sgout);
 struct sk_buff *tls_encrypt_skb(struct sk_buff *skb);
@@ -667,9 +669,24 @@ int tls_sw_fallback_init(struct sock *sk,
 			 struct tls_offload_context_tx *offload_ctx,
 			 struct tls_crypto_info *crypto_info);
 
+#ifdef CONFIG_TLS_DEVICE
 int tls_set_device_offload_rx(struct sock *sk, struct tls_context *ctx);
 
 void tls_device_offload_cleanup_rx(struct sock *sk);
 void tls_device_rx_resync_new_rec(struct sock *sk, u32 rcd_len, u32 seq);
+#else
+static inline int
+tls_set_device_offload_rx(struct sock *sk, struct tls_context *ctx)
+{
+	return -EOPNOTSUPP;
+}
+static inline void tls_device_offload_cleanup_rx(struct sock *sk) {}
+static inline void
+tls_device_rx_resync_new_rec(struct sock *sk, u32 rcd_len, u32 seq) {}
+static inline int tls_device_decrypted(struct sock *sk, struct sk_buff *skb)
+{
+	return 0;
+}
+#endif
 
 #endif /* _TLS_OFFLOAD_H */
