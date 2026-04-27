@@ -220,9 +220,6 @@ enum tls_context_flags {
 	TLS_TX_SYNC_SCHED = 1,
 };
 
-enum tls_context_flags {
-	TLS_RX_SYNC_RUNNING = 0,
-};
 
 struct cipher_context {
 	char *iv;
@@ -280,7 +277,6 @@ struct tls_context {
 			       * per-type TX fields
 			       */
 	unsigned long flags;
-	bool in_tcp_sendpages;
 
 	/* cache cold stuff */
 	struct proto *sk_proto;
