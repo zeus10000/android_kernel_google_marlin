@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  *  linux/fs/proc/inode.c
  *
@@ -25,7 +24,7 @@
 #include <linux/mount.h>
 #include <linux/magic.h>
 
-#include <linux/uaccess.h>
+#include <asm/uaccess.h>
 
 #include "internal.h"
 
@@ -420,7 +419,7 @@ struct inode *proc_get_inode(struct super_block *sb, struct proc_dir_entry *de)
 
 	if (inode) {
 		inode->i_ino = de->low_ino;
-		inode->i_mtime = inode->i_atime = inode->i_ctime = current_time(inode);
+		inode->i_mtime = inode->i_atime = inode->i_ctime = CURRENT_TIME;
 		PROC_I(inode)->pde = de;
 
 		if (is_empty_pde(de)) {
