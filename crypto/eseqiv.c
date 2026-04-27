@@ -110,13 +110,13 @@ static int eseqiv_givencrypt(struct skcipher_givcrypt_request *req)
 
 	sg_init_table(reqctx->src, 2);
 	sg_set_buf(reqctx->src, giv, ivsize);
-	scatterwalk_crypto_chain(reqctx->src, osrc, vsrc == giv + ivsize, 2);
+	scatterwalk_crypto_chain(reqctx->src, osrc, 2);
 
 	dst = reqctx->src;
 	if (osrc != odst) {
 		sg_init_table(reqctx->dst, 2);
 		sg_set_buf(reqctx->dst, giv, ivsize);
-		scatterwalk_crypto_chain(reqctx->dst, odst, vdst == giv + ivsize, 2);
+		scatterwalk_crypto_chain(reqctx->dst, odst, 2);
 
 		dst = reqctx->dst;
 	}
