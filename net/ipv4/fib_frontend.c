@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * INET		An implementation of the TCP/IP protocol suite for the LINUX
  *		operating system.  INET is implemented using the  BSD Socket
@@ -7,10 +6,15 @@
  *		IPv4 Forwarding Information Base: FIB frontend.
  *
  * Authors:	Alexey Kuznetsov, <kuznet@ms2.inr.ac.ru>
+ *
+ *		This program is free software; you can redistribute it and/or
+ *		modify it under the terms of the GNU General Public License
+ *		as published by the Free Software Foundation; either version
+ *		2 of the License, or (at your option) any later version.
  */
 
 #include <linux/module.h>
-#include <linux/uaccess.h>
+#include <asm/uaccess.h>
 #include <linux/bitops.h>
 #include <linux/capability.h>
 #include <linux/types.h>
@@ -300,7 +304,7 @@ __be32 fib_compute_spec_dst(struct sk_buff *skb)
 			.flowi4_mark = vmark ? skb->mark : 0,
 		};
 		if (!fib_lookup(net, &fl4, &res, 0))
-			return fib_result_prefsrc(net, &res);
+			return FIB_RES_PREFSRC(net, res);
 	} else {
 		scope = RT_SCOPE_LINK;
 	}
@@ -545,7 +549,7 @@ static int rtentry_to_fib_config(struct net *net, int cmd, struct rtentry *rt,
 		struct nlattr *mx;
 		int len = 0;
 
-		mx = kcalloc(3, nla_total_size(4), GFP_KERNEL);
+		mx = kzalloc(3 * nla_total_size(4), GFP_KERNEL);
 		if (!mx)
 			return -ENOMEM;
 

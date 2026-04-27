@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  *	UDP over IPv6
  *	Linux INET6 implementation
@@ -15,6 +14,11 @@
  *					a single port at the same time.
  *      Kazunori MIYAZAWA @USAGI:       change process style to use ip6_append_data
  *      YOSHIFUJI Hideaki @USAGI:	convert /proc/net/udp6 to seq_file.
+ *
+ *	This program is free software; you can redistribute it and/or
+ *      modify it under the terms of the GNU General Public License
+ *      as published by the Free Software Foundation; either version
+ *      2 of the License, or (at your option) any later version.
  */
 
 #include <linux/errno.h>
@@ -31,7 +35,7 @@
 #include <linux/module.h>
 #include <linux/skbuff.h>
 #include <linux/slab.h>
-#include <linux/uaccess.h>
+#include <asm/uaccess.h>
 
 #include <net/addrconf.h>
 #include <net/ndisc.h>
@@ -277,8 +281,6 @@ struct sock *__udp6_lib_lookup(struct net *net,
 						  &in6addr_any, hnum, dif,
 						  hslot2, slot2, skb);
 		}
-		if (unlikely(IS_ERR(result)))
-			return NULL;
 		return result;
 	}
 begin:
@@ -293,8 +295,6 @@ begin:
 						    saddr, sport);
 				result = reuseport_select_sock(sk, hash, skb,
 							sizeof(struct udphdr));
-				if (unlikely(IS_ERR(result)))
-					return NULL;
 				if (result)
 					return result;
 				matches = 1;
@@ -450,10 +450,6 @@ try_again:
 						    inet6_iif(skb));
 		}
 		*addr_len = sizeof(*sin6);
-
-		if (cgroup_bpf_enabled)
-			BPF_CGROUP_RUN_PROG_UDP6_RECVMSG_LOCK(sk,
-						(struct sockaddr *)sin6);
 	}
 
 	if (np->rxopt.all)
@@ -980,25 +976,6 @@ static void udp_v6_flush_pending_frames(struct sock *sk)
 	}
 }
 
-static int udpv6_pre_connect(struct sock *sk, struct sockaddr *uaddr,
-			     int addr_len)
-{
-	/* The following checks are replicated from __ip6_datagram_connect()
-	 * and intended to prevent BPF program called below from accessing
-	 * bytes that are out of the bound specified by user in addr_len.
-	 */
-	if (uaddr->sa_family == AF_INET) {
-		if (__ipv6_only_sock(sk))
-			return -EAFNOSUPPORT;
-		return udp_pre_connect(sk, uaddr, addr_len);
-	}
-
-	if (addr_len < SIN6_LEN_RFC2133)
-		return -EINVAL;
-
-	return BPF_CGROUP_RUN_PROG_INET6_CONNECT_LOCK(sk, uaddr);
-}
-
 /**
  *	udp6_hwcsum_outgoing  -  handle outgoing HW checksumming
  *	@sk:	socket we are sending on
@@ -1308,29 +1285,6 @@ do_udp_sendmsg:
 		fl6.saddr = np->saddr;
 	fl6.fl6_sport = inet->inet_sport;
 
-	if (cgroup_bpf_enabled && !connected) {
-		err = BPF_CGROUP_RUN_PROG_UDP6_SENDMSG_LOCK(sk,
-					   (struct sockaddr *)sin6, &fl6.saddr);
-		if (err)
-			goto out_no_dst;
-		if (sin6) {
-			if (ipv6_addr_v4mapped(&sin6->sin6_addr)) {
-				/* BPF program rewrote IPv6-only by IPv4-mapped
-				 * IPv6. It's currently unsupported.
-				 */
-				err = -ENOTSUPP;
-				goto out_no_dst;
-			}
-			if (sin6->sin6_port == 0) {
-				/* BPF program set invalid port. Reject it. */
-				err = -EINVAL;
-				goto out_no_dst;
-			}
-			fl6.fl6_dport = sin6->sin6_port;
-			fl6.daddr = sin6->sin6_addr;
-		}
-	}
-
 	final_p = fl6_update_dst(&fl6, opt, &final);
 	if (final_p)
 		connected = 0;
@@ -1425,7 +1379,6 @@ release_dst:
 
 out:
 	dst_release(dst);
-out_no_dst:
 	fl6_sock_release(flowlabel);
 	txopt_put(opt_to_free);
 	if (!err)
