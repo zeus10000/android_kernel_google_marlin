@@ -861,6 +861,61 @@ struct bpf_prog *bpf_jit_blind_constants(struct bpf_prog *prog)
 	clone->blinded = 1;
 	return clone;
 }
+
+/* 4.4 compat: BPF prog kallsyms management stubs.
+ * JIT-compiled programs will not appear in /proc/kallsyms,
+ * but BPF execution is unaffected.
+ */
+void bpf_prog_kallsyms_add(struct bpf_prog *fp)
+{
+}
+
+void bpf_prog_kallsyms_del(struct bpf_prog *fp)
+{
+}
+
+const char *__bpf_address_lookup(unsigned long addr, unsigned long *size,
+				 unsigned long *off, char *sym)
+{
+	return NULL;
+}
+
+bool is_bpf_text_address(unsigned long addr)
+{
+	return false;
+}
+
+int bpf_get_kallsym(unsigned int symnum, unsigned long *value,
+		    char *type, char *sym)
+{
+	return -ERANGE;
+}
+
+int bpf_jit_get_func_addr(const struct bpf_prog *prog,
+			  const struct bpf_insn *insn, bool extra_pass,
+			  u64 *func_addr, bool *func_addr_fixed)
+{
+	s16 off = insn->off;
+	const struct bpf_prog *callee;
+
+	*func_addr_fixed = insn->src_reg != BPF_PSEUDO_CALL;
+	if (!*func_addr_fixed) {
+		/* BPF subprogram call: address resolved on extra_pass */
+		if (!extra_pass) {
+			*func_addr = 0;
+		} else if (prog->aux->func &&
+			   off >= 0 && off < prog->aux->func_cnt) {
+			callee = prog->aux->func[off];
+			*func_addr = (unsigned long)callee->bpf_func;
+		} else {
+			return -EINVAL;
+		}
+	} else {
+		/* Helper function call: imm holds truncated address */
+		*func_addr = (unsigned long)(long)insn->imm;
+	}
+	return 0;
+}
 #endif /* CONFIG_BPF_JIT */
 
 /* Base function for offset calculation. Needs to go into .text section,
@@ -1042,7 +1097,7 @@ bool bpf_opcode_in_insntable(u8 code)
  *
  * Decode and execute eBPF instructions.
  */
-static unsigned int __bpf_prog_run(const struct sk_buff *ctx, const struct bpf_insn *insn)
+static unsigned int __bpf_prog_run(const void *ctx, const struct bpf_insn *insn)
 {
 #define BPF_INSN_2_LBL(x, y)    [BPF_##x | BPF_##y] = &&x##_##y
 #define BPF_INSN_3_LBL(x, y, z) [BPF_##x | BPF_##y | BPF_##z] = &&x##_##y##_##z
@@ -1319,7 +1374,7 @@ static unsigned int PROG_NAME(stack_size)(const void *ctx, const struct bpf_insn
 }
 
 #else
-static unsigned int __bpf_prog_ret0_warn(void *ctx,
+static unsigned int __bpf_prog_ret0_warn(const void *ctx,
 					 const struct bpf_insn *insn)
 {
 	/* If this handler ever gets executed, then BPF_JIT_ALWAYS_ON
@@ -1423,7 +1478,7 @@ struct bpf_prog *bpf_prog_select_runtime(struct bpf_prog *fp, int *err)
 }
 EXPORT_SYMBOL_GPL(bpf_prog_select_runtime);
 
-static unsigned int __bpf_prog_ret1(const struct sk_buff *ctx,
+static unsigned int __bpf_prog_ret1(const void *ctx,
 				    const struct bpf_insn *insn)
 {
 	return 1;
@@ -1470,6 +1525,7 @@ void bpf_prog_array_free(struct bpf_prog_array *progs)
 
 int bpf_prog_array_length(struct bpf_prog_array __rcu *progs)
 {
+	struct bpf_prog_array *array = rcu_dereference(progs);
 	struct bpf_prog_array_item *item;
 	u32 cnt = 0;
 
@@ -1747,11 +1803,6 @@ struct bpf_prog * __weak bpf_int_jit_compile(struct bpf_prog *prog)
  */
 void __weak bpf_jit_compile(struct bpf_prog *prog)
 {
-}
-
-bool __weak bpf_helper_changes_skb_data(void *func)
-{
-	return false;
 }
 
 bool __weak bpf_helper_changes_skb_data(void *func)

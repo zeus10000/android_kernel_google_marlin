@@ -10,8 +10,8 @@
 #include <linux/random.h>
 #include <uapi/linux/btf.h>
 #include "percpu_freelist.h"
-#define HTAB_CREATE_FLAG_MASK						\
-	(BPF_F_NO_PREALLOC | BPF_F_RDONLY | BPF_F_WRONLY)
+#include "bpf_lru_list.h"
+#include "map_in_map.h"
 
 #define HTAB_CREATE_FLAG_MASK						\
 	(BPF_F_NO_PREALLOC | BPF_F_NO_COMMON_LRU | BPF_F_NUMA_NODE |	\
@@ -302,6 +302,7 @@ static struct bpf_map *htab_map_alloc(union bpf_attr *attr)
 	bool prealloc = !(attr->map_flags & BPF_F_NO_PREALLOC);
 	struct bpf_htab *htab;
 	int err, i;
+	int numa_node = bpf_map_attr_numa_node(attr);
 	u64 cost;
 
 	BUILD_BUG_ON(offsetof(struct htab_elem, htab) !=
@@ -424,11 +425,6 @@ static struct bpf_map *htab_map_alloc(union bpf_attr *attr)
 		}
 	}
 
-	if (!(attr->map_flags & BPF_F_NO_PREALLOC)) {
-		err = prealloc_elems_and_freelist(htab);
-		if (err)
-			goto free_extra_elems;
-	}
 
 	return &htab->map;
 

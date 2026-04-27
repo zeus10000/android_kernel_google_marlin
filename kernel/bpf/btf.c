@@ -2,6 +2,7 @@
 /* Copyright (c) 2018 Facebook */
 
 #include <uapi/linux/btf.h>
+#include <linux/kallsyms.h>
 #include <uapi/linux/types.h>
 #include <linux/seq_file.h>
 #include <linux/compiler.h>
@@ -16,6 +17,17 @@
 #include <linux/sort.h>
 #include <linux/bpf_verifier.h>
 #include <linux/btf.h>
+
+/* 4.4 compat: kvmalloc/kvfree added in 4.12 */
+#ifndef kvmalloc
+static inline void *kvmalloc(size_t size, gfp_t flags)
+{
+	void *ret = kmalloc(size, flags | __GFP_NOWARN);
+	if (!ret && size > PAGE_SIZE)
+		ret = vmalloc(size);
+	return ret;
+}
+#endif
 
 /* BTF (BPF Type Format) is the meta data format which describes
  * the data types of BPF program/map.  Hence, it basically focus

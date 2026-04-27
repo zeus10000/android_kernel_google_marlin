@@ -10,6 +10,7 @@
 #include <linux/filter.h>
 #include <linux/perf_event.h>
 #include <uapi/linux/btf.h>
+#include "map_in_map.h"
 
 #define ARRAY_CREATE_FLAG_MASK \
 	(BPF_F_RDONLY | BPF_F_WRONLY)
@@ -78,6 +79,7 @@ static struct bpf_map *array_map_alloc(union bpf_attr *attr)
 	struct bpf_map_memory mem;
 	struct bpf_array *array;
 	int ret;
+	int numa_node = bpf_map_attr_numa_node(attr);
 
 	/* check sanity of attributes */
 	if (attr->max_entries == 0 || attr->key_size != 4 ||
@@ -144,7 +146,6 @@ static struct bpf_map *array_map_alloc(union bpf_attr *attr)
 	array->map.value_size = attr->value_size;
 	array->map.max_entries = attr->max_entries;
 	array->map.map_flags = attr->map_flags;
-	array->map.pages = cost;
 	array->elem_size = elem_size;
 
 	if (percpu &&

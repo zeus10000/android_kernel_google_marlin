@@ -569,7 +569,7 @@ void bpf_cgroup_storage_link(struct bpf_cgroup_storage *storage,
 		return;
 
 	storage->key.attach_type = type;
-	storage->key.cgroup_inode_id = cgroup->kn->id.id;
+	storage->key.cgroup_inode_id = (u64)cgroup->kn->ino;
 
 	map = storage->map;
 
@@ -598,3 +598,12 @@ void bpf_cgroup_storage_unlink(struct bpf_cgroup_storage *storage)
 }
 
 #endif
+
+void bpf_cgroup_storage_set(struct bpf_cgroup_storage *storage_arr[MAX_BPF_CGROUP_STORAGE_TYPE])
+{
+	enum bpf_cgroup_storage_type stype;
+
+	for_each_cgroup_storage_type(stype)
+		this_cpu_write(bpf_cgroup_storage[stype], storage_arr[stype]);
+}
+EXPORT_SYMBOL_GPL(bpf_cgroup_storage_set);
