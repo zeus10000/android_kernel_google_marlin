@@ -1204,7 +1204,7 @@ sendpage_end:
 	return copied ? copied : ret;
 }
 
-int tls_sw_sendpage_locked(struct sock *sk, struct page *page,
+ssize_t tls_sw_sendpage_locked(struct sock *sk, struct page *page,
 			   int offset, size_t size, int flags)
 {
 	if (flags & ~(MSG_MORE | MSG_DONTWAIT | MSG_NOSIGNAL |

@@ -151,7 +151,7 @@ void *bpf_map_area_alloc(u64 size, int numa_node)
 			return area;
 	}
 
-	return __vmalloc(size, GFP_KERNEL | flags, __builtin_return_address(0));
+	return __vmalloc(size, GFP_KERNEL | flags, PAGE_KERNEL);
 }
 
 void bpf_map_area_free(void *area)
