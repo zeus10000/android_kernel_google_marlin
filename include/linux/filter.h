@@ -505,7 +505,7 @@ struct bpf_prog {
 };
 
 struct sk_filter {
-	refcount_t	refcnt;
+	atomic_t	refcnt;
 	struct rcu_head	rcu;
 	struct bpf_prog	*prog;
 };

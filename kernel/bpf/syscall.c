@@ -58,6 +58,8 @@ static const struct bpf_map_ops * const bpf_map_types[] = {
 #undef BPF_MAP_TYPE
 };
 
+static inline struct bpf_raw_event_map *bpf_find_raw_tracepoint(const char *name) { return NULL; }
+
 /*
  * If we're handed a bigger struct than we know of, ensure all the unknown bits
  * are 0 - i.e. new user-space does not rely on any kernel feature extensions
@@ -134,7 +136,7 @@ static struct bpf_map *find_and_alloc_map(union bpf_attr *attr)
 	return map;
 }
 
-void *bpf_map_area_alloc(size_t size, int numa_node)
+void *bpf_map_area_alloc(u64 size, int numa_node)
 {
 	/* We definitely need __GFP_NORETRY, so OOM killer doesn't
 	 * trigger under memory pressure as we really just want to
@@ -149,8 +151,7 @@ void *bpf_map_area_alloc(size_t size, int numa_node)
 			return area;
 	}
 
-	return __vmalloc_node_flags_caller(size, numa_node, GFP_KERNEL | flags,
-					   __builtin_return_address(0));
+	return __vmalloc(size, GFP_KERNEL | flags, __builtin_return_address(0));
 }
 
 void bpf_map_area_free(void *area)
@@ -202,19 +203,19 @@ static int bpf_map_init_memlock(struct bpf_map *map)
 	struct user_struct *user = get_current_user();
 	int ret;
 
-	ret = bpf_charge_memlock(user, map->pages);
+	ret = bpf_charge_memlock(user, map->memory.pages);
 	if (ret) {
 		free_uid(user);
 		return ret;
 	}
-	map->user = user;
+	map->memory.user = user;
 	return ret;
 }
 
 static void bpf_map_release_memlock(struct bpf_map *map)
 {
-	struct user_struct *user = map->user;
-	bpf_uncharge_memlock(user, map->pages);
+	struct user_struct *user = map->memory.user;
+	bpf_uncharge_memlock(user, map->memory.pages);
 	free_uid(user);
 }
 
@@ -222,17 +223,17 @@ int bpf_map_charge_memlock(struct bpf_map *map, u32 pages)
 {
 	int ret;
 
-	ret = bpf_charge_memlock(map->user, pages);
+	ret = bpf_charge_memlock(map->memory.user, pages);
 	if (ret)
 		return ret;
-	map->pages += pages;
+	map->memory.pages += pages;
 	return ret;
 }
 
 void bpf_map_uncharge_memlock(struct bpf_map *map, u32 pages)
 {
-	bpf_uncharge_memlock(map->user, pages);
-	map->pages -= pages;
+	bpf_uncharge_memlock(map->memory.user, pages);
+	map->memory.pages -= pages;
 }
 
 static int bpf_map_alloc_id(struct bpf_map *map)
@@ -362,7 +363,7 @@ static void bpf_map_show_fdinfo(struct seq_file *m, struct file *filp)
 		   map->value_size,
 		   map->max_entries,
 		   map->map_flags,
-		   map->pages * 1ULL << PAGE_SHIFT,
+		   map->memory.pages * 1ULL << PAGE_SHIFT,
 		   map->id);
 
 	if (owner_prog_type) {
@@ -456,6 +457,7 @@ static int bpf_obj_name_cpy(char *dst, const char *src)
 }
 
 int map_check_no_btf(const struct bpf_map *map,
+		     const struct btf *btf,
 		     const struct btf_type *key_type,
 		     const struct btf_type *value_type)
 {
@@ -478,7 +480,7 @@ static int map_check_btf(const struct bpf_map *map, const struct btf *btf,
 		return -EINVAL;
 
 	if (map->ops->map_check_btf)
-		ret = map->ops->map_check_btf(map, key_type, value_type);
+		ret = map->ops->map_check_btf(map, btf, key_type, value_type);
 
 	return ret;
 }
@@ -625,7 +627,7 @@ struct bpf_map *bpf_map_get_with_uref(u32 ufd)
 }
 
 /* map_idr_lock should have been held */
-static struct bpf_map *bpf_map_inc_not_zero(struct bpf_map *map,
+struct bpf_map *bpf_map_inc_not_zero(struct bpf_map *map,
 					    bool uref)
 {
 	int refold;
@@ -1415,7 +1417,7 @@ static int bpf_prog_load(union bpf_attr *attr)
 		goto free_prog;
 
 	/* run eBPF verifier */
-	err = bpf_check(&prog, attr);
+	err = bpf_check(&prog, attr, NULL);
 	if (err < 0)
 		goto free_used_maps;
 
@@ -1443,7 +1445,7 @@ static int bpf_prog_load(union bpf_attr *attr)
 	return err;
 
 free_used_maps:
-	bpf_prog_kallsyms_del_subprogs(prog);
+	bpf_prog_kallsyms_del_all(prog);
 	free_used_maps(prog->aux);
 free_prog:
 	bpf_prog_uncharge_memlock(prog);
@@ -1631,7 +1633,7 @@ static int bpf_prog_attach(const union bpf_attr *attr)
 	switch (ptype) {
 	case BPF_PROG_TYPE_SK_SKB:
 	case BPF_PROG_TYPE_SK_MSG:
-		ret = sockmap_get_from_fd(attr, ptype, prog);
+		ret = sock_map_get_from_fd(attr, prog);
 		break;
 	case BPF_PROG_TYPE_LIRC_MODE2:
 		ret = lirc_prog_attach(attr, prog);
@@ -1682,10 +1684,10 @@ static int bpf_prog_detach(const union bpf_attr *attr)
 		ptype = BPF_PROG_TYPE_CGROUP_DEVICE;
 		break;
 	case BPF_SK_MSG_VERDICT:
-		return sockmap_get_from_fd(attr, BPF_PROG_TYPE_SK_MSG, NULL);
+		return sock_map_get_from_fd(attr, NULL);
 	case BPF_SK_SKB_STREAM_PARSER:
 	case BPF_SK_SKB_STREAM_VERDICT:
-		return sockmap_get_from_fd(attr, BPF_PROG_TYPE_SK_SKB, NULL);
+		return sock_map_get_from_fd(attr, NULL);
 	case BPF_LIRC_MODE2:
 		return lirc_prog_detach(attr);
 	default:

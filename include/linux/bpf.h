@@ -28,6 +28,21 @@ extern struct idr btf_idr;
 extern spinlock_t btf_idr_lock;
 
 /* map is generic key/value storage optionally accesible by eBPF programs */
+struct bpf_map_type_list {
+	struct list_head list_node;
+	const struct bpf_map_ops *ops;
+	enum bpf_map_type type;
+};
+
+struct bpf_prog_type_list {
+	struct list_head list_node;
+	const struct bpf_verifier_ops *ops;
+	enum bpf_prog_type type;
+};
+
+void bpf_register_map_type(struct bpf_map_type_list *tl);
+void bpf_register_prog_type(struct bpf_prog_type_list *tl);
+
 struct bpf_map_ops {
 	/* funcs callable from userspace (via syscall) */
 	int (*map_alloc_check)(union bpf_attr *attr);
