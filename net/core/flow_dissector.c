@@ -205,6 +205,14 @@ static void __skb_flow_bpf_to_target(const struct bpf_flow_keys *flow_keys,
 				      struct flow_dissector *flow_dissector,
 				      void *target_container)
 {
+	if (dissector_uses_key(flow_dissector, FLOW_DISSECTOR_KEY_CONTROL)) {
+		struct flow_dissector_key_control *key_control;
+
+		key_control = skb_flow_dissector_target(flow_dissector,
+						      FLOW_DISSECTOR_KEY_CONTROL,
+						      target_container);
+		key_control->thoff = flow_keys->thoff;
+	}
 	if (dissector_uses_key(flow_dissector, FLOW_DISSECTOR_KEY_BASIC)) {
 		struct flow_dissector_key_basic *key_basic;
 
@@ -213,7 +221,6 @@ static void __skb_flow_bpf_to_target(const struct bpf_flow_keys *flow_keys,
 						      target_container);
 		key_basic->n_proto  = flow_keys->n_proto;
 		key_basic->ip_proto = flow_keys->ip_proto;
-		key_basic->thoff    = flow_keys->thoff;
 	}
 }
 

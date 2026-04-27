@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * net/core/dst.c	Protocol independent destination cache.
  *
@@ -373,9 +372,7 @@ static int dst_md_discard(struct sk_buff *skb)
 	return 0;
 }
 
-static void __metadata_dst_init(struct metadata_dst *md_dst,
-				enum metadata_type type, u8 optslen)
-
+static void __metadata_dst_init(struct metadata_dst *md_dst, u8 optslen)
 {
 	struct dst_entry *dst;
 
@@ -387,11 +384,9 @@ static void __metadata_dst_init(struct metadata_dst *md_dst,
 	dst->output = dst_md_discard_out;
 
 	memset(dst + 1, 0, sizeof(*md_dst) + optslen - sizeof(*dst));
-	md_dst->type = type;
 }
 
-struct metadata_dst *metadata_dst_alloc(u8 optslen, enum metadata_type type,
-					gfp_t flags)
+struct metadata_dst *metadata_dst_alloc(u8 optslen, gfp_t flags)
 {
 	struct metadata_dst *md_dst;
 
@@ -399,7 +394,7 @@ struct metadata_dst *metadata_dst_alloc(u8 optslen, enum metadata_type type,
 	if (!md_dst)
 		return NULL;
 
-	__metadata_dst_init(md_dst, type, optslen);
+	__metadata_dst_init(md_dst, optslen);
 
 	return md_dst;
 }
@@ -416,7 +411,7 @@ struct metadata_dst __percpu *metadata_dst_alloc_percpu(u8 optslen, gfp_t flags)
 		return NULL;
 
 	for_each_possible_cpu(cpu)
-		__metadata_dst_init(per_cpu_ptr(md_dst, cpu), type, optslen);
+		__metadata_dst_init(per_cpu_ptr(md_dst, cpu), optslen);
 
 	return md_dst;
 }

@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * To speed up listener socket lookup, create an array to store all sockets
  * listening on the same port.  This allows a decision to be made after finding
@@ -29,7 +28,7 @@ static struct sock_reuseport *__reuseport_alloc(u16 max_socks)
 	return reuse;
 }
 
-int reuseport_alloc(struct sock *sk, bool bind_inany)
+int reuseport_alloc(struct sock *sk)
 {
 	struct sock_reuseport *reuse;
 
@@ -41,17 +40,9 @@ int reuseport_alloc(struct sock *sk, bool bind_inany)
 	/* Allocation attempts can occur concurrently via the setsockopt path
 	 * and the bind/hash path.  Nothing to do when we lose the race.
 	 */
-	reuse = rcu_dereference_protected(sk->sk_reuseport_cb,
-					  lockdep_is_held(&reuseport_lock));
-	if (reuse) {
-		/* Only set reuse->bind_inany if the bind_inany is true.
-		 * Otherwise, it will overwrite the reuse->bind_inany
-		 * which was set by the bind/hash path.
-		 */
-		if (bind_inany)
-			reuse->bind_inany = bind_inany;
+	if (rcu_dereference_protected(sk->sk_reuseport_cb,
+				      lockdep_is_held(&reuseport_lock)))
 		goto out;
-	}
 
 	reuse = __reuseport_alloc(INIT_SOCKS);
 	if (!reuse) {
@@ -61,7 +52,6 @@ int reuseport_alloc(struct sock *sk, bool bind_inany)
 
 	reuse->socks[0] = sk;
 	reuse->num_socks = 1;
-	reuse->bind_inany = bind_inany;
 	rcu_assign_pointer(sk->sk_reuseport_cb, reuse);
 
 out:
@@ -119,12 +109,12 @@ static void reuseport_free_rcu(struct rcu_head *head)
  *  @sk2: Socket belonging to the existing reuseport group.
  *  May return ENOMEM and not add socket to group under memory pressure.
  */
-int reuseport_add_sock(struct sock *sk, struct sock *sk2, bool bind_inany)
+int reuseport_add_sock(struct sock *sk, struct sock *sk2)
 {
 	struct sock_reuseport *old_reuse, *reuse;
 
 	if (!rcu_access_pointer(sk2->sk_reuseport_cb)) {
-		int err = reuseport_alloc(sk2, bind_inany);
+		int err = reuseport_alloc(sk2);
 
 		if (err)
 			return err;
@@ -170,14 +160,6 @@ void reuseport_detach_sock(struct sock *sk)
 	spin_lock_bh(&reuseport_lock);
 	reuse = rcu_dereference_protected(sk->sk_reuseport_cb,
 					  lockdep_is_held(&reuseport_lock));
-
-	/* At least one of the sk in this reuseport group is added to
-	 * a bpf map.  Notify the bpf side.  The bpf map logic will
-	 * remove the sk if it is indeed added to a bpf map.
-	 */
-	if (reuse->reuseport_id)
-		bpf_sk_reuseport_detach(sk);
-
 	rcu_assign_pointer(sk->sk_reuseport_cb, NULL);
 
 	for (i = 0; i < reuse->num_socks; i++) {
@@ -193,9 +175,9 @@ void reuseport_detach_sock(struct sock *sk)
 }
 EXPORT_SYMBOL(reuseport_detach_sock);
 
-static struct sock *run_bpf_filter(struct sock_reuseport *reuse, u16 socks,
-				   struct bpf_prog *prog, struct sk_buff *skb,
-				   int hdr_len)
+static struct sock *run_bpf(struct sock_reuseport *reuse, u16 socks,
+			    struct bpf_prog *prog, struct sk_buff *skb,
+			    int hdr_len)
 {
 	struct sk_buff *nskb = NULL;
 	u32 index;
@@ -268,20 +250,11 @@ out:
 }
 EXPORT_SYMBOL(reuseport_select_sock);
 
-int reuseport_attach_prog(struct sock *sk, struct bpf_prog *prog)
+int
+reuseport_attach_prog(struct sock *sk, struct bpf_prog *prog)
 {
 	struct sock_reuseport *reuse;
 	struct bpf_prog *old_prog;
-
-	if (sk_unhashed(sk) && sk->sk_reuseport) {
-		int err = reuseport_alloc(sk, false);
-
-		if (err)
-			return err;
-	} else if (!rcu_access_pointer(sk->sk_reuseport_cb)) {
-		/* The socket wasn't bound with SO_REUSEPORT */
-		return -EINVAL;
-	}
 
 	spin_lock_bh(&reuseport_lock);
 	reuse = rcu_dereference_protected(sk->sk_reuseport_cb,
@@ -291,7 +264,8 @@ int reuseport_attach_prog(struct sock *sk, struct bpf_prog *prog)
 	rcu_assign_pointer(reuse->prog, prog);
 	spin_unlock_bh(&reuseport_lock);
 
-	sk_reuseport_prog_free(old_prog);
+	if (old_prog)
+		bpf_prog_put(old_prog);
 	return 0;
 }
 EXPORT_SYMBOL(reuseport_attach_prog);

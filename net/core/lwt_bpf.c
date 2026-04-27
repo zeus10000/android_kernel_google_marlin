@@ -452,3 +452,15 @@ static int __init bpf_lwt_init(void)
 }
 
 subsys_initcall(bpf_lwt_init)
+
+/* 4.4 compat: prog_ops stubs for LWT BPF program types */
+const struct bpf_prog_ops lwt_in_prog_ops = {};
+const struct bpf_prog_ops lwt_out_prog_ops = {};
+const struct bpf_prog_ops lwt_xmit_prog_ops = {};
+const struct bpf_prog_ops lwt_seg6local_prog_ops = {};
+
+/* 4.4 compat: verifier_ops stubs for LWT BPF types */
+const struct bpf_verifier_ops lwt_in_verifier_ops = {};
+const struct bpf_verifier_ops lwt_out_verifier_ops = {};
+const struct bpf_verifier_ops lwt_xmit_verifier_ops = {};
+const struct bpf_verifier_ops lwt_seg6local_verifier_ops = {};
