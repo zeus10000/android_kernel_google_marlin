@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0-or-later */
 /*
  * INET		An implementation of the TCP/IP protocol suite for the LINUX
  *		operating system.  INET  is implemented using the  BSD Socket
@@ -7,6 +6,11 @@
  *		Definitions for the Forwarding Information Base.
  *
  * Authors:	A.N.Kuznetsov, <kuznet@ms2.inr.ac.ru>
+ *
+ *		This program is free software; you can redistribute it and/or
+ *		modify it under the terms of the GNU General Public License
+ *		as published by the Free Software Foundation; either version
+ *		2 of the License, or (at your option) any later version.
  */
 
 #ifndef _NET_IP_FIB_H
@@ -70,26 +74,26 @@ struct fnhe_hash_bucket {
 #define FNHE_RECLAIM_DEPTH	5
 
 struct fib_nh {
-	struct net_device	*fib_nh_dev;
+	struct net_device	*nh_dev;
 	struct hlist_node	nh_hash;
 	struct fib_info		*nh_parent;
-	unsigned int		fib_nh_flags;
-	unsigned char		fib_nh_scope;
+	unsigned int		nh_flags;
+	unsigned char		nh_scope;
 #ifdef CONFIG_IP_ROUTE_MULTIPATH
-	int			fib_nh_weight;
-	atomic_t		fib_nh_upper_bound;
+	int			nh_weight;
+	atomic_t		nh_upper_bound;
 #endif
 #ifdef CONFIG_IP_ROUTE_CLASSID
 	__u32			nh_tclassid;
 #endif
-	int			fib_nh_oif;
-	__be32			fib_nh_gw4;
+	int			nh_oif;
+	__be32			nh_gw;
 	__be32			nh_saddr;
 	int			nh_saddr_genid;
 	struct rtable __rcu * __percpu *nh_pcpu_rth_output;
 	struct rtable __rcu	*nh_rth_input;
 	struct fnhe_hash_bucket	__rcu *nh_exceptions;
-	struct lwtunnel_state	*fib_nh_lws;
+	struct lwtunnel_state	*nh_lwtstate;
 };
 
 /*
@@ -121,6 +125,7 @@ struct fib_info {
 #endif
 	struct rcu_head		rcu;
 	struct fib_nh		fib_nh[0];
+#define fib_dev		fib_nh[0].nh_dev
 };
 
 
@@ -155,6 +160,12 @@ struct fib_result_nl {
 	int             err;      
 };
 
+#ifdef CONFIG_IP_ROUTE_MULTIPATH
+#define FIB_RES_NH(res)		((res).fi->fib_nh[(res).nh_sel])
+#else /* CONFIG_IP_ROUTE_MULTIPATH */
+#define FIB_RES_NH(res)		((res).fi->fib_nh[0])
+#endif /* CONFIG_IP_ROUTE_MULTIPATH */
+
 #ifdef CONFIG_IP_MULTIPLE_TABLES
 #define FIB_TABLE_HASHSZ 256
 #else
@@ -162,11 +173,18 @@ struct fib_result_nl {
 #endif
 
 __be32 fib_info_update_nh_saddr(struct net *net, struct fib_nh *nh);
-__be32 fib_result_prefsrc(struct net *net, struct fib_result *res);
 
-#define FIB_RES_NHC(res)		((res).nhc)
-#define FIB_RES_DEV(res)	(FIB_RES_NHC(res)->nhc_dev)
-#define FIB_RES_OIF(res)	(FIB_RES_NHC(res)->nhc_oif)
+#define FIB_RES_SADDR(net, res)				\
+	((FIB_RES_NH(res).nh_saddr_genid ==		\
+	  atomic_read(&(net)->ipv4.dev_addr_genid)) ?	\
+	 FIB_RES_NH(res).nh_saddr :			\
+	 fib_info_update_nh_saddr((net), &FIB_RES_NH(res)))
+#define FIB_RES_GW(res)			(FIB_RES_NH(res).nh_gw)
+#define FIB_RES_DEV(res)		(FIB_RES_NH(res).nh_dev)
+#define FIB_RES_OIF(res)		(FIB_RES_NH(res).nh_oif)
+
+#define FIB_RES_PREFSRC(net, res)	((res).fi->fib_prefsrc ? : \
+					 FIB_RES_SADDR(net, res))
 
 struct fib_table {
 	struct hlist_node	tb_hlist;
@@ -325,12 +343,10 @@ struct fib_table *fib_trie_table(u32 id, struct fib_table *alias);
 static inline void fib_combine_itag(u32 *itag, const struct fib_result *res)
 {
 #ifdef CONFIG_IP_ROUTE_CLASSID
-	struct fib_nh_common *nhc = res->nhc;
-	struct fib_nh *nh = container_of(nhc, struct fib_nh, nh_common);
 #ifdef CONFIG_IP_MULTIPLE_TABLES
 	u32 rtag;
 #endif
-	*itag = nh->nh_tclassid << 16;
+	*itag = FIB_RES_NH(*res).nh_tclassid<<16;
 #ifdef CONFIG_IP_MULTIPLE_TABLES
 	rtag = res->tclassid;
 	if (*itag == 0)
