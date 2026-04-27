@@ -154,7 +154,7 @@ static struct page *__page_pool_alloc_pages_slow(struct page_pool *pool,
 		put_page(page);
 		return NULL;
 	}
-	page->dma_addr = dma;
+	page->private = (unsigned long)dma;
 
 skip_dma_map:
 	/* Track how many pages are held 'in-flight' */
@@ -220,12 +220,12 @@ static void __page_pool_clean_page(struct page_pool *pool,
 	if (!(pool->p.flags & PP_FLAG_DMA_MAP))
 		goto skip_dma_unmap;
 
-	dma = page->dma_addr;
+	dma = (dma_addr_t)page->private;
 	/* DMA unmap */
 	dma_unmap_page_attrs(pool->p.dev, dma,
 			     PAGE_SIZE << pool->p.order, pool->p.dma_dir,
 			     DMA_ATTR_SKIP_CPU_SYNC);
-	page->dma_addr = 0;
+	page->private = 0;
 skip_dma_unmap:
 	atomic_inc(&pool->pages_state_release_cnt);
 	trace_page_pool_state_release(pool, page,
