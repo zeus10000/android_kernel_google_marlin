@@ -18,6 +18,7 @@
  */
 
 #include <linux/module.h>
+#include <linux/error-injection.h>
 #include <linux/uaccess.h>
 
 #include "trace_probe.h"
@@ -1393,6 +1394,25 @@ static __init int init_kprobe_trace(void)
 	return 0;
 }
 fs_initcall(init_kprobe_trace);
+
+
+bool trace_kprobe_on_func_entry(struct trace_event_call *call)
+{
+	struct trace_kprobe *tk = (struct trace_kprobe *)call->data;
+	return !trace_kprobe_is_return(tk) && trace_kprobe_offset(tk) == 0;
+}
+
+int trace_kprobe_error_injectable(struct trace_event_call *call)
+{
+	struct trace_kprobe *tk = (struct trace_kprobe *)call->data;
+	unsigned long addr;
+
+	if (trace_kprobe_is_return(tk))
+		return 0;
+
+	addr = (unsigned long)trace_kprobe_symbol(tk);
+	return within_error_injection_list(addr);
+}
 
 
 #ifdef CONFIG_FTRACE_STARTUP_TEST

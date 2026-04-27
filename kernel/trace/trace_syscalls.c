@@ -755,3 +755,9 @@ static int syscall_exit_register(struct trace_event_call *event,
 	}
 	return 0;
 }
+
+bool is_syscall_trace_event(struct trace_event_call *tp_event)
+{
+	return tp_event->class == &event_class_syscall_enter ||
+	       tp_event->class == &event_class_syscall_exit;
+}
