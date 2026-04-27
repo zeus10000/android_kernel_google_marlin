@@ -219,6 +219,42 @@ static void bpf_map_release_memlock(struct bpf_map *map)
 	free_uid(user);
 }
 
+int bpf_map_charge_init(struct bpf_map_memory *mem, u64 size)
+{
+	u32 pages = round_up(size, PAGE_SIZE) >> PAGE_SHIFT;
+	struct user_struct *user;
+	int ret;
+
+	if (size >= U32_MAX - PAGE_SIZE)
+		return -E2BIG;
+
+	user = get_current_user();
+	ret = bpf_charge_memlock(user, pages);
+	if (ret) {
+		free_uid(user);
+		return ret;
+	}
+
+	mem->pages = pages;
+	mem->user = user;
+
+	return 0;
+}
+
+void bpf_map_charge_finish(struct bpf_map_memory *mem)
+{
+	bpf_uncharge_memlock(mem->user, mem->pages);
+	free_uid(mem->user);
+}
+
+void bpf_map_charge_move(struct bpf_map_memory *dst,
+			 struct bpf_map_memory *src)
+{
+	*dst = *src;
+	memset(src, 0, sizeof(struct bpf_map_memory));
+}
+
+
 int bpf_map_charge_memlock(struct bpf_map *map, u32 pages)
 {
 	int ret;
