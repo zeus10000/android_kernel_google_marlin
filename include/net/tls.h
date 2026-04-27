@@ -375,6 +375,7 @@ ssize_t tls_sw_splice_read(struct socket *sock, loff_t *ppos,
 			   struct pipe_inode_info *pipe,
 			   size_t len, unsigned int flags);
 
+#ifdef CONFIG_TLS_DEVICE
 int tls_set_device_offload(struct sock *sk, struct tls_context *ctx);
 int tls_device_sendmsg(struct sock *sk, struct msghdr *msg, size_t size);
 int tls_device_sendpage(struct sock *sk, struct page *page,
@@ -382,6 +383,24 @@ int tls_device_sendpage(struct sock *sk, struct page *page,
 void tls_device_free_resources_tx(struct sock *sk);
 void tls_device_init(void);
 void tls_device_cleanup(void);
+#else
+static inline int tls_set_device_offload(struct sock *sk, struct tls_context *ctx)
+{
+	return -EOPNOTSUPP;
+}
+static inline int tls_device_sendmsg(struct sock *sk, struct msghdr *msg, size_t size)
+{
+	return -EOPNOTSUPP;
+}
+static inline int tls_device_sendpage(struct sock *sk, struct page *page,
+				      int offset, size_t size, int flags)
+{
+	return -EOPNOTSUPP;
+}
+static inline void tls_device_free_resources_tx(struct sock *sk) {}
+static inline void tls_device_init(void) {}
+static inline void tls_device_cleanup(void) {}
+#endif
 int tls_tx_records(struct sock *sk, int flags);
 
 struct tls_record_info *tls_get_record(struct tls_offload_context_tx *context,
