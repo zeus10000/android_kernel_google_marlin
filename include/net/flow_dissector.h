@@ -208,4 +208,7 @@ u32 __skb_flow_bpf_dissect(struct bpf_prog *prog,
 			    struct flow_dissector *flow_dissector,
 			    struct bpf_flow_keys *flow_keys);
 
+int skb_flow_dissector_prog_query(const union bpf_attr *attr,
+				  union bpf_attr __user *uattr);
+
 #endif

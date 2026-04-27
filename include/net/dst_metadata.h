@@ -161,4 +161,25 @@ static inline struct metadata_dst *ipv6_tun_rx_dst(struct sk_buff *skb,
 	return tun_dst;
 }
 
+/* Compat: METADATA_IP_TUNNEL type enum added in 4.14+ */
+enum metadata_type {
+	METADATA_IP_TUNNEL,
+	METADATA_MACSEC,
+};
+
+/* Compat: metadata_dst_alloc_percpu with type arg */
+static inline struct metadata_dst __percpu *
+metadata_dst_alloc_percpu_typed(u8 optslen,
+				enum metadata_type unused,
+				gfp_t flags)
+{
+	return metadata_dst_alloc_percpu(optslen, flags);
+}
+
+/* Compat: metadata_dst_free_percpu stub */
+static inline void metadata_dst_free_percpu(struct metadata_dst __percpu *md_dst)
+{
+	free_percpu(md_dst);
+}
+
 #endif /* __NET_DST_METADATA_H */
