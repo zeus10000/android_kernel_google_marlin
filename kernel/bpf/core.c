@@ -395,10 +395,8 @@ static int bpf_adj_branches(struct bpf_prog *prog, u32 pos, s32 end_old,
 		} else {
 			pseudo_call = false;
 		}
-		off = pseudo_call ? insn->imm : insn->off;
-
 		/* Adjust offset of jmps if we cross patch boundaries. */
-		ret = bpf_adj_delta_to_off(insn, pos, delta, i, probe_pass);
+		ret = bpf_adj_delta_to_off(insn, pos, end_old, end_new, probe_pass);
 		if (ret)
 			break;
 	}
@@ -522,61 +520,6 @@ long bpf_jit_limit_max __read_mostly;
 
 static atomic_long_t bpf_jit_current;
 
-/* Can be overridden by an arch's JIT compiler if it has a custom,
- * dedicated BPF backend memory area, or if neither of the two
- * below apply.
- */
-u64 __weak bpf_jit_alloc_exec_limit(void)
-{
-#if defined(MODULES_VADDR)
-	return MODULES_END - MODULES_VADDR;
-#else
-	return VMALLOC_END - VMALLOC_START;
-#endif
-}
-
-static int __init bpf_jit_charge_init(void)
-{
-	/* Only used as heuristic here to derive limit. */
-	bpf_jit_limit_max = bpf_jit_alloc_exec_limit();
-	bpf_jit_limit = min_t(u64, round_up(bpf_jit_limit_max >> 2,
-					    PAGE_SIZE), LONG_MAX);
-	return 0;
-}
-pure_initcall(bpf_jit_charge_init);
-
-static int bpf_jit_charge_modmem(u32 pages)
-{
-	if (atomic_long_add_return(pages, &bpf_jit_current) >
-	    (bpf_jit_limit >> PAGE_SHIFT)) {
-		if (!capable(CAP_SYS_ADMIN)) {
-			atomic_long_sub(pages, &bpf_jit_current);
-			return -EPERM;
-		}
-	}
-
-	return 0;
-}
-
-static void bpf_jit_uncharge_modmem(u32 pages)
-{
-	atomic_long_sub(pages, &bpf_jit_current);
-}
-
-#if IS_ENABLED(CONFIG_BPF_JIT) && IS_ENABLED(CONFIG_CFI_CLANG)
-bool __weak arch_bpf_jit_check_func(const struct bpf_prog *prog)
-{
-	return true;
-}
-EXPORT_SYMBOL(arch_bpf_jit_check_func);
-#endif
-
-static atomic_long_t bpf_jit_current;
-
-/* Can be overridden by an arch's JIT compiler if it has a custom,
- * dedicated BPF backend memory area, or if neither of the two
- * below apply.
- */
 u64 __weak bpf_jit_alloc_exec_limit(void)
 {
 #if defined(MODULES_VADDR)
