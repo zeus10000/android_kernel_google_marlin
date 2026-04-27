@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0 */
-#ifndef _LINUX_VIRTIO_NET_H
-#define _LINUX_VIRTIO_NET_H
+#ifndef _LINUX_VIRTIO_NET_WRAPPER_H
+#define _LINUX_VIRTIO_NET_WRAPPER_H
 
 #include <linux/if_vlan.h>
 #include <uapi/linux/virtio_net.h>
@@ -96,4 +96,4 @@ static inline int virtio_net_hdr_from_skb(const struct sk_buff *skb,
 	return 0;
 }
 
-#endif /* _LINUX_VIRTIO_NET_H */
+#endif /* _LINUX_VIRTIO_NET_WRAPPER_H */
