@@ -1496,6 +1496,7 @@ static inline void sk_wmem_free_skb(struct sock *sk, struct sk_buff *skb)
  * accesses from user process context.
  */
 #define sock_owned_by_user(sk)	((sk)->sk_lock.owned)
+#define sock_owned_by_user_nocheck(sk)	((sk)->sk_lock.owned)
 
 static inline void sock_release_ownership(struct sock *sk)
 {
