@@ -863,33 +863,137 @@ struct bpf_prog *bpf_jit_blind_constants(struct bpf_prog *prog)
 	return clone;
 }
 
-/* 4.4 compat: BPF prog kallsyms management stubs.
- * JIT-compiled programs will not appear in /proc/kallsyms,
- * but BPF execution is unaffected.
+/* BPF program kallsyms tracking.
+ *
+ * Maintains a linked list of JIT-compiled BPF programs so they appear in
+ * /proc/kallsyms and can be resolved by stack trace symbolication.
  */
+struct bpf_ksym_entry {
+	struct list_head lnode;
+	struct bpf_prog *prog;
+	unsigned long start;
+	unsigned long end;
+	char name[KSYM_NAME_LEN];
+};
+
+static LIST_HEAD(bpf_kallsyms);
+static DEFINE_SPINLOCK(bpf_lock);
+
+void bpf_get_prog_name(const struct bpf_prog *prog, char *sym)
+{
+	const char *end = sym + KSYM_NAME_LEN;
+
+	BUILD_BUG_ON(sizeof("bpf_prog_") + sizeof(prog->tag) * 2 +
+		     (BPF_OBJ_NAME_LEN - 1) > KSYM_NAME_LEN);
+
+	sym += snprintf(sym, KSYM_NAME_LEN, "bpf_prog_");
+	sym  = bin2hex(sym, prog->tag, sizeof(prog->tag));
+	if (prog->aux->name[0])
+		snprintf(sym, (size_t)(end - sym), "_%s", prog->aux->name);
+	else
+		*sym = 0;
+}
+
 void bpf_prog_kallsyms_add(struct bpf_prog *fp)
 {
+	struct bpf_ksym_entry *e;
+
+	if (!fp->jited || !bpf_prog_kallsyms_verify_off(fp))
+		return;
+
+	e = kzalloc(sizeof(*e), GFP_ATOMIC);
+	if (!e)
+		return;
+
+	e->prog  = fp;
+	e->start = (unsigned long)fp->bpf_func;
+	e->end   = e->start + fp->jited_len;
+	bpf_get_prog_name(fp, e->name);
+
+	spin_lock_bh(&bpf_lock);
+	list_add_tail_rcu(&e->lnode, &bpf_kallsyms);
+	spin_unlock_bh(&bpf_lock);
 }
 
 void bpf_prog_kallsyms_del(struct bpf_prog *fp)
 {
+	struct bpf_ksym_entry *e, *tmp;
+
+	if (!fp->jited)
+		return;
+
+	spin_lock_bh(&bpf_lock);
+	list_for_each_entry_safe(e, tmp, &bpf_kallsyms, lnode) {
+		if (e->prog == fp) {
+			list_del_rcu(&e->lnode);
+			kfree_rcu(e, lnode);
+			break;
+		}
+	}
+	spin_unlock_bh(&bpf_lock);
+}
+
+static struct bpf_ksym_entry *bpf_ksym_find(unsigned long addr)
+{
+	struct bpf_ksym_entry *e;
+
+	list_for_each_entry_rcu(e, &bpf_kallsyms, lnode) {
+		if (addr >= e->start && addr < e->end)
+			return e;
+	}
+	return NULL;
 }
 
 const char *__bpf_address_lookup(unsigned long addr, unsigned long *size,
 				 unsigned long *off, char *sym)
 {
-	return NULL;
+	struct bpf_ksym_entry *e;
+	const char *ret = NULL;
+
+	rcu_read_lock();
+	e = bpf_ksym_find(addr);
+	if (e) {
+		if (size)
+			*size = e->end - e->start;
+		if (off)
+			*off = addr - e->start;
+		if (sym)
+			strncpy(sym, e->name, KSYM_NAME_LEN);
+		ret = e->name;
+	}
+	rcu_read_unlock();
+	return ret;
 }
 
 bool is_bpf_text_address(unsigned long addr)
 {
-	return false;
+	bool ret;
+
+	rcu_read_lock();
+	ret = bpf_ksym_find(addr) != NULL;
+	rcu_read_unlock();
+	return ret;
 }
 
 int bpf_get_kallsym(unsigned int symnum, unsigned long *value,
 		    char *type, char *sym)
 {
-	return -ERANGE;
+	struct bpf_ksym_entry *e;
+	unsigned int i = 0;
+	int ret = -ERANGE;
+
+	rcu_read_lock();
+	list_for_each_entry_rcu(e, &bpf_kallsyms, lnode) {
+		if (i++ != symnum)
+			continue;
+		*value = e->start;
+		*type  = BPF_SYM_ELF_TYPE;
+		strncpy(sym, e->name, KSYM_NAME_LEN);
+		ret = 0;
+		break;
+	}
+	rcu_read_unlock();
+	return ret;
 }
 
 int bpf_jit_get_func_addr(const struct bpf_prog *prog,
@@ -1402,7 +1506,8 @@ bool bpf_prog_array_compatible(struct bpf_array *array,
 		return true;
 	}
 
-	return array->owner_prog_type == fp->type;
+	return array->owner_prog_type == fp->type &&
+	       array->owner_jited == fp->jited;
 }
 
 static int bpf_check_tail_call(const struct bpf_prog *fp)
