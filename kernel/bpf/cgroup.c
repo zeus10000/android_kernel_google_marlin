@@ -691,9 +691,19 @@ EXPORT_SYMBOL(__cgroup_bpf_run_filter_skb);
 int __cgroup_bpf_run_filter_sk(struct sock *sk,
 			       enum bpf_attach_type type)
 {
-	struct cgroup *cgrp = sock_cgroup_ptr(&sk->sk_cgrp_data);
+	struct cgroup *cgrp;
+	int ret;
 
-	return BPF_PROG_RUN_ARRAY(cgrp->bpf.effective[type], sk, BPF_PROG_RUN);
+	if (!sk || !sk_fullsock(sk))
+		return 0;
+
+	if (sk->sk_family != AF_INET && sk->sk_family != AF_INET6)
+		return 0;
+
+	cgrp = sock_cgroup_ptr(&sk->sk_cgrp_data);
+	ret = BPF_PROG_RUN_ARRAY(cgrp->bpf.effective[type], sk,
+				  BPF_PROG_RUN);
+	return ret == 1 ? 0 : -EPERM;
 }
 EXPORT_SYMBOL(__cgroup_bpf_run_filter_sk);
 
