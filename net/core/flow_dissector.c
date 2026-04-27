@@ -201,6 +201,22 @@ EXPORT_SYMBOL(__skb_flow_get_ports);
  *
  * Caller must take care of zeroing target container memory.
  */
+static void __skb_flow_bpf_to_target(const struct bpf_flow_keys *flow_keys,
+				      struct flow_dissector *flow_dissector,
+				      void *target_container)
+{
+	if (dissector_uses_key(flow_dissector, FLOW_DISSECTOR_KEY_BASIC)) {
+		struct flow_dissector_key_basic *key_basic;
+
+		key_basic = skb_flow_dissector_target(flow_dissector,
+						      FLOW_DISSECTOR_KEY_BASIC,
+						      target_container);
+		key_basic->n_proto  = flow_keys->n_proto;
+		key_basic->ip_proto = flow_keys->ip_proto;
+		key_basic->thoff    = flow_keys->thoff;
+	}
+}
+
 bool __skb_flow_dissect(const struct sk_buff *skb,
 			struct flow_dissector *flow_dissector,
 			void *target_container,
