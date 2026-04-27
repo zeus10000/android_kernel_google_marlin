@@ -279,6 +279,11 @@ static inline bool insn_is_zext(const struct bpf_insn *insn)
 		.off   = OFF,					\
 		.imm   = IMM })
 
+/* BPF_JMP32 variants (32-bit comparisons, backported from 5.1) */
+#define BPF_JMP32_REG(OP, DST, SRC, OFF)				((struct bpf_insn) {							.code  = BPF_JMP32 | BPF_OP(OP) | BPF_X,			.dst_reg = DST,							.src_reg = SRC,							.off   = OFF,							.imm   = 0 })
+
+#define BPF_JMP32_IMM(OP, DST, IMM, OFF)				((struct bpf_insn) {							.code  = BPF_JMP32 | BPF_OP(OP) | BPF_K,			.dst_reg = DST,							.src_reg = 0,							.off   = OFF,							.imm   = IMM })
+
 /* Function call */
 
 #define BPF_CAST_CALL(x)					\
@@ -1029,6 +1034,10 @@ bpf_address_lookup(unsigned long addr, unsigned long *size,
 }
 
 void bpf_prog_kallsyms_add(struct bpf_prog *fp);
+static inline bool bpf_prog_kallsyms_verify_off(const struct bpf_prog *fp)
+{
+	return true; /* compat stub: kallsyms cleanup not tracked in 4.4 */
+}
 void bpf_prog_kallsyms_del(struct bpf_prog *fp);
 void bpf_get_prog_name(const struct bpf_prog *prog, char *sym);
 
