@@ -57,6 +57,7 @@ struct jit_ctx {
 	int epilogue_offset;
 	int *offset;
 	__le32 *image;
+	int stack_size;
 };
 
 static inline void emit(const u32 insn, struct jit_ctx *ctx)
