@@ -72,6 +72,19 @@ int tcp_register_ulp(struct tcp_ulp_ops *type);
 void tcp_unregister_ulp(struct tcp_ulp_ops *type);
 int tcp_set_ulp(struct sock *sk, const char *name);
 void tcp_get_available_ulp(char *buf, size_t len);
+
+#ifdef CONFIG_BPF_STREAM_PARSER
+struct sk_msg;
+struct sk_psock;
+int tcp_bpf_init(struct sock *sk);
+void tcp_bpf_reinit(struct sock *sk);
+int tcp_bpf_sendmsg_redir(struct sock *sk, struct sk_msg *msg, u32 bytes,
+			  int flags);
+int tcp_bpf_recvmsg(struct sock *sk, struct msghdr *msg, size_t len,
+		    int nonblock, int flags, int *addr_len);
+int __tcp_bpf_recvmsg(struct sock *sk, struct sk_psock *psock,
+		      struct msghdr *msg, int len, int flags);
+#endif /* CONFIG_BPF_STREAM_PARSER */
 void tcp_rate_check_app_limited(struct sock *sk);
 ssize_t do_tcp_sendpages(struct sock *sk, struct page *page, int offset, size_t size, int flags);
 void tcp_get_info_ulp(const struct sock *sk, struct sk_buff *skb);
