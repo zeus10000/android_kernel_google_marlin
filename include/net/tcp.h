@@ -47,6 +47,29 @@
 #include <linux/seq_file.h>
 #include <linux/memcontrol.h>
 
+#define TCP_ULP_NAME_MAX 16
+
+struct tcp_ulp_ops {
+	struct list_head	list;
+	int (*init)(struct sock *sk);
+	void (*update)(struct sock *sk, struct proto *p);
+	void (*release)(struct sock *sk);
+	int  (*get_info)(const struct sock *sk, struct sk_buff *skb);
+	size_t (*get_info_size)(const struct sock *sk);
+	char		name[TCP_ULP_NAME_MAX];
+	struct module	*owner;
+};
+
+int tcp_register_ulp(struct tcp_ulp_ops *type);
+void tcp_unregister_ulp(struct tcp_ulp_ops *type);
+int tcp_set_ulp(struct sock *sk, const char *name);
+void tcp_rate_check_app_limited(struct sock *sk);
+ssize_t do_tcp_sendpages(struct sock *sk, struct page *page, int offset, size_t size, int flags);
+void tcp_get_info_ulp(const struct sock *sk, struct sk_buff *skb);
+void tcp_cleanup_ulp(struct sock *sk);
+void tcp_update_ulp(struct sock *sk, struct proto *p);
+
+
 extern struct inet_hashinfo tcp_hashinfo;
 
 extern struct percpu_counter tcp_orphan_count;
@@ -795,14 +818,43 @@ struct tcp_skb_cb {
 	/* 1 byte hole */
 	__u32		ack_seq;	/* Sequence number ACK'd	*/
 	union {
-		struct inet_skb_parm	h4;
+		struct {
+			/* There is space for up to 24 bytes */
+			__u32 in_flight:30,
+			      is_app_limited:1,
+			      unused:1;
+		} tx;   /* only used for outgoing skbs */
+		union {
+			struct inet_skb_parm	h4;
 #if IS_ENABLED(CONFIG_IPV6)
-		struct inet6_skb_parm	h6;
+			struct inet6_skb_parm	h6;
 #endif
-	} header;	/* For incoming frames		*/
+		} header;	/* For incoming skbs */
+		struct {
+			__u32 flags;
+			struct sock *sk_redir;
+			void *data_end;
+		} bpf;		/* For BPF sockmap redirect */
+	};
 };
 
+
 #define TCP_SKB_CB(__skb)	((struct tcp_skb_cb *)&((__skb)->cb[0]))
+
+static inline bool tcp_skb_bpf_ingress(const struct sk_buff *skb)
+{
+	return TCP_SKB_CB(skb)->bpf.flags & 1;
+}
+
+static inline struct sock *tcp_skb_bpf_redirect_fetch(struct sk_buff *skb)
+{
+	return TCP_SKB_CB(skb)->bpf.sk_redir;
+}
+
+static inline void tcp_skb_bpf_redirect_clear(struct sk_buff *skb)
+{
+	TCP_SKB_CB(skb)->bpf.sk_redir = NULL;
+}
 
 
 #if IS_ENABLED(CONFIG_IPV6)
@@ -1858,3 +1910,7 @@ static inline void skb_set_tcp_pure_ack(struct sk_buff *skb)
 }
 
 #endif	/* _TCP_H */
+
+#define MODULE_ALIAS_TCP_ULP(name)				\
+	__MODULE_INFO(alias, alias_userspace, name);		\
+	__MODULE_INFO(alias, alias_tcp_ulp, "tcp-ulp-" name)
