@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  *  linux/fs/pipe.c
  *
@@ -23,7 +22,7 @@
 #include <linux/syscalls.h>
 #include <linux/fcntl.h>
 
-#include <linux/uaccess.h>
+#include <asm/uaccess.h>
 #include <asm/ioctls.h>
 
 #include "internal.h"
@@ -718,7 +717,7 @@ static struct inode * get_pipe_inode(void)
 	inode->i_mode = S_IFIFO | S_IRUSR | S_IWUSR;
 	inode->i_uid = current_fsuid();
 	inode->i_gid = current_fsgid();
-	inode->i_atime = inode->i_mtime = inode->i_ctime = current_time(inode);
+	inode->i_atime = inode->i_mtime = inode->i_ctime = CURRENT_TIME;
 
 	return inode;
 
