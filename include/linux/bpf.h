@@ -212,6 +212,10 @@ enum bpf_arg_type {
 	ARG_PTR_TO_LONG,	/* pointer to long */
 	ARG_PTR_TO_SOCKET,	/* pointer to bpf_sock (fullsock) */
 };
+/* 4.4 compat aliases for renamed BPF arg types */
+#define ARG_PTR_TO_STACK   ARG_PTR_TO_MEM
+#define ARG_CONST_STACK_SIZE ARG_CONST_SIZE
+
 
 /* type of values returned from helper functions */
 enum bpf_return_type {
@@ -358,6 +362,14 @@ enum bpf_cgroup_storage_type {
 };
 
 #define MAX_BPF_CGROUP_STORAGE_TYPE __BPF_CGROUP_STORAGE_MAX
+
+static inline enum bpf_cgroup_storage_type
+cgroup_storage_type(struct bpf_map *map)
+{
+	if (map->map_type == BPF_MAP_TYPE_PERCPU_CGROUP_STORAGE)
+		return BPF_CGROUP_STORAGE_PERCPU;
+	return BPF_CGROUP_STORAGE_SHARED;
+}
 
 struct bpf_prog_stats {
 	u64 cnt;
@@ -1144,5 +1156,15 @@ static inline u32 bpf_xdp_sock_convert_ctx_access(enum bpf_access_type type,
 	return 0;
 }
 #endif /* CONFIG_INET */
+
+
+/* BPF raw tracepoint event map (backport from Linux 5.0+) */
+struct tracepoint;
+struct bpf_raw_event_map {
+	struct tracepoint	*tp;
+	void			*bpf_func;
+	u32			num_args;
+	u32			writable_size;
+} __aligned(32);
 
 #endif /* _LINUX_BPF_H */

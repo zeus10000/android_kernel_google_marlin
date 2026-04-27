@@ -83,6 +83,9 @@ struct cgroup_bpf {
 
 int cgroup_bpf_inherit(struct cgroup *cgrp);
 void cgroup_bpf_offline(struct cgroup *cgrp);
+void cgroup_bpf_get(struct cgroup *cgrp);
+void cgroup_bpf_put(struct cgroup *cgrp);
+void bpf_cgroup_storage_set(struct bpf_cgroup_storage *storage[MAX_BPF_CGROUP_STORAGE_TYPE]);
 
 int __cgroup_bpf_attach(struct cgroup *cgrp, struct bpf_prog *prog,
 			enum bpf_attach_type type, u32 flags);
@@ -114,12 +117,26 @@ int __cgroup_bpf_run_filter_getsockopt(struct sock *sk, int level,
 				       int __user *optlen, int max_optlen,
 				       int retval);
 
+int bpf_percpu_cgroup_storage_copy(struct bpf_map *map, void *key, void *value);
+int bpf_percpu_cgroup_storage_update(struct bpf_map *map, void *key,
+				     void *value, u64 flags);
+
+struct bpf_cgroup_storage *bpf_cgroup_storage_alloc(struct bpf_prog *prog,
+					enum bpf_cgroup_storage_type stype);
+void bpf_cgroup_storage_free(struct bpf_cgroup_storage *storage);
+void bpf_cgroup_storage_link(struct bpf_cgroup_storage *storage,
+			     struct cgroup *cgrp,
+			     enum bpf_attach_type type);
+void bpf_cgroup_storage_unlink(struct bpf_cgroup_storage *storage);
+int bpf_cgroup_storage_assign(struct bpf_prog *prog, struct bpf_map *map);
+void bpf_cgroup_storage_release(struct bpf_prog *prog, struct bpf_map *map);
+
 /* Wrappers for __cgroup_bpf_run_filter() guarded by cgroup_bpf_enabled. */
 #define BPF_CGROUP_RUN_PROG_INET_INGRESS(sk,skb)			\
 ({									\
 	int __ret = 0;							\
 	if (cgroup_bpf_enabled)						\
-		__ret = __cgroup_bpf_run_filter(sk, skb,		\
+		__ret = __cgroup_bpf_run_filter_skb(sk, skb,		\
 						BPF_CGROUP_INET_INGRESS); \
 									\
 	__ret;								\
