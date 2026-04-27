@@ -1,6 +1,10 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * 	NET3	Protocol independent device support routines.
+ *
+ *		This program is free software; you can redistribute it and/or
+ *		modify it under the terms of the GNU General Public License
+ *		as published by the Free Software Foundation; either version
+ *		2 of the License, or (at your option) any later version.
  *
  *	Derived from the non IP parts of dev.c 1.0.19
  * 		Authors:	Ross Biro
@@ -68,7 +72,7 @@
  *				        - netif_rx() feedback
  */
 
-#include <linux/uaccess.h>
+#include <asm/uaccess.h>
 #include <linux/bitops.h>
 #include <linux/capability.h>
 #include <linux/cpu.h>
@@ -3013,6 +3017,9 @@ static void skb_update_prio(struct sk_buff *skb)
 #define skb_update_prio(skb)
 #endif
 
+DEFINE_PER_CPU(int, xmit_recursion);
+EXPORT_SYMBOL(xmit_recursion);
+
 /**
  *	dev_loopback_xmit - loop back @skb
  *	@net: network namespace this loopback is happening in
@@ -3204,7 +3211,8 @@ static int __dev_queue_xmit(struct sk_buff *skb, void *accel_priv)
 		int cpu = smp_processor_id(); /* ok because BHs are off */
 
 		if (txq->xmit_lock_owner != cpu) {
-			if (dev_xmit_recursion())
+			if (unlikely(__this_cpu_read(xmit_recursion) >
+				     XMIT_RECURSION_LIMIT))
 				goto recursion_alert;
 
 			skb = validate_xmit_skb(skb, dev);
@@ -3214,9 +3222,9 @@ static int __dev_queue_xmit(struct sk_buff *skb, void *accel_priv)
 			HARD_TX_LOCK(dev, txq, cpu);
 
 			if (!netif_xmit_stopped(txq)) {
-				dev_xmit_recursion_inc();
+				__this_cpu_inc(xmit_recursion);
 				skb = dev_hard_start_xmit(skb, dev, txq, &rc);
-				dev_xmit_recursion_dec();
+				__this_cpu_dec(xmit_recursion);
 				if (dev_xmit_complete(rc)) {
 					HARD_TX_UNLOCK(dev, txq);
 					goto out;
@@ -4042,33 +4050,6 @@ out:
 	return ret;
 }
 
-/**
- *	netif_receive_skb_core - special purpose version of netif_receive_skb
- *	@skb: buffer to process
- *
- *	More direct receive version of netif_receive_skb().  It should
- *	only be used by callers that have a need to skip RPS and Generic XDP.
- *	Caller must also take care of handling if (page_is_)pfmemalloc.
- *
- *	This function may only be called from softirq context and interrupts
- *	should be enabled.
- *
- *	Return values (usually ignored):
- *	NET_RX_SUCCESS: no congestion
- *	NET_RX_DROP: packet was dropped
- */
-int netif_receive_skb_core(struct sk_buff *skb)
-{
-	int ret;
-
-	rcu_read_lock();
-	ret = __netif_receive_skb_core(skb, false);
-	rcu_read_unlock();
-
-	return ret;
-}
-EXPORT_SYMBOL(netif_receive_skb_core);
-
 static int __netif_receive_skb(struct sk_buff *skb)
 {
 	int ret;
@@ -4257,7 +4238,6 @@ static void gro_list_prepare(struct napi_struct *napi, struct sk_buff *skb)
 		diffs = (unsigned long)p->dev ^ (unsigned long)skb->dev;
 		diffs |= p->vlan_tci ^ skb->vlan_tci;
 		diffs |= skb_metadata_dst_cmp(p, skb);
-		diffs |= skb_metadata_differs(p, skb);
 		if (maclen == ETH_HLEN)
 			diffs |= compare_ether_header(skb_mac_header(p),
 						      skb_mac_header(skb));
@@ -7729,7 +7709,7 @@ static struct hlist_head * __net_init netdev_create_hash(void)
 	int i;
 	struct hlist_head *hash;
 
-	hash = kmalloc_array(NETDEV_HASHENTRIES, sizeof(*hash), GFP_KERNEL);
+	hash = kmalloc(sizeof(*hash) * NETDEV_HASHENTRIES, GFP_KERNEL);
 	if (hash != NULL)
 		for (i = 0; i < NETDEV_HASHENTRIES; i++)
 			INIT_HLIST_HEAD(&hash[i]);
