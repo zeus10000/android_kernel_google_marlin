@@ -342,3 +342,4 @@ extern int __sys_recvmmsg(int fd, struct mmsghdr __user *mmsg, unsigned int vlen
 extern int __sys_sendmmsg(int fd, struct mmsghdr __user *mmsg,
 			  unsigned int vlen, unsigned int flags);
 #endif /* _LINUX_SOCKET_H */
+#define MSG_SENDPAGE_NOPOLICY 0x10000
