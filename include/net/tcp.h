@@ -48,6 +48,8 @@
 #include <linux/memcontrol.h>
 
 #define TCP_ULP_NAME_MAX 16
+#define TCP_ULP_MAX		128
+#define TCP_ULP_BUF_MAX		(TCP_ULP_NAME_MAX*TCP_ULP_MAX)
 
 struct tcp_ulp_ops {
 	struct list_head	list;
@@ -63,6 +65,7 @@ struct tcp_ulp_ops {
 int tcp_register_ulp(struct tcp_ulp_ops *type);
 void tcp_unregister_ulp(struct tcp_ulp_ops *type);
 int tcp_set_ulp(struct sock *sk, const char *name);
+void tcp_get_available_ulp(char *buf, size_t len);
 void tcp_rate_check_app_limited(struct sock *sk);
 ssize_t do_tcp_sendpages(struct sock *sk, struct page *page, int offset, size_t size, int flags);
 void tcp_get_info_ulp(const struct sock *sk, struct sk_buff *skb);

@@ -109,8 +109,6 @@ struct inet_connection_sock {
 	__u8			  icsk_syn_retries;
 	__u8			  icsk_probes_out;
 	__u16			  icsk_ext_hdr_len;
-	const struct tcp_ulp_ops  *icsk_ulp_ops;
-	void __rcu		  *icsk_ulp_data;
 	struct {
 		__u8		  pending;	 /* ACK is pending			   */
 		__u8		  quick;	 /* Scheduled number of quick acks	   */
