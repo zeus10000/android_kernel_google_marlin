@@ -6,6 +6,7 @@
 #include <linux/vmalloc.h>
 #include <net/checksum.h>
 #include <linux/scatterlist.h>
+#include <crypto/hash.h>
 
 #define iterate_iovec(i, n, __v, __p, skip, STEP) {	\
 	size_t left;					\
