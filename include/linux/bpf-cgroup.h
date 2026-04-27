@@ -106,6 +106,14 @@ int __cgroup_bpf_run_filter_skb(struct sock *sk,
 int __cgroup_bpf_run_filter_sk(struct sock *sk,
 			    enum bpf_attach_type type);
 
+int __cgroup_bpf_run_filter_setsockopt(struct sock *sock, int *level,
+				       int *optname, char __user *optval,
+				       int *optlen, char **kernel_optval);
+int __cgroup_bpf_run_filter_getsockopt(struct sock *sk, int level,
+				       int optname, char __user *optval,
+				       int __user *optlen, int max_optlen,
+				       int retval);
+
 /* Wrappers for __cgroup_bpf_run_filter() guarded by cgroup_bpf_enabled. */
 #define BPF_CGROUP_RUN_PROG_INET_INGRESS(sk,skb)			\
 ({									\
