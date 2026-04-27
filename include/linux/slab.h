@@ -635,4 +635,8 @@ static inline void *kzalloc_node(size_t size, gfp_t flags, int node)
 unsigned int kmem_cache_size(struct kmem_cache *s);
 void __init kmem_cache_init_late(void);
 
+#ifndef kvcalloc
+#define kvcalloc(n, size, gfp) kcalloc((n), (size), (gfp))
+#endif
+
 #endif	/* _LINUX_SLAB_H */

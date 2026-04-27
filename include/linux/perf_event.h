@@ -1276,4 +1276,27 @@ _name##_show(struct device *dev,					\
 									\
 static struct device_attribute format_attr_##_name = __ATTR_RO(_name)
 
+/* 5.4 compat: BPF event tracing added in Linux 5.1 */
+enum perf_bpf_event_type {
+	PERF_BPF_EVENT_UNKNOWN		= 0,
+	PERF_BPF_EVENT_PROG_LOAD	= 1,
+	PERF_BPF_EVENT_PROG_UNLOAD	= 2,
+	PERF_BPF_EVENT_MAX,
+};
+
+struct bpf_prog;
+static inline void perf_event_bpf_event(struct bpf_prog *prog,
+					 enum perf_bpf_event_type type,
+					 u16 flags)
+{
+}
+
+
+/* Stub: perf_get_event not implemented on 4.4 (BPF raw tracepoint fallback) */
+struct file;
+static inline struct perf_event *perf_get_event(struct file *file)
+{
+	return ERR_PTR(-EINVAL);
+}
+
 #endif /* _LINUX_PERF_EVENT_H */

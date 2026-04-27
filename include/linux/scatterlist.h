@@ -380,4 +380,10 @@ bool sg_miter_skip(struct sg_mapping_iter *miter, off_t offset);
 bool sg_miter_next(struct sg_mapping_iter *miter);
 void sg_miter_stop(struct sg_mapping_iter *miter);
 
+static inline void sg_init_marker(struct scatterlist *sgl,
+				  unsigned int nents)
+{
+	sg_mark_end(&sgl[nents - 1]);
+}
+
 #endif /* _LINUX_SCATTERLIST_H */

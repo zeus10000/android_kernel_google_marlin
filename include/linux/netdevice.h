@@ -781,7 +781,7 @@ typedef u16 (*select_queue_fallback_t)(struct net_device *dev,
 /* These structures hold the attributes of xdp state that are being passed
  * to the netdevice through the xdp op.
  */
-enum xdp_netdev_command {
+enum bpf_netdev_command {
 	/* Set or clear a bpf program used in the earliest stages of packet
 	 * rx. The prog will have been loaded as BPF_PROG_TYPE_XDP. The callee
 	 * is responsible for calling bpf_prog_put on any old progs that are
@@ -790,19 +790,39 @@ enum xdp_netdev_command {
 	 * when it is no longer used.
 	 */
 	XDP_SETUP_PROG,
+	XDP_SETUP_PROG_HW,
 	/* Check if a bpf program is set on the device.  The callee should
 	 * return true if a program is currently attached and running.
 	 */
 	XDP_QUERY_PROG,
+	XDP_QUERY_PROG_HW,
+	/* BPF program for offload callbacks, invoked at program load time. */
+	BPF_OFFLOAD_MAP_ALLOC,
+	BPF_OFFLOAD_MAP_FREE,
+	XDP_SETUP_XSK_UMEM,
 };
 
-struct netdev_xdp {
-	enum xdp_netdev_command command;
+struct bpf_prog_offload_ops;
+struct netlink_ext_ack;
+struct xdp_umem;
+struct netdev_bpf {
+	enum bpf_netdev_command command;
 	union {
 		/* XDP_SETUP_PROG */
-		struct bpf_prog *prog;
-		/* XDP_QUERY_PROG */
-		bool prog_attached;
+		struct {
+			u32 flags;
+			struct bpf_prog *prog;
+			struct netlink_ext_ack *extack;
+		};
+		/* XDP_QUERY_PROG, XDP_QUERY_PROG_HW */
+		struct {
+			u32 prog_id;
+			u32 prog_flags;
+		};
+		/* BPF_OFFLOAD_MAP_ALLOC, BPF_OFFLOAD_MAP_FREE */
+		struct {
+			struct bpf_offloaded_map *offmap;
+		};
 	};
 };
 
@@ -1099,6 +1119,7 @@ struct netdev_xdp {
  *	netdevice. See definition of enum xdp_netdev_command for details.
  *
  */
+struct xdp_frame;
 struct net_device_ops {
 	int			(*ndo_init)(struct net_device *dev);
 	void			(*ndo_uninit)(struct net_device *dev);
@@ -1276,8 +1297,11 @@ struct net_device_ops {
 						       struct sk_buff *skb);
 	void			(*ndo_set_rx_headroom)(struct net_device *dev,
 						       int needed_headroom);
-	int			(*ndo_xdp)(struct net_device *dev,
-					   struct netdev_xdp *xdp);
+	int			(*ndo_bpf)(struct net_device *dev,
+					   struct netdev_bpf *bpf);
+	/* XDP bulk transmit (compat: added in 5.x) */
+	int			(*ndo_xdp_xmit)(struct net_device *dev, int n,
+						struct xdp_frame **xdp, u32 flags);
 };
 
 /**
@@ -2381,6 +2405,22 @@ DECLARE_PER_CPU(int, xmit_recursion);
 static inline int dev_recursion_level(void)
 {
 	return this_cpu_read(xmit_recursion);
+}
+
+/* 5.4 compat wrappers */
+static inline bool dev_xmit_recursion(void)
+{
+	return unlikely(this_cpu_read(xmit_recursion) > XMIT_RECURSION_LIMIT);
+}
+
+static inline void dev_xmit_recursion_inc(void)
+{
+	__this_cpu_inc(xmit_recursion);
+}
+
+static inline void dev_xmit_recursion_dec(void)
+{
+	__this_cpu_dec(xmit_recursion);
 }
 
 struct net_device *dev_get_by_index(struct net *net, int ifindex);
@@ -4250,5 +4290,7 @@ do {								\
  */
 #define PTYPE_HASH_SIZE	(16)
 #define PTYPE_HASH_MASK	(PTYPE_HASH_SIZE - 1)
+
+void generic_xdp_tx(struct sk_buff *skb, struct bpf_prog *xdp_prog);
 
 #endif	/* _LINUX_NETDEVICE_H */

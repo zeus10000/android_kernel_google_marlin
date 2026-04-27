@@ -409,6 +409,9 @@ enum {
 	SKB_GSO_UDP_TUNNEL_CSUM = 1 << 11,
 
 	SKB_GSO_TUNNEL_REMCSUM = 1 << 12,
+	/* Compat: IP-in-IP GSO types (4.12+) */
+	SKB_GSO_IPXIP4 = 1 << 13,
+	SKB_GSO_IPXIP6 = 1 << 14,
 };
 
 #if BITS_PER_LONG > 32
@@ -685,6 +688,13 @@ struct sk_buff {
 	__u32			hash;
 	__be16			vlan_proto;
 	__u16			vlan_tci;
+/* 4.4 compat: PKT_VLAN_PRESENT extracted from vlan_tci bit 12 (VLAN_CFI_MASK) */
+#ifdef __BIG_ENDIAN_BITFIELD
+#define PKT_VLAN_PRESENT_BIT	7
+#else
+#define PKT_VLAN_PRESENT_BIT	4  /* bit 4 of high byte = bit 12 of vlan_tci */
+#endif
+#define PKT_VLAN_PRESENT_OFFSET()	(offsetof(struct sk_buff, vlan_tci) + 1)
 #if defined(CONFIG_NET_RX_BUSY_POLL) || defined(CONFIG_XPS)
 	union {
 		unsigned int	napi_id;
@@ -2111,6 +2121,11 @@ static inline void skb_set_network_header(struct sk_buff *skb, const int offset)
 static inline unsigned char *skb_mac_header(const struct sk_buff *skb)
 {
 	return skb->head + skb->mac_header;
+}
+
+static inline int skb_mac_header_len(const struct sk_buff *skb)
+{
+	return skb->data - skb_mac_header(skb);
 }
 
 static inline int skb_mac_header_was_set(const struct sk_buff *skb)
