@@ -51,6 +51,10 @@
 #define TCP_ULP_MAX		128
 #define TCP_ULP_BUF_MAX		(TCP_ULP_NAME_MAX*TCP_ULP_MAX)
 
+enum {
+	TCP_ULP_TLS,
+};
+
 struct tcp_ulp_ops {
 	struct list_head	list;
 	int (*init)(struct sock *sk);
@@ -58,7 +62,9 @@ struct tcp_ulp_ops {
 	void (*release)(struct sock *sk);
 	int  (*get_info)(const struct sock *sk, struct sk_buff *skb);
 	size_t (*get_info_size)(const struct sock *sk);
+	int		uid;
 	char		name[TCP_ULP_NAME_MAX];
+	bool		user_visible;
 	struct module	*owner;
 };
 
