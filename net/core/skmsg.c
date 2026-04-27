@@ -761,3 +761,54 @@ void sk_psock_stop_strp(struct sock *sk, struct sk_psock *psock)
 	strp_stop(&parser->strp);
 	parser->enabled = false;
 }
+
+int sk_msg_clone(struct sock *sk, struct sk_msg *dst, struct sk_msg *src,
+		 u32 off, u32 len)
+{
+	int i = src->sg.start;
+	struct scatterlist *sge = sk_msg_elem(src, i);
+	struct scatterlist *sgd = NULL;
+	u32 sge_len, sge_off;
+
+	while (off) {
+		if (sge->length > off)
+			break;
+		off -= sge->length;
+		sk_msg_iter_var_next(i);
+		if (i == src->sg.end && off)
+			return -ENOSPC;
+		sge = sk_msg_elem(src, i);
+	}
+
+	while (len) {
+		sge_len = sge->length - off;
+		if (sge_len > len)
+			sge_len = len;
+
+		if (dst->sg.end)
+			sgd = sk_msg_elem(dst, dst->sg.end - 1);
+
+		if (sgd &&
+		    (sg_page(sge) == sg_page(sgd)) &&
+		    (sg_virt(sge) + off == sg_virt(sgd) + sgd->length)) {
+			sgd->length += sge_len;
+			dst->sg.size += sge_len;
+		} else if (!sk_msg_full(dst)) {
+			sge_off = sge->offset + off;
+			sk_msg_page_add(dst, sg_page(sge), sge_len, sge_off);
+		} else {
+			return -ENOSPC;
+		}
+
+		off = 0;
+		len -= sge_len;
+		sk_mem_charge(sk, sge_len);
+		sk_msg_iter_var_next(i);
+		if (i == src->sg.end && len)
+			return -ENOSPC;
+		sge = sk_msg_elem(src, i);
+	}
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(sk_msg_clone);
