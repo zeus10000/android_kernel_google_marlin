@@ -7,6 +7,8 @@
 #include <linux/etherdevice.h>
 #include <linux/filter.h>
 #include <linux/sched/signal.h>
+#include <net/sock.h>
+#include <net/flow_dissector.h>
 
 static __always_inline u32 bpf_test_run_one(struct bpf_prog *prog, void *ctx)
 {
@@ -46,7 +48,8 @@ static u32 bpf_test_run(struct bpf_prog *prog, void *ctx, u32 repeat, u32 *time)
 	return ret;
 }
 
-static int bpf_test_finish(union bpf_attr __user *uattr, const void *data,
+static int bpf_test_finish(const union bpf_attr *kattr,
+			   union bpf_attr __user *uattr, const void *data,
 			   u32 size, u32 retval, u32 duration)
 {
 	void __user *data_out = u64_to_user_ptr(uattr->test.data_out);
@@ -268,7 +271,7 @@ int bpf_prog_test_run_skb(struct bpf_prog *prog, const union bpf_attr *kattr,
 	/* bpf program can never convert linear skb to non-linear */
 	if (WARN_ON_ONCE(skb_is_nonlinear(skb)))
 		size = skb_headlen(skb);
-	ret = bpf_test_finish(uattr, skb->data, size, retval, duration);
+	ret = bpf_test_finish(kattr, uattr, skb->data, size, retval, duration);
 	kfree_skb(skb);
 	return ret;
 }
@@ -294,7 +297,7 @@ int bpf_prog_test_run_xdp(struct bpf_prog *prog, const union bpf_attr *kattr,
 	retval = bpf_test_run(prog, &xdp, repeat, &duration);
 	if (xdp.data != data + XDP_PACKET_HEADROOM)
 		size = xdp.data_end - xdp.data;
-	ret = bpf_test_finish(uattr, xdp.data, size, retval, duration);
+	ret = bpf_test_finish(kattr, uattr, xdp.data, size, retval, duration);
 	kfree(data);
 	return ret;
 }
