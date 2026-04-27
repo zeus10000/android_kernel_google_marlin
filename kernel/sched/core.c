@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  *  kernel/sched/core.c
  *
@@ -4590,7 +4589,7 @@ static int sched_copy_attr(struct sched_attr __user *uattr,
 	u32 size;
 	int ret;
 
-	if (!access_ok(uattr, SCHED_ATTR_SIZE_VER0))
+	if (!access_ok(VERIFY_WRITE, uattr, SCHED_ATTR_SIZE_VER0))
 		return -EFAULT;
 
 	/*
@@ -4792,7 +4791,7 @@ static int sched_read_attr(struct sched_attr __user *uattr,
 {
 	int ret;
 
-	if (!access_ok(uattr, usize))
+	if (!access_ok(VERIFY_WRITE, uattr, usize))
 		return -EFAULT;
 
 	/*
