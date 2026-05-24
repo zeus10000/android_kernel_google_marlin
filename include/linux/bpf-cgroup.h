@@ -419,4 +419,7 @@ static inline int bpf_percpu_cgroup_storage_update(struct bpf_map *map,
 
 #endif /* CONFIG_CGROUP_BPF */
 
+
+static inline void cgroup_bpf_get(struct cgroup *cgrp) { }
+static inline void cgroup_bpf_put(struct cgroup *cgrp) { }
 #endif /* _BPF_CGROUP_H */

@@ -1131,4 +1131,13 @@ static inline void rcu_sysidle_force_exit(void)
 #endif /* #else #ifdef CONFIG_NO_HZ_FULL_SYSIDLE */
 
 
+
+#ifndef rcu_replace_pointer
+#define rcu_replace_pointer(rcu_ptr, ptr, c) \
+({ \
+    typeof(ptr) __tmp = rcu_dereference_protected(rcu_ptr, c); \
+    rcu_assign_pointer(rcu_ptr, ptr); \
+    __tmp; \
+})
+#endif
 #endif /* __LINUX_RCUPDATE_H */

@@ -4,5 +4,7 @@
 #define __CGROUP_INTERNAL_H
 
 #include <linux/cgroup.h>
+extern struct mutex cgroup_mutex;
+
 
 #endif
