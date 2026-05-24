@@ -152,14 +152,7 @@ static inline enum bpf_cgroup_storage_type cgroup_storage_type(
 	return BPF_CGROUP_STORAGE_SHARED;
 }
 
-static inline void bpf_cgroup_storage_set(struct bpf_cgroup_storage
-					  *storage[MAX_BPF_CGROUP_STORAGE_TYPE])
-{
-	enum bpf_cgroup_storage_type stype;
-
-	for_each_cgroup_storage_type(stype)
-		this_cpu_write(bpf_cgroup_storage[stype], storage[stype]);
-}
+void bpf_cgroup_storage_set(struct bpf_cgroup_storage *storage[MAX_BPF_CGROUP_STORAGE_TYPE]);
 
 struct bpf_cgroup_storage *bpf_cgroup_storage_alloc(struct bpf_prog *prog,
 					enum bpf_cgroup_storage_type stype);
