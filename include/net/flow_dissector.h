@@ -210,5 +210,9 @@ u32 __skb_flow_bpf_dissect(struct bpf_prog *prog,
 
 int skb_flow_dissector_prog_query(const union bpf_attr *attr,
 				  union bpf_attr __user *uattr);
+struct bpf_prog;
+int skb_flow_dissector_bpf_prog_attach(const union bpf_attr *attr,
+				       struct bpf_prog *prog);
+int skb_flow_dissector_bpf_prog_detach(const union bpf_attr *attr);
 
 #endif

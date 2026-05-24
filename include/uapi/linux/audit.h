@@ -77,6 +77,8 @@
 #define AUDIT_USER_TTY		1124	/* Non-ICANON TTY input meaning */
 #define AUDIT_LAST_USER_MSG	1199
 #define AUDIT_FIRST_USER_MSG2	2100	/* More user space messages */
+#define AUDIT_BPF		1334	/* BPF subsystem */
+#define AUDIT_OFF		1335	/* turn off audit */
 #define AUDIT_LAST_USER_MSG2	2999
  
 #define AUDIT_DAEMON_START      1200    /* Daemon startup record */

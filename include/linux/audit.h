@@ -144,6 +144,12 @@ extern void __audit_inode_child(struct inode *parent,
 extern void __audit_seccomp(unsigned long syscall, long signr, int code);
 extern void __audit_ptrace(struct task_struct *t);
 
+static inline struct audit_context *audit_context(void)
+{
+	return current->audit_context;
+}
+
+
 static inline bool audit_dummy_context(void)
 {
 	void *p = current->audit_context;

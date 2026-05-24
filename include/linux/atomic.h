@@ -562,4 +562,21 @@ static inline void atomic64_andnot(long long i, atomic64_t *v)
 
 #include <asm-generic/atomic-long.h>
 
+#ifndef atomic64_fetch_add_unless
+static __always_inline long long
+atomic64_fetch_add_unless(atomic64_t *v, long long a, long long u)
+{
+	long long c = atomic64_read(v);
+
+	while (c != u) {
+		long long old = atomic64_cmpxchg(v, c, c + a);
+		if (old == c)
+			break;
+		c = old;
+	}
+	return c;
+}
+#endif
+
 #endif /* _LINUX_ATOMIC_H */
+

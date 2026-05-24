@@ -2,6 +2,7 @@
 /* Copyright (c) 2011-2014 PLUMgrid, http://plumgrid.com
  */
 #include <linux/bpf.h>
+#include <linux/trace_events.h>
 #include <linux/bpf_trace.h>
 #include <linux/bpf_lirc.h>
 #include <linux/btf.h>
@@ -79,7 +80,7 @@ int bpf_check_uarg_tail_zero(void __user *uaddr,
 	if (unlikely(actual_size > PAGE_SIZE))	/* silly large */
 		return -E2BIG;
 
-	if (unlikely(!access_ok(uaddr, actual_size)))
+	if (unlikely(!access_ok(VERIFY_READ, uaddr, actual_size)))
 		return -EFAULT;
 
 	if (actual_size <= expected_size)
@@ -298,14 +299,11 @@ static void *__bpf_map_area_alloc(u64 size, int numa_node, bool mmapable)
 		if (area != NULL)
 			return area;
 	}
-	if (mmapable) {
-		BUG_ON(!PAGE_ALIGNED(size));
-		return vmalloc_user_node_flags(size, numa_node, GFP_KERNEL |
-					       __GFP_RETRY_MAYFAIL | flags);
-	}
-	return __vmalloc_node_flags_caller(size, numa_node,
-					   GFP_KERNEL | __GFP_RETRY_MAYFAIL |
-					   flags, __builtin_return_address(0));
+	return __vmalloc_node_range(size, mmapable ? PAGE_SIZE : 1,
+			VMALLOC_START, VMALLOC_END,
+			GFP_KERNEL | __GFP_RETRY_MAYFAIL | flags,
+			PAGE_KERNEL, mmapable ? VM_USERMAP : 0, numa_node,
+			__builtin_return_address(0));
 }
 
 void *bpf_map_area_alloc(u64 size, int numa_node)
@@ -3133,7 +3131,7 @@ static struct bpf_insn *bpf_insn_prepare_dump(const struct bpf_prog *prog)
 		    insns[i].code == (BPF_JMP | BPF_CALL_ARGS)) {
 			if (insns[i].code == (BPF_JMP | BPF_CALL_ARGS))
 				insns[i].code = BPF_JMP | BPF_CALL;
-			if (!bpf_dump_raw_ok())
+			if (!bpf_dump_raw_ok(current_cred()))
 				insns[i].imm = 0;
 			continue;
 		}
@@ -3254,7 +3252,7 @@ static int bpf_prog_get_info_by_fd(struct bpf_prog *prog,
 		struct bpf_insn *insns_sanitized;
 		bool fault;
 
-		if (prog->blinded && !bpf_dump_raw_ok()) {
+		if (prog->blinded && !bpf_dump_raw_ok(current_cred())) {
 			info.xlated_prog_insns = 0;
 			goto done;
 		}
@@ -3292,7 +3290,7 @@ static int bpf_prog_get_info_by_fd(struct bpf_prog *prog,
 	}
 
 	if (info.jited_prog_len && ulen) {
-		if (bpf_dump_raw_ok()) {
+		if (bpf_dump_raw_ok(current_cred())) {
 			uinsns = u64_to_user_ptr(info.jited_prog_insns);
 			ulen = min_t(u32, info.jited_prog_len, ulen);
 
@@ -3327,7 +3325,7 @@ static int bpf_prog_get_info_by_fd(struct bpf_prog *prog,
 	ulen = info.nr_jited_ksyms;
 	info.nr_jited_ksyms = prog->aux->func_cnt ? : 1;
 	if (ulen) {
-		if (bpf_dump_raw_ok()) {
+		if (bpf_dump_raw_ok(current_cred())) {
 			unsigned long ksym_addr;
 			u64 __user *user_ksyms;
 			u32 i;
@@ -3358,7 +3356,7 @@ static int bpf_prog_get_info_by_fd(struct bpf_prog *prog,
 	ulen = info.nr_jited_func_lens;
 	info.nr_jited_func_lens = prog->aux->func_cnt ? : 1;
 	if (ulen) {
-		if (bpf_dump_raw_ok()) {
+		if (bpf_dump_raw_ok(current_cred())) {
 			u32 __user *user_lens;
 			u32 func_len, i;
 
@@ -3415,7 +3413,7 @@ static int bpf_prog_get_info_by_fd(struct bpf_prog *prog,
 	else
 		info.nr_jited_line_info = 0;
 	if (info.nr_jited_line_info && ulen) {
-		if (bpf_dump_raw_ok()) {
+		if (bpf_dump_raw_ok(current_cred())) {
 			__u64 __user *user_linfo;
 			u32 i;
 
