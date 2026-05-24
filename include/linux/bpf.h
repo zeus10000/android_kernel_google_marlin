@@ -1726,4 +1726,16 @@ enum bpf_text_poke_type {
 int bpf_arch_text_poke(void *ip, enum bpf_text_poke_type t,
 		       void *addr1, void *addr2);
 
+
+/* BACKPORT: bpf_capable() compatibility stub.
+ * v4.4-marlin lacks CAP_BPF/CAP_PERFMON granular caps. Map to CAP_SYS_ADMIN.
+ * [ref upstream 2c78ee898d8f1: bpf: Implement CAP_BPF]
+ */
+#ifndef bpf_capable
+static inline bool bpf_capable(void)
+{
+	return capable(CAP_SYS_ADMIN);
+}
+#endif
+
 #endif /* _LINUX_BPF_H */
