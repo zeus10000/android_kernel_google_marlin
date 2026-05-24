@@ -315,6 +315,17 @@ int ipv6_route_open(struct inode *inode, struct file *file);
 struct bpf_iter__ipv6_route {
 	__bpf_md_ptr(struct bpf_iter_meta *, meta);
 	__bpf_md_ptr(
+
+struct fib6_nh {
+	struct fib_nh_common	nh_common;
+	struct rt6_info		**rt6i_pcpu;
+};
+
+struct fib6_info {
+	struct fib6_table	*fib6_table;
+	struct fib6_info	*fib6_next;
+	struct fib6_nh		fib6_nh[0];
+};
 struct fib6_result {
 	struct fib6_nh		*nh;
 	struct fib6_info	*f6i;
