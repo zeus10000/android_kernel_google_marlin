@@ -1188,6 +1188,7 @@ struct bpf_iter_aux_info {
 };
 
 typedef int (*bpf_iter_init_seq_priv_t)(void *private_data);
+typedef void (*bpf_iter_fini_seq_priv_t)(void *priv_data);
 
 struct bpf_iter_seq_info {
 	const struct seq_operations *seq_ops;
@@ -1196,7 +1197,6 @@ struct bpf_iter_seq_info {
 	u32 seq_priv_size;
 };
 
-/* bpf_iter_fini_seq_priv_t already declared elsewhere */
 
 #define BPF_ITER_CTX_ARG_MAX 2
 struct bpf_iter_reg {
