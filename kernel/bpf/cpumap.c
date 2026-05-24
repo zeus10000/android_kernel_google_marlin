@@ -47,10 +47,6 @@ static inline void xdp_release_frame(struct xdp_frame *xdpf)
 	/* noop on 4.4 — page_pool return path not available */
 }
 
-static inline void xdp_scrub_frame(struct xdp_frame *frame)
-{
-	memset(&frame->metasize, 0, sizeof(frame->metasize));
-}
 
 #ifndef netif_receive_skb_core
 #define netif_receive_skb_core netif_receive_skb

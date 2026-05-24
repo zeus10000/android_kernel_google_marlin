@@ -60,6 +60,7 @@
 #include <linux/bpf_trace.h>
 #include <net/xdp_sock.h>
 #include <net/xdp.h>
+#include <linux/win_minmax.h>
 #include <linux/inetdevice.h>
 #include <net/inet_hashtables.h>
 #include <net/inet6_hashtables.h>

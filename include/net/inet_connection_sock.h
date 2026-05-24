@@ -93,6 +93,8 @@ struct inet_connection_sock {
 	unsigned long		  icsk_timeout;
  	struct timer_list	  icsk_retransmit_timer;
  	struct timer_list	  icsk_delack_timer;
+	u32			  icsk_rto_min;
+	u32			  icsk_delack_max;
 	__u32			  icsk_rto;
 	__u32			  icsk_pmtu_cookie;
 	const struct tcp_congestion_ops *icsk_ca_ops;

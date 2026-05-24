@@ -159,6 +159,7 @@ struct fib_result {
 	struct fib_info *fi;
 	struct fib_table *table;
 	struct hlist_head *fa_head;
+	struct fib_nh_common	*nhc;
 };
 
 struct fib_result_nl {
