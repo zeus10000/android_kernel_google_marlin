@@ -250,5 +250,5 @@ void xdp_attachment_setup(struct xdp_attachment_info *info,
 
 #define convert_to_xdp_frame(xdp) xdp_convert_buff_to_frame(xdp)
 
-struct zero_copy_allocator { struct rcu_head rcu; }; /* marlin stub */
+struct zero_copy_allocator { struct rcu_head rcu; void (*free)(struct zero_copy_allocator *zca, unsigned long handle); }; /* marlin stub */
 #endif /* __LINUX_NET_XDP_H__ */

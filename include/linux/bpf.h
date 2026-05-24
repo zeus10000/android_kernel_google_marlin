@@ -1775,4 +1775,11 @@ static inline bool bpf_capable(void)
 }
 #endif
 
+
+struct bpf_iter__bpf_map_elem {
+	union { struct bpf_iter_meta *meta; };
+	union { struct bpf_map *map; };
+	union { void *key; };
+	union { void *value; };
+};
 #endif /* _LINUX_BPF_H */
