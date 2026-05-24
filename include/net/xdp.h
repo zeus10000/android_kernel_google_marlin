@@ -245,4 +245,6 @@ void xdp_attachment_setup(struct xdp_attachment_info *info,
 
 #define DEV_MAP_BULK_SIZE 16
 
+
+#define convert_to_xdp_frame(xdp) xdp_convert_buff_to_frame(xdp)
 #endif /* __LINUX_NET_XDP_H__ */

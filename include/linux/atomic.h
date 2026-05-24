@@ -578,5 +578,14 @@ atomic64_fetch_add_unless(atomic64_t *v, long long a, long long u)
 }
 #endif
 
+
+#ifndef atomic_cond_read_relaxed
+#define atomic_cond_read_relaxed(v, c) ({ \
+	typeof((v)->counter) VAL; \
+	do { VAL = atomic_read(v); } while (!(c)); \
+	VAL; \
+})
+#endif
+
 #endif /* _LINUX_ATOMIC_H */
 

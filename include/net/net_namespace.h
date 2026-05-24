@@ -402,4 +402,9 @@ static inline void fnhe_genid_bump(struct net *net)
 	atomic_inc(&net->fnhe_genid);
 }
 
+
+static inline bool ns_match(const struct ns_common *ns, dev_t dev, ino_t ino)
+{
+	return (ns->inum == ino);
+}
 #endif /* __NET_NET_NAMESPACE_H */

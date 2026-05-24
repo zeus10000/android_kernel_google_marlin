@@ -42,10 +42,6 @@ static inline struct sk_buff *build_skb_around(struct sk_buff *skb,
 	return skb;
 }
 
-static inline void xdp_release_frame(struct xdp_frame *xdpf)
-{
-	/* noop on 4.4 — page_pool return path not available */
-}
 
 
 #ifndef netif_receive_skb_core
