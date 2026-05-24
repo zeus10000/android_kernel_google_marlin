@@ -5,14 +5,8 @@
 #include <linux/rcupdate.h>
 #include <linux/completion.h>
 
-#define _wait_rcu_gp(checktiny, ...) \\
-\tdo { \\
-\t\tcall_rcu_func_t __crcu_array[] = { __VA_ARGS__ }; \\
-\t\tstruct rcu_synchronize __rs_array[ARRAY_SIZE(__crcu_array)]; \\
-\t\t__wait_rcu_gp(checktiny, ARRAY_SIZE(__crcu_array), __crcu_array, __rs_array); \\
-\t} while (0)
+/* marlin v4.4 stub: simple synchronize_rcu fallback */
+#define wait_rcu_gp(...) synchronize_rcu()
+#define synchronize_rcu_mult(...) synchronize_rcu()
 
-#define wait_rcu_gp(...) _wait_rcu_gp(false, __VA_ARGS__)
-#define synchronize_rcu_mult(...) _wait_rcu_gp(true, __VA_ARGS__)
-
-#endif /* _LINUX_RCUPDATE_WAIT_H */
+#endif
