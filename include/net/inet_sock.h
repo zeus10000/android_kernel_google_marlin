@@ -314,7 +314,7 @@ static inline int inet_sdif(struct sk_buff *skb)
 }
 
 extern int __inet_bind(struct sock *sk, struct sockaddr *uaddr, int addr_len,
-		       bool force_bind_address_no_port, bool with_lock);
+		       u32 flags);
 
 enum {
 	BIND_FORCE_ADDRESS_NO_PORT = 0,

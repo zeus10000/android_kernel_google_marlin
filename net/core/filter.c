@@ -61,6 +61,7 @@
 #include <net/xdp_sock.h>
 #include <linux/sockptr.h>
 #include <net/xdp.h>
+#include <net/addrconf.h>
 #include <linux/win_minmax.h>
 #include <linux/inetdevice.h>
 #include <net/inet_hashtables.h>
@@ -2112,7 +2113,7 @@ static inline int __bpf_tx_skb(struct net_device *dev, struct sk_buff *skb)
 	}
 
 	skb->dev = dev;
-	skb->tstamp = 0;
+	skb->tstamp = ns_to_ktime(0);
 
 	dev_xmit_recursion_inc();
 	ret = dev_queue_xmit(skb);
@@ -3564,7 +3565,7 @@ static int __bpf_tx_xdp_map(struct net_device *dev_rx, void *fwd,
 void xdp_do_flush(void)
 {
 	__dev_flush();
-	__cpu_map_flush();
+	__cpu_map_flush(NULL);
 	__xsk_map_flush();
 }
 EXPORT_SYMBOL_GPL(xdp_do_flush);
@@ -4038,9 +4039,7 @@ bpf_get_skb_set_tunnel_proto(enum bpf_func_id which)
 	if (!md_dst) {
 		struct metadata_dst __percpu *tmp;
 
-		tmp = metadata_dst_alloc_percpu(IP_TUNNEL_OPTS_MAX,
-						METADATA_IP_TUNNEL,
-						GFP_KERNEL);
+		tmp = metadata_dst_alloc_percpu(IP_TUNNEL_OPTS_MAX, GFP_KERNEL);
 		if (!tmp)
 			return NULL;
 		if (cmpxchg(&md_dst, NULL, tmp))
@@ -4455,7 +4454,7 @@ static int _bpf_setsockopt(struct sock *sk, int level, int optname,
 			strncpy(name, optval, min_t(long, optlen,
 						    TCP_CA_NAME_MAX-1));
 			name[TCP_CA_NAME_MAX-1] = 0;
-			ret = tcp_set_congestion_control(sk, name, false, true);
+			ret = tcp_set_congestion_control(sk, name, false);
 		} else {
 			struct inet_connection_sock *icsk = inet_csk(sk);
 			struct tcp_sock *tp = tcp_sk(sk);
@@ -4567,7 +4566,7 @@ static int _bpf_getsockopt(struct sock *sk, int level, int optname,
 			if (optlen <= 0 || !tp->saved_syn ||
 			    optlen > tcp_saved_syn_len(tp->saved_syn))
 				goto err_clear;
-			memcpy(optval, tp->saved_syn->data, optlen);
+			memcpy(optval, ((struct saved_syn *)tp->saved_syn)->data, optlen);
 			break;
 		default:
 			goto err_clear;
@@ -5507,11 +5506,11 @@ static struct sock *sk_lookup(struct net *net, struct bpf_sock_tuple *tuple,
 			sk = __inet_lookup(net, &tcp_hashinfo, NULL, 0,
 					   src4, tuple->ipv4.sport,
 					   dst4, tuple->ipv4.dport,
-					   dif, sdif, &refcounted);
+					   dif, &refcounted);
 		else
 			sk = __udp4_lib_lookup(net, src4, tuple->ipv4.sport,
 					       dst4, tuple->ipv4.dport,
-					       dif, sdif, &udp_table, NULL);
+					       dif, &udp_table, NULL);
 #if IS_ENABLED(CONFIG_IPV6)
 	} else {
 		struct in6_addr *src6 = (struct in6_addr *)&tuple->ipv6.saddr;
@@ -5521,7 +5520,7 @@ static struct sock *sk_lookup(struct net *net, struct bpf_sock_tuple *tuple,
 			sk = __inet6_lookup(net, &tcp_hashinfo, NULL, 0,
 					    src6, tuple->ipv6.sport,
 					    dst6, ntohs(tuple->ipv6.dport),
-					    dif, sdif, &refcounted);
+					    dif, &refcounted);
 		else if (likely(ipv6_bpf_stub))
 			sk = ipv6_bpf_stub->udp6_lib_lookup(net,
 							    src6, tuple->ipv6.sport,
