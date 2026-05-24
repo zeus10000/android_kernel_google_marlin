@@ -314,7 +314,15 @@ int ipv6_route_open(struct inode *inode, struct file *file);
 #if IS_BUILTIN(CONFIG_IPV6) && defined(CONFIG_BPF_SYSCALL)
 struct bpf_iter__ipv6_route {
 	__bpf_md_ptr(struct bpf_iter_meta *, meta);
-	__bpf_md_ptr(struct fib6_info *, rt);
+	__bpf_md_ptr(
+struct fib6_result {
+	struct fib6_nh		*nh;
+	struct fib6_info	*f6i;
+	u32			fib6_flags;
+	u8			fib6_type;
+	struct rt6_info		*rt6;
+};
+struct fib6_info *, rt);
 };
 #endif
 

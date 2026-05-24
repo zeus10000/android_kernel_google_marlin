@@ -94,6 +94,8 @@ struct bpf_map_ops {
 	int (*map_direct_value_meta)(const struct bpf_map *map,
 				     u64 imm, u32 *off);
 	int (*map_mmap)(struct bpf_map *map, struct vm_area_struct *vma);
+	const char * const map_btf_name;
+	int *map_btf_id;
 };
 
 struct bpf_map_memory {
