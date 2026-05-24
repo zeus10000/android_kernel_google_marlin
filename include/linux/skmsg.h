@@ -455,4 +455,6 @@ static inline void psock_progs_drop(struct sk_psock_progs *progs)
 	psock_set_prog(&progs->skb_verdict, NULL);
 }
 
+
+#define NR_MSG_FRAG_IDS 17
 #endif /* _LINUX_SKMSG_H */

@@ -1937,6 +1937,15 @@ static inline void skb_set_tcp_pure_ack(struct sk_buff *skb)
 	skb->truesize = 2;
 }
 
+
+static inline int tcp_sock_set_keepidle_locked(struct sock *sk, int val)
+{
+	return -EOPNOTSUPP; /* marlin stub */
+}
+static inline int tcp_saved_syn_len(const u8 *saved_syn)
+{
+	return saved_syn ? *(u32 *)saved_syn : 0;
+}
 #endif	/* _TCP_H */
 
 #define MODULE_ALIAS_TCP_ULP(name)				\

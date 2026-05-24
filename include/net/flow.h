@@ -24,6 +24,7 @@
 
 struct flowi_tunnel {
 	__be64			tun_id;
+	__u32			mp_hash;
 };
 
 struct flowi_common {
@@ -41,6 +42,7 @@ struct flowi_common {
 	__u32	flowic_secid;
 	struct flowi_tunnel flowic_tun_key;
 	kuid_t  flowic_uid;
+	__u32			mp_hash;
 };
 
 union flowi_uli {
@@ -65,6 +67,7 @@ union flowi_uli {
 	struct {
 		__u8	type;
 	} mht;
+	__u32			mp_hash;
 };
 
 struct flowi4 {
@@ -92,6 +95,7 @@ struct flowi4 {
 #define fl4_ipsec_spi		uli.spi
 #define fl4_mh_type		uli.mht.type
 #define fl4_gre_key		uli.gre_key
+	__u32			mp_hash;
 } __attribute__((__aligned__(BITS_PER_LONG/8)));
 
 static inline void flowi4_init_output(struct flowi4 *fl4, int oif,
@@ -115,6 +119,7 @@ static inline void flowi4_init_output(struct flowi4 *fl4, int oif,
 	fl4->saddr = saddr;
 	fl4->fl4_dport = dport;
 	fl4->fl4_sport = sport;
+	__u32			mp_hash;
 }
 
 /* Reset some input parameters after previous lookup */
@@ -125,6 +130,7 @@ static inline void flowi4_update_output(struct flowi4 *fl4, int oif, __u8 tos,
 	fl4->flowi4_tos = tos;
 	fl4->daddr = daddr;
 	fl4->saddr = saddr;
+	__u32			mp_hash;
 }
 				      
 
@@ -151,6 +157,7 @@ struct flowi6 {
 #define fl6_ipsec_spi		uli.spi
 #define fl6_mh_type		uli.mht.type
 #define fl6_gre_key		uli.gre_key
+	__u32			mp_hash;
 } __attribute__((__aligned__(BITS_PER_LONG/8)));
 
 struct flowidn {
@@ -166,6 +173,7 @@ struct flowidn {
 	union flowi_uli		uli;
 #define fld_sport		uli.ports.sport
 #define fld_dport		uli.ports.dport
+	__u32			mp_hash;
 } __attribute__((__aligned__(BITS_PER_LONG/8)));
 
 struct flowi {
@@ -185,31 +193,37 @@ struct flowi {
 #define flowi_secid	u.__fl_common.flowic_secid
 #define flowi_tun_key	u.__fl_common.flowic_tun_key
 #define flowi_uid	u.__fl_common.flowic_uid
+	__u32			mp_hash;
 } __attribute__((__aligned__(BITS_PER_LONG/8)));
 
 static inline struct flowi *flowi4_to_flowi(struct flowi4 *fl4)
 {
 	return container_of(fl4, struct flowi, u.ip4);
+	__u32			mp_hash;
 }
 
 static inline struct flowi_common *flowi4_to_flowi_common(struct flowi4 *fl4)
 {
 	return &(fl4->__fl_common);
+	__u32			mp_hash;
 }
 
 static inline struct flowi *flowi6_to_flowi(struct flowi6 *fl6)
 {
 	return container_of(fl6, struct flowi, u.ip6);
+	__u32			mp_hash;
 }
 
 static inline struct flowi_common *flowi6_to_flowi_common(struct flowi6 *fl6)
 {
 	return &(fl6->__fl_common);
+	__u32			mp_hash;
 }
 
 static inline struct flowi *flowidn_to_flowi(struct flowidn *fldn)
 {
 	return container_of(fldn, struct flowi, u.dn);
+	__u32			mp_hash;
 }
 
 typedef unsigned long flow_compare_t;
@@ -228,6 +242,7 @@ static inline size_t flow_key_size(u16 family)
 		return sizeof(struct flowidn) / sizeof(flow_compare_t);
 	}
 	return 0;
+	__u32			mp_hash;
 }
 
 #define FLOW_DIR_IN	0
@@ -240,12 +255,14 @@ struct flow_cache_ops;
 
 struct flow_cache_object {
 	const struct flow_cache_ops *ops;
+	__u32			mp_hash;
 };
 
 struct flow_cache_ops {
 	struct flow_cache_object *(*get)(struct flow_cache_object *);
 	int (*check)(struct flow_cache_object *);
 	void (*delete)(struct flow_cache_object *);
+	__u32			mp_hash;
 };
 
 typedef struct flow_cache_object *(*flow_resolve_t)(
@@ -270,6 +287,7 @@ static inline __u32 get_hash_from_flowi6(const struct flowi6 *fl6)
 	struct flow_keys keys;
 
 	return __get_hash_from_flowi6(fl6, &keys);
+	__u32			mp_hash;
 }
 
 __u32 __get_hash_from_flowi4(const struct flowi4 *fl4, struct flow_keys *keys);
@@ -279,6 +297,7 @@ static inline __u32 get_hash_from_flowi4(const struct flowi4 *fl4)
 	struct flow_keys keys;
 
 	return __get_hash_from_flowi4(fl4, &keys);
+	__u32			mp_hash;
 }
 
 #endif

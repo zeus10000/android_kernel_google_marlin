@@ -3217,3 +3217,9 @@ static int __init proto_init(void)
 subsys_initcall(proto_init);
 
 #endif /* PROC_FS */
+
+void sock_pfree(struct sk_buff *skb)
+{
+	sock_efree(skb);
+}
+EXPORT_SYMBOL(sock_pfree);

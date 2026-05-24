@@ -166,4 +166,6 @@ static inline bool sk_busy_loop(struct sock *sk, int nonblock)
 }
 
 #endif /* CONFIG_NET_RX_BUSY_POLL */
+
+#define MIN_NAPI_ID ((unsigned int)(NR_CPUS + 1))
 #endif /* _LINUX_NET_BUSY_POLL_H */

@@ -59,6 +59,7 @@
 #include <net/udp.h>
 #include <linux/bpf_trace.h>
 #include <net/xdp_sock.h>
+#include <linux/sockptr.h>
 #include <net/xdp.h>
 #include <linux/win_minmax.h>
 #include <linux/inetdevice.h>

@@ -998,6 +998,7 @@ struct proto {
 
 	int			(*ioctl)(struct sock *sk, int cmd,
 					 unsigned long arg);
+	int			(*keepalive)(struct sock *sk, int val);
 	int			(*init)(struct sock *sk);
 	void			(*destroy)(struct sock *sk);
 	void			(*shutdown)(struct sock *sk, int how);
@@ -2423,5 +2424,23 @@ extern __u32 sysctl_rmem_default;
 int sockev_register_notify(struct notifier_block *nb);
 int sockev_unregister_notify(struct notifier_block *nb);
 
+
+static inline bool sk_is_refcounted(struct sock *sk)
+{
+	return !sk_fullsock(sk) || !sock_flag(sk, SOCK_RCU_FREE);
+}
+
+static inline int sock_bindtoindex(struct sock *sk, int ifindex, bool lock_sk)
+{
+	return -EOPNOTSUPP; /* marlin: BPF sock_bindtoindex stub */
+}
+
+static inline void sock_valbool_flag(struct sock *sk, enum sock_flags bit, int valbool)
+{
+	if (valbool)
+		sock_set_flag(sk, bit);
+	else
+		sock_reset_flag(sk, bit);
+}
 #endif	/* _SOCK_H */
 #define sock_owned_by_me(sk) sock_owned_by_user(sk)

@@ -3849,6 +3849,30 @@ skb_gso_validate_mac_len(const struct sk_buff *skb, unsigned int len)
 	return skb_gso_mac_seglen(skb) <= len;
 }
 
+
+static inline void __skb_reset_checksum_unnecessary(struct sk_buff *skb)
+{
+	if (skb->ip_summed == CHECKSUM_UNNECESSARY) {
+		skb->ip_summed = CHECKSUM_NONE;
+		skb->csum_level = 0;
+	}
+}
+
+static inline bool skb_is_gso_tcp(const struct sk_buff *skb)
+{
+	return skb_is_gso(skb) &&
+		skb_shinfo(skb)->gso_type & (SKB_GSO_TCPV4 | SKB_GSO_TCPV6);
+}
+
+static inline void skb_decrease_gso_size(struct skb_shared_info *shinfo, u16 decrement)
+{
+	shinfo->gso_size -= decrement;
+}
+
+static inline void skb_increase_gso_size(struct skb_shared_info *shinfo, u16 increment)
+{
+	shinfo->gso_size += increment;
+}
 #endif	/* __KERNEL__ */
 #endif	/* _LINUX_SKBUFF_H */
 
