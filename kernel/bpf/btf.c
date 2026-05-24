@@ -1071,9 +1071,7 @@ static const struct resolve_vertex *env_stack_peak(struct btf_verifier_env *env)
  * *type_id: id of type if it's changed within the function, 0 if not
  */
 static const struct btf_type *
-__btf_resolve_size(const struct btf *btf, const struct btf_type *type,
-		   u32 *type_size, const struct btf_type **elem_type,
-		   u32 *elem_id, u32 *total_nelems, u32 *type_id)
+__btf_resolve_size(const struct btf *btf, const struct btf_type *type, u32 *type_size, const struct btf_type **elem_type, u32 *total_nelems, u32 *elem_id, u32 *type_id)
 {
 	const struct btf_type *array_type = NULL;
 	const struct btf_array *array = NULL;

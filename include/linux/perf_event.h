@@ -1299,7 +1299,4 @@ static inline struct perf_event *perf_get_event(struct file *file)
 	return ERR_PTR(-EINVAL);
 }
 
-
-extern struct perf_callchain_entry *get_callchain_entry(int *rctx);
-extern void put_callchain_entry(int rctx);
 #endif /* _LINUX_PERF_EVENT_H */
