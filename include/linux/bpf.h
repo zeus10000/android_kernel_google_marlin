@@ -273,6 +273,10 @@ enum bpf_return_type {
 	RET_PTR_TO_MEM_OR_BTF_ID,
 	RET_PTR_TO_MEM_OR_BTF_ID_OR_NULL,
 	RET_PTR_TO_BTF_ID_OR_NULL,
+	PTR_TO_RDONLY_BUF,
+	PTR_TO_RDONLY_BUF_OR_NULL,
+	PTR_TO_RDWR_BUF,
+	PTR_TO_RDWR_BUF_OR_NULL,
 	RET_PTR_TO_ALLOC_MEM_OR_NULL,
 };
 
@@ -676,6 +680,7 @@ struct bpf_jit_poke_descriptor {
 struct bpf_ctx_arg_aux {
 	u32 offset;
 	enum bpf_reg_type reg_type;
+	u32 btf_id;
 };
 
 struct bpf_prog_aux {
