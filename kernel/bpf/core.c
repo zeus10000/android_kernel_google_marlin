@@ -32,6 +32,7 @@
 #include <linux/perf_event.h>
 #include <linux/extable.h>
 #include <linux/log2.h>
+#include <linux/cryptohash.h>
 #include <asm/unaligned.h>
 
 /* Registers */
