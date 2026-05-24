@@ -674,7 +674,9 @@ struct bpf_prog_aux {
 	const struct bpf_ctx_arg_aux *ctx_arg_info;
 	struct mutex dst_mutex; /* protects dst_* pointers below, *after* prog becomes visible */
 	struct bpf_prog *dst_prog;
+	struct bpf_prog *linked_prog; /* marlin-compat alias used by pre-v5.9 BPF picks */
 	struct bpf_trampoline *dst_trampoline;
+	struct bpf_trampoline *trampoline; /* marlin-compat alias used by pre-v5.9 BPF picks */
 	enum bpf_prog_type saved_dst_prog_type;
 	enum bpf_attach_type saved_dst_attach_type;
 	bool verifier_zext; /* Zero extensions has been inserted by verifier. */
