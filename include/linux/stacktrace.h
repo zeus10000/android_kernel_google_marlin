@@ -40,4 +40,8 @@ extern void save_stack_trace_user(struct stack_trace *trace);
 # define snprint_stack_trace(buf, size, trace, spaces)	do { } while (0)
 #endif
 
+
+unsigned int stack_trace_save_tsk(struct task_struct *tsk,
+				  unsigned long *store, unsigned int size,
+				  unsigned int skipnr);
 #endif

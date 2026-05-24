@@ -21,6 +21,7 @@
 #include <linux/btf_ids.h>
 #include <linux/skmsg.h>
 #include <linux/perf_event.h>
+#include <net/xdp.h>
 #include <linux/bsearch.h>
 #include <linux/btf_ids.h>
 #include <net/sock.h>

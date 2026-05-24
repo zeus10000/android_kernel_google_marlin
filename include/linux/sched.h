@@ -3748,4 +3748,13 @@ void cpufreq_add_update_util_hook(int cpu, struct update_util_data *data,
 void cpufreq_remove_update_util_hook(int cpu);
 #endif /* CONFIG_CPU_FREQ */
 
+
+static inline bool mmap_read_trylock_non_owner(struct mm_struct *mm)
+{
+	return down_read_trylock(&mm->mmap_sem);
+}
+static inline void mmap_read_unlock_non_owner(struct mm_struct *mm)
+{
+	up_read(&mm->mmap_sem);
+}
 #endif

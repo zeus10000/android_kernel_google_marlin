@@ -1791,4 +1791,6 @@ struct bpf_iter__bpf_map_elem {
 	union { void *key; };
 	union { void *value; };
 };
+
+bool bpf_map_meta_equal(const struct bpf_map *meta0, const struct bpf_map *meta1);
 #endif /* _LINUX_BPF_H */
