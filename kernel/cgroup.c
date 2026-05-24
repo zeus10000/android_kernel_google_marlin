@@ -6556,38 +6556,7 @@ static __init int cgroup_namespaces_init(void)
 }
 subsys_initcall(cgroup_namespaces_init);
 
-#ifdef CONFIG_CGROUP_BPF
-int cgroup_bpf_attach(struct cgroup *cgrp, struct bpf_prog *prog,
-		      enum bpf_attach_type type, u32 flags)
-{
-	int ret;
-
-	mutex_lock(&cgroup_mutex);
-	ret = __cgroup_bpf_attach(cgrp, prog, type, flags);
-	mutex_unlock(&cgroup_mutex);
-	return ret;
-}
-int cgroup_bpf_detach(struct cgroup *cgrp, struct bpf_prog *prog,
-		      enum bpf_attach_type type, u32 flags)
-{
-	int ret;
-
-	mutex_lock(&cgroup_mutex);
-	ret = __cgroup_bpf_detach(cgrp, prog, type);
-	mutex_unlock(&cgroup_mutex);
-	return ret;
-}
-int cgroup_bpf_query(struct cgroup *cgrp, const union bpf_attr *attr,
-		     union bpf_attr __user *uattr)
-{
-	int ret;
-
-	mutex_lock(&cgroup_mutex);
-	ret = __cgroup_bpf_query(cgrp, attr, uattr);
-	mutex_unlock(&cgroup_mutex);
-	return ret;
-}
-#endif /* CONFIG_CGROUP_BPF */
+/* CONFIG_CGROUP_BPF wrappers moved to kernel/bpf/cgroup.c per v5.x layout */
 
 #ifdef CONFIG_CGROUP_DEBUG
 static struct cgroup_subsys_state *
