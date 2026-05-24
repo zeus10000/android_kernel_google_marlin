@@ -30,6 +30,20 @@ struct perf_event;
 struct bpf_prog;
 struct bpf_prog_aux;
 struct bpf_map;
+struct bpf_iter_aux_info {
+	struct bpf_map *map;
+};
+
+struct bpf_iter_seq_info {
+	const struct seq_operations *seq_ops;
+	bpf_iter_init_seq_priv_t init_seq_private;
+	bpf_iter_fini_seq_priv_t fini_seq_private;
+	u32 seq_priv_size;
+};
+
+typedef int (*bpf_iter_init_seq_priv_t)(void *private_data, struct bpf_iter_aux_info *aux);
+typedef void (*bpf_iter_fini_seq_priv_t)(void *private_data);
+
 struct sock;
 struct seq_file;
 struct btf;
@@ -96,6 +110,8 @@ struct bpf_map_ops {
 	int (*map_mmap)(struct bpf_map *map, struct vm_area_struct *vma);
 	const char * const map_btf_name;
 	int *map_btf_id;
+	bool (*map_meta_equal)(const struct bpf_map *meta0, const struct bpf_map *meta1);
+	const struct bpf_iter_seq_info *iter_seq_info;
 };
 
 struct bpf_map_memory {

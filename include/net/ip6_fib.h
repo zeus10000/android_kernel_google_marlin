@@ -23,6 +23,8 @@
 #define FIB6_TABLE_HASHSZ 1
 #endif
 
+#include <net/ip_fib.h>
+
 struct rt6_info;
 
 struct fib6_config {
@@ -319,11 +321,16 @@ struct bpf_iter__ipv6_route {
 struct fib6_nh {
 	struct fib_nh_common	nh_common;
 	struct rt6_info		**rt6i_pcpu;
+#define fib_nh_dev		nh_common.nhc_dev
+#define fib_nh_gw_family	nh_common.nhc_gw_family
+#define fib_nh_gw6		nh_common.nhc_gw.ipv6
+#define fib_nh_lws		nh_common.nhc_lwtstate
 };
 
 struct fib6_info {
 	struct fib6_table	*fib6_table;
 	struct fib6_info	*fib6_next;
+	u32			fib6_metric;
 	struct fib6_nh		fib6_nh[0];
 };
 struct fib6_result {
