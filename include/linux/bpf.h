@@ -1183,7 +1183,19 @@ int bpf_obj_get_user(const char __user *pathname, int flags);
 	extern int bpf_iter_ ## target(args);			\
 	int __init bpf_iter_ ## target(args) { return 0; }
 
+struct bpf_iter_aux_info {
+	struct bpf_map *map;
+};
+
 typedef int (*bpf_iter_init_seq_priv_t)(void *private_data);
+
+struct bpf_iter_seq_info {
+	const struct seq_operations *seq_ops;
+	bpf_iter_init_seq_priv_t init_seq_private;
+	bpf_iter_fini_seq_priv_t fini_seq_private;
+	u32 seq_priv_size;
+};
+
 /* bpf_iter_fini_seq_priv_t already declared elsewhere */
 
 #define BPF_ITER_CTX_ARG_MAX 2
