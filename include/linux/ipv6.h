@@ -335,4 +335,12 @@ static inline struct raw6_sock *raw6_sk(const struct sock *sk)
 #define tcp_twsk_ipv6only(__sk)		0
 #define inet_v6_ipv6only(__sk)		0
 #endif /* IS_ENABLED(CONFIG_IPV6) */
+
+static inline int inet6_sdif(const struct sk_buff *skb)
+{
+#if IS_ENABLED(CONFIG_NET_L3_MASTER_DEV)
+	return 0;
+#endif
+	return 0;
+}
 #endif /* _IPV6_H */

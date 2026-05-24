@@ -30,6 +30,11 @@ struct ipv6_stub {
 			      const struct in6_addr *solicited_addr,
 			      bool router, bool solicited, bool override, bool inc_opt);
 	struct neigh_table *nd_tbl;
+	struct fib6_table *(*fib6_get_table)(struct net *net, u32 id);
+	int (*fib6_lookup)(struct net *net, int oif, struct flowi6 *fl6, struct fib6_result *res, int flags);
+	int (*fib6_table_lookup)(struct net *net, struct fib6_table *table, int oif, struct flowi6 *fl6, struct fib6_result *res, int flags);
+	void (*fib6_select_path)(const struct net *net, struct fib6_result *res, struct flowi6 *fl6, int oif, bool oif_match, const struct sk_buff *skb, int strict);
+	u32 (*ip6_mtu_from_fib6)(const struct fib6_result *res, const struct in6_addr *daddr, const struct in6_addr *saddr);
 };
 extern const struct ipv6_stub *ipv6_stub __read_mostly;
 
