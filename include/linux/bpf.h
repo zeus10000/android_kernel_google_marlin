@@ -98,6 +98,7 @@ struct bpf_map_ops {
 	int *map_btf_id;
 	bool (*map_meta_equal)(const struct bpf_map *meta0, const struct bpf_map *meta1);
 	const struct bpf_iter_seq_info *iter_seq_info;
+	__poll_t (*map_poll)(struct bpf_map *map, struct file *filp, struct poll_table_struct *pts);
 };
 
 struct bpf_map_memory {
@@ -254,6 +255,9 @@ enum bpf_arg_type {
 	ARG_PTR_TO_BTF_ID,	/* pointer to in-kernel struct */
 	ARG_PTR_TO_BTF_ID_SOCK_COMMON,
 	ARG_PTR_TO_SOCKET_OR_NULL,
+	ARG_PTR_TO_ALLOC_MEM,
+	ARG_PTR_TO_ALLOC_MEM_OR_NULL,
+	ARG_CONST_ALLOC_SIZE_OR_ZERO,
 	ARG_PTR_TO_PERCPU_BTF_ID,	/* pointer to in-kernel percpu struct */
 };
 
@@ -269,6 +273,7 @@ enum bpf_return_type {
 	RET_PTR_TO_MEM_OR_BTF_ID,
 	RET_PTR_TO_MEM_OR_BTF_ID_OR_NULL,
 	RET_PTR_TO_BTF_ID_OR_NULL,
+	RET_PTR_TO_ALLOC_MEM_OR_NULL,
 };
 
 /* eBPF function prototype used by verifier to allow BPF_CALLs from eBPF programs
