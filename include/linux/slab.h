@@ -654,13 +654,4 @@ static inline void *kvzalloc(size_t size, gfp_t flags)
 {
 	return kvmalloc(size, flags | __GFP_ZERO);
 }
-#ifndef kvfree
-static inline void kvfree(const void *addr)
-{
-	if (is_vmalloc_addr(addr))
-		vfree(addr);
-	else
-		kfree(addr);
-}
-#endif
 #endif	/* _LINUX_SLAB_H */
