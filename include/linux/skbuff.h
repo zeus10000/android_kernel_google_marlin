@@ -408,6 +408,8 @@ enum {
 	SKB_GSO_TCPV4 = 1 << 0,
 	SKB_GSO_UDP = 1 << 1,
 
+	SKB_GSO_UDP_L4 = 1 << 18,
+
 	/* This indicates the skb is from an untrusted source. */
 	SKB_GSO_DODGY = 1 << 2,
 
@@ -3630,6 +3632,8 @@ static inline void skb_set_queue_mapping(struct sk_buff *skb, u16 queue_mapping)
 {
 	skb->queue_mapping = queue_mapping;
 }
+
+#define NO_QUEUE_MAPPING	(USHRT_MAX)
 
 static inline u16 skb_get_queue_mapping(const struct sk_buff *skb)
 {

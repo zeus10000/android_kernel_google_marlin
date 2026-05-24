@@ -23,6 +23,22 @@
 #include <net/inetpeer.h>
 #include <linux/percpu.h>
 
+struct fib_nh_common {
+	struct net_device *nhc_dev;
+	int		nhc_oif;
+	unsigned char	nhc_scope;
+	u8		nhc_family;
+	u8		nhc_gw_family;
+	unsigned char	nhc_flags;
+	struct lwtunnel_state *nhc_lwtstate;
+	union {
+		__be32		ipv4;
+		struct in6_addr	ipv6;
+	} nhc_gw;
+	int		nhc_weight;
+	atomic_t	nhc_upper_bound;
+};
+
 struct fib_config {
 	u8			fc_dst_len;
 	u8			fc_tos;

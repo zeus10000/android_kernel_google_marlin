@@ -790,4 +790,10 @@ static inline void put_cgroup_ns(struct cgroup_namespace *ns)
 		free_cgroup_ns(ns);
 }
 
+
+static inline u64 cgroup_id(struct cgroup *cgrp)
+{
+	return cgroup_ino(cgrp);
+}
+
 #endif /* _LINUX_CGROUP_H */

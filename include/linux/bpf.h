@@ -281,6 +281,12 @@ struct bpf_func_proto {
 		enum bpf_arg_type arg_type[5];
 	};
 	int *btf_id; /* BTF ids of arguments */
+	int *ret_btf_id;
+	u32 *arg1_btf_id;
+	u32 *arg2_btf_id;
+	u32 *arg3_btf_id;
+	u32 *arg4_btf_id;
+	u32 *arg5_btf_id;
 };
 
 /* bpf_context is intentionally undefined structure. Pointer to bpf_context is

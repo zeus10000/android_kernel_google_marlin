@@ -402,9 +402,9 @@ struct sock {
 			unsigned int	sk_shutdown  : 2,
 					sk_no_check_tx : 1,
 					sk_no_check_rx : 1,
-					sk_userlocks : 4,
-					sk_protocol  : 8,
-					sk_type      : 16;
+					sk_userlocks : 4;
+			u16		sk_protocol;
+			u16		sk_type;
 #define SK_PROTOCOL_MAX U8_MAX
 			kmemcheck_bitfield_end(flags);
 		};
@@ -413,6 +413,8 @@ struct sock {
 	gfp_t			sk_allocation;
 	u32			sk_pacing_rate; /* bytes per second */
 	u32			sk_max_pacing_rate;
+	u32			sk_pacing_status; /* see enum sk_pacing */
+	int			sk_rx_queue_mapping; /* v5+ rx queue hint */
 	netdev_features_t	sk_route_caps;
 	netdev_features_t	sk_route_nocaps;
 	int			sk_gso_type;
