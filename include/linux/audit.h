@@ -371,6 +371,11 @@ static inline void audit_mmap_fd(int fd, int flags)
 extern int audit_n_rules;
 extern int audit_signals;
 #else /* CONFIG_AUDITSYSCALL */
+static inline struct audit_context *audit_context(void)
+{
+	return NULL;
+}
+
 static inline int audit_alloc(struct task_struct *task)
 {
 	return 0;
