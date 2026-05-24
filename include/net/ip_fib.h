@@ -394,4 +394,14 @@ static inline void fib_proc_exit(struct net *net)
 }
 #endif
 
+
+static inline unsigned int fib_info_num_path(const struct fib_info *fi)
+{
+	return fi->fib_nhs;
+}
+
+static inline u32 ip_mtu_from_fib_result(struct fib_result *res, __be32 daddr)
+{
+	return 1500; /* marlin stub */
+}
 #endif  /* _NET_FIB_H */

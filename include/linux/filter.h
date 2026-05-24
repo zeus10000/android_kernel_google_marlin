@@ -1307,4 +1307,9 @@ struct bpf_sk_lookup_kern {
 	bool		no_reuseport;
 };
 
+
+static inline void bpf_compute_data_end_sk_skb(struct sk_buff *skb)
+{
+	bpf_compute_data_pointers(skb);
+}
 #endif /* __LINUX_FILTER_H__ */

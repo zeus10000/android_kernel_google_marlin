@@ -303,4 +303,16 @@ static inline bool inet_get_convert_csum(struct sock *sk)
 	return !!inet_sk(sk)->convert_csum;
 }
 
+
+static inline int inet_sdif(struct sk_buff *skb)
+{
+#if IS_ENABLED(CONFIG_NET_L3_MASTER_DEV)
+	if (skb && ipv4_l3mdev_skb(IPCB(skb)->flags))
+		return IPCB(skb)->iif;
+#endif
+	return 0;
+}
+
+extern int __inet_bind(struct sock *sk, struct sockaddr *uaddr, int addr_len,
+		       bool force_bind_address_no_port, bool with_lock);
 #endif	/* _INET_SOCK_H */

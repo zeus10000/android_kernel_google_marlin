@@ -385,4 +385,9 @@ int if6_proc_init(void);
 void if6_proc_exit(void);
 #endif
 
+
+static inline struct inet6_dev *__in6_dev_get_safely(const struct net_device *dev)
+{
+	return rcu_dereference_rtnl(dev->ip6_ptr);
+}
 #endif
