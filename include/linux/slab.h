@@ -639,4 +639,28 @@ void __init kmem_cache_init_late(void);
 #define kvcalloc(n, size, gfp) kcalloc((n), (size), (gfp))
 #endif
 
+
+/* BACKPORT: kvmalloc / kvzalloc / kvfree (v4.12 upstream) */
+#include <linux/vmalloc.h>
+static inline void *kvmalloc(size_t size, gfp_t flags)
+{
+	void *ret;
+	ret = kmalloc(size, flags | __GFP_NOWARN);
+	if (!ret)
+		ret = __vmalloc(size, flags, PAGE_KERNEL);
+	return ret;
+}
+static inline void *kvzalloc(size_t size, gfp_t flags)
+{
+	return kvmalloc(size, flags | __GFP_ZERO);
+}
+#ifndef kvfree
+static inline void kvfree(const void *addr)
+{
+	if (is_vmalloc_addr(addr))
+		vfree(addr);
+	else
+		kfree(addr);
+}
+#endif
 #endif	/* _LINUX_SLAB_H */

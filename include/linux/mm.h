@@ -2421,24 +2421,4 @@ extern struct reclaim_param reclaim_task_anon(struct task_struct *task,
 #endif
 
 #endif /* __KERNEL__ */
-
-static inline void *kvmalloc(size_t size, gfp_t flags)
-{
-	void *ret;
-	ret = kmalloc(size, flags | __GFP_NOWARN);
-	if (!ret)
-		ret = __vmalloc(size, flags, PAGE_KERNEL);
-	return ret;
-}
-static inline void *kvzalloc(size_t size, gfp_t flags)
-{
-	return kvmalloc(size, flags | __GFP_ZERO);
-}
-static inline void kvfree(const void *addr)
-{
-	if (is_vmalloc_addr(addr))
-		vfree(addr);
-	else
-		kfree(addr);
-}
 #endif /* _LINUX_MM_H */
