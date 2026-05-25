@@ -412,4 +412,7 @@ static inline bool ns_match(const struct ns_common *ns, dev_t dev, ino_t ino)
 {
 	return (ns->inum == ino);
 }
+
+/* marlin: net_rwsem stub */
+extern struct rw_semaphore net_rwsem __attribute__((weak));
 #endif /* __NET_NET_NAMESPACE_H */

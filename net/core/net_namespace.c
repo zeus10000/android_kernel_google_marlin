@@ -1053,3 +1053,4 @@ const struct proc_ns_operations netns_operations = {
 	.owner		= netns_owner,
 };
 #endif
+DECLARE_RWSEM(net_rwsem); /* marlin */
