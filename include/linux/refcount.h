@@ -52,4 +52,6 @@ static inline void refcount_dec(refcount_t *r)
 	atomic_dec(&r->refs);
 }
 
+
+struct spinlock; extern bool refcount_dec_and_lock(refcount_t *r, void *lock);
 #endif /* _LINUX_REFCOUNT_H */

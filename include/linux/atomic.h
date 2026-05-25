@@ -587,5 +587,7 @@ atomic64_fetch_add_unless(atomic64_t *v, long long a, long long u)
 })
 #endif
 
+
+static inline bool atomic_try_cmpxchg_release(atomic_t *v, int *old, int new) { int prev = atomic_cmpxchg_release(v, *old, new); if (prev == *old) return true; *old = prev; return false; }
 #endif /* _LINUX_ATOMIC_H */
 

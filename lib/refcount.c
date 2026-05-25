@@ -35,6 +35,8 @@
  *
  */
 
+#include <linux/mutex.h>
+#include <linux/spinlock.h>
 #include <linux/refcount.h>
 #include <linux/bug.h>
 
