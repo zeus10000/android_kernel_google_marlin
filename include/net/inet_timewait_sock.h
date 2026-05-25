@@ -108,7 +108,7 @@ static inline void inet_twsk_reschedule(struct inet_timewait_sock *tw, int timeo
 
 void inet_twsk_deschedule_put(struct inet_timewait_sock *tw);
 
-void inet_twsk_purge(struct inet_hashinfo *hashinfo, int family);
+void inet_twsk_purge(struct inet_hashinfo *hashinfo, struct inet_timewait_death_row *twdr, int family);
 
 static inline
 struct net *twsk_net(const struct inet_timewait_sock *twsk)
@@ -128,6 +128,7 @@ struct inet_timewait_death_row {
 	struct inet_hashinfo *hashinfo;
 	atomic_t tw_count;
 	int sysctl_max_tw_buckets;
+	int sysctl_tw_recycle;
 };
 
 extern struct inet_timewait_death_row tcp_death_row;
