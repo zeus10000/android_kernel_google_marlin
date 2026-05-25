@@ -36,6 +36,7 @@ struct modversion_info {
 
 struct module;
 
+#if defined(_LINUX_KOBJECT_H_DONE) && defined(_LINUX_SYSFS_H_DONE)
 struct module_kobject {
 	struct kobject kobj;
 	struct module *mod;
@@ -54,6 +55,12 @@ struct module_attribute {
 	int (*test)(struct module *);
 	void (*free)(struct module *);
 };
+#else
+/* marlin: deferred until kobject.h+sysfs.h fully loaded - skip in circular include */
+struct module_kobject;
+struct module_attribute;
+#endif
+
 
 struct module_version_attribute {
 	struct module_attribute mattr;

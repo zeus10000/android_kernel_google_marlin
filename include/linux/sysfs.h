@@ -565,4 +565,5 @@ static inline void sysfs_put(struct kernfs_node *kn)
 	kernfs_put(kn);
 }
 
+#define _LINUX_SYSFS_H_DONE
 #endif /* _SYSFS_H_ */

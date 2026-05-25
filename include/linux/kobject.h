@@ -241,4 +241,5 @@ int add_uevent_var(struct kobj_uevent_env *env, const char *format, ...);
 int kobject_action_type(const char *buf, size_t count,
 			enum kobject_action *type);
 
+#define _LINUX_KOBJECT_H_DONE
 #endif /* _KOBJECT_H_ */
