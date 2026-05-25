@@ -132,4 +132,4 @@ config BLOCK_COMPAT
 	depends on BLOCK && COMPAT
 	default y
 
-source block/Kconfig.iosched
+source "block/Kconfig.iosched"

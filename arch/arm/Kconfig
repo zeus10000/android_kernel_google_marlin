@@ -1043,7 +1043,7 @@ config PLAT_VERSATILE
 
 source "arch/arm/firmware/Kconfig"
 
-source arch/arm/mm/Kconfig
+source "arch/arm/mm/Kconfig"
 
 config IWMMXT
 	bool "Enable iWMMXt support"
@@ -1557,7 +1557,7 @@ config ARCH_NR_GPIO
 
 	  If unsure, leave the default value.
 
-source kernel/Kconfig.preempt
+source "kernel/Kconfig.preempt"
 
 config HZ_FIXED
 	int

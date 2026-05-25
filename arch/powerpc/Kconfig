@@ -331,8 +331,8 @@ config HIGHMEM
 	bool "High memory support"
 	depends on PPC32
 
-source kernel/Kconfig.hz
-source kernel/Kconfig.preempt
+source "kernel/Kconfig.hz"
+source "kernel/Kconfig.preempt"
 source "fs/Kconfig.binfmt"
 
 config HUGETLB_PAGE_SIZE_VARIABLE
@@ -689,7 +689,7 @@ config ARCH_WANTS_FREEZER_CONTROL
 	def_bool y
 	depends on ADB_PMU
 
-source kernel/power/Kconfig
+source "kernel/power/Kconfig"
 
 config SECCOMP
 	bool "Enable seccomp to safely compute untrusted bytecode"

@@ -102,8 +102,8 @@ config OPENRISC_HAVE_INST_DIV
 endmenu
 
 
-source kernel/Kconfig.hz
-source kernel/Kconfig.preempt
+source "kernel/Kconfig.hz"
+source "kernel/Kconfig.preempt"
 source "mm/Kconfig"
 
 config OPENRISC_NO_SPR_SR_DSX

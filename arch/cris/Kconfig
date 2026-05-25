@@ -127,7 +127,7 @@ config ETRAX_KMALLOCED_MODULES
 
 source "kernel/Kconfig.preempt"
 
-source mm/Kconfig
+source "mm/Kconfig"
 
 endmenu
 
@@ -258,8 +258,8 @@ config ETRAX_KGDB_PORT3
 
 endchoice
 
-source arch/cris/arch-v10/Kconfig
-source arch/cris/arch-v32/Kconfig
+source "arch/cris/arch-v10/Kconfig"
+source "arch/cris/arch-v32/Kconfig"
 
 endmenu
 
@@ -267,8 +267,8 @@ source "net/Kconfig"
 
 # bring in ETRAX built-in drivers
 menu "Drivers for built-in interfaces"
-source arch/cris/arch-v10/drivers/Kconfig
-source arch/cris/arch-v32/drivers/Kconfig
+source "arch/cris/arch-v10/drivers/Kconfig"
+source "arch/cris/arch-v32/drivers/Kconfig"
 
 config ETRAX_AXISFLASHMAP
 	bool "Axis flash-map support"

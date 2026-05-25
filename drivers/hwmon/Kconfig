@@ -1229,7 +1229,7 @@ config SENSORS_QPNP_ADC_CURRENT
 	  configuration that include reading the external/internal Rsense, CSP_EX,
 	  CSN_EX pair along with the gain and offset calibration.
 
-source drivers/hwmon/pmbus/Kconfig
+source "drivers/hwmon/pmbus/Kconfig"
 
 config SENSORS_PWM_FAN
 	tristate "PWM fan"

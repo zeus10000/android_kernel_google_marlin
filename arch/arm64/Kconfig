@@ -576,8 +576,8 @@ config USE_PERCPU_NUMA_NODE_ID
 	def_bool y
 	depends on NUMA
 
-source kernel/Kconfig.preempt
-source kernel/Kconfig.hz
+source "kernel/Kconfig.preempt"
+source "kernel/Kconfig.hz"
 
 config ARCH_SUPPORTS_DEBUG_PAGEALLOC
 	depends on !HIBERNATION

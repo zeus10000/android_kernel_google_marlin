@@ -5,10 +5,10 @@
 
 menu "Security options"
 
-source security/keys/Kconfig
+source "security/keys/Kconfig"
 
 if ARCH_QCOM
-source security/pfe/Kconfig
+source "security/pfe/Kconfig"
 endif
 
 
@@ -183,13 +183,13 @@ config HARDENED_USERCOPY_PAGESPAN
 	  been removed. This config is intended to be used only while
 	  trying to find such users.
 
-source security/selinux/Kconfig
-source security/smack/Kconfig
-source security/tomoyo/Kconfig
-source security/apparmor/Kconfig
-source security/yama/Kconfig
+source "security/selinux/Kconfig"
+source "security/smack/Kconfig"
+source "security/tomoyo/Kconfig"
+source "security/apparmor/Kconfig"
+source "security/yama/Kconfig"
 
-source security/integrity/Kconfig
+source "security/integrity/Kconfig"
 
 choice
 	prompt "Default security module"

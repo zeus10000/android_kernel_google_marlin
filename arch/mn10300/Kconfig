@@ -468,7 +468,7 @@ endmenu
 source "mm/Kconfig"
 
 menu "Power management options"
-source kernel/power/Kconfig
+source "kernel/power/Kconfig"
 endmenu
 
 endmenu
