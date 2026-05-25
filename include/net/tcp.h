@@ -1949,9 +1949,10 @@ static inline int tcp_saved_syn_len(const u8 *saved_syn)
 
 /* marlin: v5 TCP stubs */
 static inline int tcp_mmap(struct file *file, struct socket *sock, struct vm_area_struct *vma) { return -EINVAL; }
-static inline int tcp_peek_len(struct socket *sock) { return -1; }
 static inline int tcp_set_rcvlowat(struct sock *sk, int val) { return -EINVAL; }
 static inline int inet_set_rcvlowat(struct sock *sk, int val) { return -EINVAL; }
+
+static inline int tcp_inq(struct sock *sk) { return 0; }
 #endif	/* _TCP_H */
 
 #define MODULE_ALIAS_TCP_ULP(name)				\

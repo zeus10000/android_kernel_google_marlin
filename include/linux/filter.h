@@ -1185,4 +1185,6 @@ static inline int copy_bpf_fprog_from_user(struct sock_fprog *dst, void __user *
 static inline void bpf_compute_data_end_sk_skb(struct sk_buff *skb) { }
 
 #define bpf_ctx_range_ptr(TYPE, MEMBER) bpf_ctx_range(TYPE, MEMBER) /* marlin: v5 alias */
+
+#define bpf_ctx_wide_access_ok(off, size, type, field) bpf_ctx_narrow_access_ok(off, size, sizeof_field(type, field))
 #endif /* __LINUX_FILTER_H__ */

@@ -2493,5 +2493,7 @@ struct saved_syn {
 	u32 tcp_hdrlen;
 	u8 data[];
 };
+
+static inline int sock_get_timestamp(struct sock *sk, struct timeval __user *tv) { return -EINVAL; }
 #endif	/* _SOCK_H */
 #define sock_owned_by_me(sk) sock_owned_by_user(sk)
