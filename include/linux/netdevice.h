@@ -1905,6 +1905,8 @@ struct net_device {
 	struct lock_class_key *qdisc_tx_busylock;
 	bool proto_down;
 	/* marlin: v5.x net_device fields */
+	bool needs_free_netdev; /* marlin: v5 needs_free_netdev field */
+	void (*priv_destructor)(struct net_device *dev);
 	struct hlist_head qdisc_hash[16];
 	struct lock_class_key *qdisc_running_key;
 	struct lock_class_key *addr_list_lock_key;

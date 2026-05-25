@@ -381,8 +381,8 @@ extern bool ____wrong_branch_error(void);
  * Advanced usage; refcount, branch is enabled when: count != 0
  */
 
-#define static_branch_inc(x)		static_key_slow_inc(&(x)->key)
-#define static_branch_dec(x)		static_key_slow_dec(&(x)->key)
+#define static_branch_inc(x)		static_key_slow_inc((struct static_key *)(x))
+#define static_branch_dec(x)		static_key_slow_dec((struct static_key *)(x))
 
 /*
  * Normal usage; boolean enable/disable.

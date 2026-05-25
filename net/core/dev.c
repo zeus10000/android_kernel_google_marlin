@@ -1757,14 +1757,14 @@ EXPORT_SYMBOL(net_disable_timestamp);
 
 static inline void net_timestamp_set(struct sk_buff *skb)
 {
-	skb->tstamp = 0;
+	skb->tstamp.tv64 = 0;
 	if (static_key_false(&netstamp_needed))
 		__net_timestamp(skb);
 }
 
 #define net_timestamp_check(COND, SKB)			\
 	if (static_key_false(&netstamp_needed)) {		\
-		if ((COND) && !(SKB)->tstamp)	\
+		if ((COND) && !(SKB)->tstamp.tv64)	\
 			__net_timestamp(SKB);		\
 	}						\
 
@@ -8016,6 +8016,3 @@ out:
 }
 
 subsys_initcall(net_dev_init);
-/* marlin: dev_tx_weight */
-int dev_tx_weight __read_mostly = 64;
-EXPORT_SYMBOL(dev_tx_weight);
