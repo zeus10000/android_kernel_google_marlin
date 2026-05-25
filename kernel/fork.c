@@ -11,6 +11,7 @@
  * management can be a bitch. See 'mm/memory.c': 'copy_page_range()'
  */
 
+#include <linux/sched/task.h>
 #include <linux/anon_inodes.h>
 #include <linux/slab.h>
 #include <linux/init.h>

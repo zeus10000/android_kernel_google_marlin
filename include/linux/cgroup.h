@@ -23,11 +23,8 @@
 #include <linux/ns_common.h>
 #include <linux/nsproxy.h>
 #include <linux/user_namespace.h>
-#include <linux/refcount.h>
 
 #include <linux/cgroup-defs.h>
-
-struct kernel_clone_args;
 
 #ifdef CONFIG_CGROUPS
 
@@ -40,30 +37,18 @@ struct kernel_clone_args;
 #define CGROUP_WEIGHT_DFL		100
 #define CGROUP_WEIGHT_MAX		10000
 
-/* walk only threadgroup leaders */
-#define CSS_TASK_ITER_PROCS		(1U << 0)
-/* walk all threaded css_sets in the domain */
-#define CSS_TASK_ITER_THREADED		(1U << 1)
-
-/* internal flags */
-#define CSS_TASK_ITER_SKIPPED		(1U << 16)
-
 /* a css_task_iter should be treated as an opaque object */
 struct css_task_iter {
 	struct cgroup_subsys		*ss;
-	unsigned int			flags;
 
 	struct list_head		*cset_pos;
 	struct list_head		*cset_head;
 
-	struct list_head		*tcset_pos;
-	struct list_head		*tcset_head;
-
 	struct list_head		*task_pos;
+	struct list_head		*tasks_head;
+	struct list_head		*mg_tasks_head;
 
-	struct list_head		*cur_tasks_head;
 	struct css_set			*cur_cset;
-	struct css_set			*cur_dcset;
 	struct task_struct		*cur_task;
 	struct list_head		iters_node;	/* css_set->task_iters */
 };
@@ -97,8 +82,6 @@ extern struct css_set init_css_set;
 
 bool css_has_online_children(struct cgroup_subsys_state *css);
 struct cgroup_subsys_state *css_from_id(int id, struct cgroup_subsys *ss);
-struct cgroup_subsys_state *cgroup_e_css(struct cgroup *cgroup,
-					 struct cgroup_subsys *ss);
 struct cgroup_subsys_state *cgroup_get_e_css(struct cgroup *cgroup,
 					     struct cgroup_subsys *ss);
 struct cgroup_subsys_state *css_tryget_online_from_dir(struct dentry *dentry,
@@ -121,20 +104,14 @@ int proc_cgroup_show(struct seq_file *m, struct pid_namespace *ns,
 		     struct pid *pid, struct task_struct *tsk);
 
 void cgroup_fork(struct task_struct *p);
-extern int cgroup_can_fork(struct task_struct *p,
-			   struct kernel_clone_args *kargs);
-extern void cgroup_cancel_fork(struct task_struct *p,
-			       struct kernel_clone_args *kargs);
-extern void cgroup_post_fork(struct task_struct *p,
-			     struct kernel_clone_args *kargs);
+extern int cgroup_can_fork(struct task_struct *p);
+extern void cgroup_cancel_fork(struct task_struct *p);
+extern void cgroup_post_fork(struct task_struct *p);
 void cgroup_exit(struct task_struct *p);
-void cgroup_release(struct task_struct *p);
 void cgroup_free(struct task_struct *p);
 
 int cgroup_init_early(void);
 int cgroup_init(void);
-
-int cgroup_parse_float(const char *input, unsigned dec_shift, s64 *v);
 
 /*
  * Iteration helpers and macros.
@@ -153,7 +130,7 @@ struct task_struct *cgroup_taskset_first(struct cgroup_taskset *tset,
 struct task_struct *cgroup_taskset_next(struct cgroup_taskset *tset,
 					struct cgroup_subsys_state **dst_cssp);
 
-void css_task_iter_start(struct cgroup_subsys_state *css, unsigned int flags,
+void css_task_iter_start(struct cgroup_subsys_state *css,
 			 struct css_task_iter *it);
 struct task_struct *css_task_iter_next(struct css_task_iter *it);
 void css_task_iter_end(struct css_task_iter *it);
@@ -563,22 +540,12 @@ static inline struct cgroup *cgroup_parent(struct cgroup *cgrp)
  * if @cgrp == @ancestor.  This function is safe to call as long as @cgrp
  * and @ancestor are accessible.
  */
-static inline ino_t cgroup_ino(struct cgroup *cgrp)
-{
-	return cgrp->kn->ino;
-}
-
-static inline u64 cgroup_id(struct cgroup *cgrp)
-{
-	return cgroup_ino(cgrp);
-}
-
 static inline bool cgroup_is_descendant(struct cgroup *cgrp,
 					struct cgroup *ancestor)
 {
 	if (cgrp->root != ancestor->root || cgrp->level < ancestor->level)
 		return false;
-	return cgrp->ancestor_ids[ancestor->level] == cgroup_id(ancestor);
+	return cgrp->ancestor_ids[ancestor->level] == ancestor->id;
 }
 
 /**
@@ -631,11 +598,14 @@ static inline bool task_under_cgroup_hierarchy(struct task_struct *task,
 /* no synchronization, the result can only be used as a hint */
 static inline bool cgroup_is_populated(struct cgroup *cgrp)
 {
-	return cgrp->nr_populated_csets + cgrp->nr_populated_domain_children +
-		cgrp->nr_populated_threaded_children;
+	return cgrp->populated_cnt;
 }
 
 /* returns ino associated with a cgroup */
+static inline ino_t cgroup_ino(struct cgroup *cgrp)
+{
+	return cgrp->kn->ino;
+}
 
 /* cft/css accessors for cftype->write() operation */
 static inline struct cftype *of_cft(struct kernfs_open_file *of)
@@ -682,11 +652,6 @@ static inline void pr_cont_cgroup_path(struct cgroup *cgrp)
 	pr_cont_kernfs_path(cgrp->kn);
 }
 
-static inline struct psi_group *cgroup_psi(struct cgroup *cgrp)
-{
-	return &cgrp->psi;
-}
-
 static inline void cgroup_init_kthreadd(void)
 {
 	/*
@@ -718,30 +683,14 @@ static inline int cgroupstats_build(struct cgroupstats *stats,
 				    struct dentry *dentry) { return -EINVAL; }
 
 static inline void cgroup_fork(struct task_struct *p) {}
-static inline int cgroup_can_fork(struct task_struct *p,
-				  struct kernel_clone_args *kargs) { return 0; }
-static inline void cgroup_cancel_fork(struct task_struct *p,
-				      struct kernel_clone_args *kargs) {}
-static inline void cgroup_post_fork(struct task_struct *p,
-				    struct kernel_clone_args *kargs) {}
+static inline int cgroup_can_fork(struct task_struct *p) { return 0; }
+static inline void cgroup_cancel_fork(struct task_struct *p) {}
+static inline void cgroup_post_fork(struct task_struct *p) {}
 static inline void cgroup_exit(struct task_struct *p) {}
-static inline void cgroup_release(struct task_struct *p) {}
 static inline void cgroup_free(struct task_struct *p) {}
 
 static inline int cgroup_init_early(void) { return 0; }
 static inline int cgroup_init(void) { return 0; }
-static inline void cgroup_init_kthreadd(void) {}
-static inline void cgroup_kthread_ready(void) {}
-
-static inline struct cgroup *cgroup_parent(struct cgroup *cgrp)
-{
-	return NULL;
-}
-
-static inline struct psi_group *cgroup_psi(struct cgroup *cgrp)
-{
-	return NULL;
-}
 
 static inline bool task_under_cgroup_hierarchy(struct task_struct *task,
 					       struct cgroup *ancestor)
@@ -798,10 +747,9 @@ static inline void cgroup_sk_free(struct sock_cgroup_data *skcd) {}
 #endif	/* CONFIG_CGROUP_DATA */
 
 struct cgroup_namespace {
-	refcount_t		count;
+	atomic_t		count;
 	struct ns_common	ns;
 	struct user_namespace	*user_ns;
-	struct ucounts		*ucounts;
 	struct css_set          *root_cset;
 };
 
@@ -833,15 +781,13 @@ copy_cgroup_ns(unsigned long flags, struct user_namespace *user_ns,
 static inline void get_cgroup_ns(struct cgroup_namespace *ns)
 {
 	if (ns)
-		refcount_inc(&ns->count);
+		atomic_inc(&ns->count);
 }
 
 static inline void put_cgroup_ns(struct cgroup_namespace *ns)
 {
-	if (ns && refcount_dec_and_test(&ns->count))
+	if (ns && atomic_dec_and_test(&ns->count))
 		free_cgroup_ns(ns);
 }
-
-
 
 #endif /* _LINUX_CGROUP_H */

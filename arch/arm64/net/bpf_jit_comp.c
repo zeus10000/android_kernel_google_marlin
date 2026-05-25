@@ -20,6 +20,11 @@
 
 #include "bpf_jit.h"
 
+/* marlin: forward-decl bpf_jit_get_func_addr from kernel/bpf/core.c */
+int bpf_jit_get_func_addr(const struct bpf_prog *prog, const struct bpf_insn *insn, bool extra_pass, u64 *func_addr, bool *func_addr_fixed);
+
+
+
 #define TMP_REG_1 (MAX_BPF_JIT_REG + 0)
 #define TMP_REG_2 (MAX_BPF_JIT_REG + 1)
 #define TCALL_CNT (MAX_BPF_JIT_REG + 2)
