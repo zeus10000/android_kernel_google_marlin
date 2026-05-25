@@ -1950,4 +1950,7 @@ int bpf_arch_text_poke(void *ip, enum bpf_text_poke_type t,
 struct btf_id_set;
 bool btf_id_set_contains(const struct btf_id_set *set, u32 id);
 
+
+/* marlin: stub bpf_capable (v5.8+) */
+static inline bool bpf_capable(void) { return capable(CAP_SYS_ADMIN); }
 #endif /* _LINUX_BPF_H */

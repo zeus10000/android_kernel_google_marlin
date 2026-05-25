@@ -9,6 +9,7 @@
  * For licensing details see kernel-base/COPYING
  */
 
+#include <linux/sched/task.h>
 #include <linux/fs.h>
 #include <linux/mm.h>
 #include <linux/cpu.h>

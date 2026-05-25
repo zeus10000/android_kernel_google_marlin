@@ -222,8 +222,5 @@ static inline const char *btf_name_by_offset(const struct btf *btf,
 #endif
 
 
-static inline bool btf_type_is_small_int(const struct btf_type *t)
-{
-	return (BTF_INFO_KIND(t->info) == BTF_KIND_INT) && (t->size <= sizeof(u64));
-}
+
 #endif
