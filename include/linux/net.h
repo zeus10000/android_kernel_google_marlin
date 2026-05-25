@@ -190,6 +190,7 @@ struct proto_ops {
 	int		(*set_peek_off)(struct sock *sk, int val);
 	int		(*peek_len)(struct socket *sock);
 	int		(*read_sock)(struct sock *sk, void *desc, void *recv_actor);
+	int (*set_rcvlowat)(struct sock *sk, int val);
 };
 
 #define DECLARE_SOCKADDR(type, dst, src)	\

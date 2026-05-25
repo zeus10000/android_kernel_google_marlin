@@ -160,6 +160,7 @@ struct icmp6_filter {
 #define MLD2_ALLOW_NEW_SOURCES	5
 
 /* marlin: v5.x ICMPV6_MSG_MAX */
+#define ICMPV6_ERRMSG_MAX 127
 #define ICMPV6_MSG_MAX 255
 
 #define MLD2_BLOCK_OLD_SOURCES	6

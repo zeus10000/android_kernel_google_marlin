@@ -123,5 +123,10 @@ void twsk_net_set(struct inet_timewait_sock *twsk, struct net *net)
 }
 
 /* marlin: inet_timewait_death_row stub */
-struct inet_timewait_death_row { int dummy; };
+struct inet_hashinfo;
+struct inet_timewait_death_row {
+	struct inet_hashinfo *hashinfo;
+	atomic_t tw_count;
+	int sysctl_max_tw_buckets;
+};
 #endif	/* _INET_TIMEWAIT_SOCK_ */

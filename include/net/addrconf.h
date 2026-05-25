@@ -393,6 +393,4 @@ static inline struct inet6_dev *__in6_dev_get_safely(const struct net_device *de
 {
 	return rcu_dereference_rtnl(dev->ip6_ptr);
 }
-
-static inline struct inet6_dev *__in6_dev_get_safely(const struct net_device *dev) { return __in6_dev_get(dev); }
 #endif

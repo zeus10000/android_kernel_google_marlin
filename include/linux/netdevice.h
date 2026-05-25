@@ -2187,6 +2187,7 @@ struct packet_type {
 	struct net		*af_packet_net;
 	void			*af_packet_priv;
 	struct list_head	list;
+	void (*list_func)(struct list_head *head, struct packet_type *pt, struct net_device *orig_dev);
 };
 
 struct offload_callbacks {
