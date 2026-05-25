@@ -1207,11 +1207,6 @@ static inline void skb_mark_not_on_list(struct sk_buff *skb)
 	skb->next = NULL;
 }
 
-static inline void skb_list_del_init(struct sk_buff *skb)
-{
-	__list_del_entry(&skb->list);
-	skb_mark_not_on_list(skb);
-}
 
 /**
  *	skb_queue_empty - check if a queue is empty
@@ -2394,6 +2389,16 @@ static inline void skb_orphan(struct sk_buff *skb)
  *	owner) create a copy of that frag and release the original
  *	page by calling the destructor.
  */
+
+/* marlin v5.10 backport stubs - replace with proper picks of zerocopy chain */
+#ifndef _SKBUFF_MARLIN_STUBS
+#define _SKBUFF_MARLIN_STUBS
+struct ubuf_info;
+static inline struct ubuf_info *skb_uarg(const struct sk_buff *skb) { return NULL; }
+static inline bool skb_zcopy(const struct sk_buff *skb) { return false; }
+static inline void sock_zerocopy_callback(struct ubuf_info *uarg, bool zerocopy) { }
+#endif
+
 static inline int skb_orphan_frags(struct sk_buff *skb, gfp_t gfp_mask)
 {
 	if (likely(!skb_zcopy(skb)))
