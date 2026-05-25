@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0
 OBJECT_FILES_NON_STANDARD := y
 
-hostprogs-always-y	+= modpost mk_elfconfig
+hostprogs-y	+= modpost mk_elfconfig
 always-y		+= empty.o
 
 modpost-objs	:= modpost.o file2alias.o sumversion.o
