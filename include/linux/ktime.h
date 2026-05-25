@@ -25,9 +25,7 @@
 #include <linux/jiffies.h>
 
 /* Nanosecond scalar representation for kernel time values */
-/* marlin: union to keep .tv64 working in old call sites */
-union ktime { s64 tv64; };
-typedef union ktime ktime_t;
+typedef s64	ktime_t;
 
 /**
  * ktime_set - Set a ktime_t variable from a seconds/nanoseconds value
