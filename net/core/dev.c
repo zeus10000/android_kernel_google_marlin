@@ -8016,3 +8016,6 @@ out:
 }
 
 subsys_initcall(net_dev_init);
+/* marlin: dev_tx_weight */
+int dev_tx_weight __read_mostly = 64;
+EXPORT_SYMBOL(dev_tx_weight);

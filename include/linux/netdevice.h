@@ -1618,6 +1618,22 @@ enum netdev_priv_flags {
  *	moves out.
  */
 
+/* marlin: v5.x full stub structs for fields referenced via macros */
+struct dev_ifalias {
+	struct rcu_head rcuhead;
+	char ifalias[];
+};
+struct netdev_name_node {
+	struct hlist_node hlist;
+	struct list_head list;
+	struct net_device *dev;
+	const char *name;
+};
+struct netdev_net_notifier {
+	struct list_head list;
+	struct notifier_block *nb;
+};
+
 struct net_device {
 	char			name[IFNAMSIZ];
 	struct hlist_node	name_hlist;
@@ -1888,6 +1904,14 @@ struct net_device {
 	struct phy_device *phydev;
 	struct lock_class_key *qdisc_tx_busylock;
 	bool proto_down;
+	/* marlin: v5.x net_device fields */
+	struct hlist_head qdisc_hash[16];
+	struct lock_class_key *qdisc_running_key;
+	struct lock_class_key *addr_list_lock_key;
+	struct netdev_name_node *name_node;
+	void *xdp_bulkq;
+	struct list_head net_notifier_list;
+
 };
 #define to_net_dev(d) container_of(d, struct net_device, dev)
 
@@ -2436,7 +2460,7 @@ struct net_device *__dev_get_by_index(struct net *net, int ifindex);
 struct net_device *dev_get_by_index_rcu(struct net *net, int ifindex);
 int netdev_get_name(struct net *net, char *name, int ifindex);
 int dev_restart(struct net_device *dev);
-int skb_gro_receive(struct sk_buff **head, struct sk_buff *skb);
+int skb_gro_receive(struct sk_buff *p, struct sk_buff *skb);
 
 static inline unsigned int skb_gro_offset(const struct sk_buff *skb)
 {
@@ -3877,7 +3901,7 @@ static inline bool can_checksum_protocol(netdev_features_t features,
 }
 
 #ifdef CONFIG_BUG
-void netdev_rx_csum_fault(struct net_device *dev);
+void netdev_rx_csum_fault(struct net_device *dev, struct sk_buff *skb);
 #else
 static inline void netdev_rx_csum_fault(struct net_device *dev)
 {
@@ -4317,4 +4341,13 @@ void generic_xdp_tx(struct sk_buff *skb, struct bpf_prog *xdp_prog);
 #ifndef NETDEV_CVLAN_FILTER_PUSH_INFO
 #define NETDEV_CVLAN_FILTER_PUSH_INFO NETDEV_CHANGEUPPER
 #endif
+
+/* marlin: netif_receive_skb_core stub */
+static inline int netif_receive_skb_core(struct sk_buff *skb) { return netif_receive_skb(skb); }
+
+/* marlin: dev_tx_weight stub */
+extern int dev_tx_weight;
+
+/* marlin: skb_gro_flush_final stub */
+static inline void skb_gro_flush_final(struct sk_buff *skb, struct sk_buff *pp, int flush) { }
 #endif	/* _LINUX_NETDEVICE_H */
