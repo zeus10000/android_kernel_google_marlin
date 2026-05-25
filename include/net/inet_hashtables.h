@@ -325,7 +325,7 @@ static inline struct sock *inet_lookup(struct net *net,
 
 	local_bh_disable();
 	sk = __inet_lookup(net, hashinfo, skb, doff, saddr, sport, daddr,
-			   dport, dif);
+			   dport, dif, NULL);
 	local_bh_enable();
 
 	return sk;
@@ -345,7 +345,7 @@ static inline struct sock *__inet_lookup_skb(struct inet_hashinfo *hashinfo,
 	else
 		return __inet_lookup(dev_net(skb_dst(skb)->dev), hashinfo, skb,
 				     doff, iph->saddr, sport,
-				     iph->daddr, dport, inet_iif(skb));
+				     iph->daddr, dport, inet_iif(skb), NULL);
 }
 
 u32 sk_ehashfn(const struct sock *sk);
