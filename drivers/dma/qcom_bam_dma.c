@@ -49,6 +49,10 @@
 #include <linux/clk.h>
 #include <linux/dmaengine.h>
 
+/* marlin: stub v4.x writecombine */
+#define dma_alloc_writecombine(dev, size, dh, flag) dma_alloc_coherent(dev, size, dh, flag)
+#define dma_free_writecombine(dev, size, va, dh) dma_free_coherent(dev, size, va, dh)
+
 #include "dmaengine.h"
 #include "virt-dma.h"
 

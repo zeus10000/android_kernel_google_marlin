@@ -890,8 +890,8 @@ set_rcvbuf:
 	case SO_RCVLOWAT:
 		if (val < 0)
 			val = INT_MAX;
-		if (sock->ops->set_rcvlowat)
-			ret = sock->ops->set_rcvlowat(sk, val);
+		if (0 /* marlin: set_rcvlowat not in v4 proto_ops */)
+			/* marlin: stub */ ret = 0;
 		else
 			sk->sk_rcvlowat = val ? : 1;
 		break;
@@ -1210,7 +1210,7 @@ int sock_getsockopt(struct socket *sock, int level, int optname,
 	{
 		char address[128];
 
-		lv = sock->ops->getname(sock, (struct sockaddr *)address, 2);
+		{ int slen; lv = sock->ops->getname(sock, (struct sockaddr *)address, &slen, 2); }
 		if (lv < 0)
 			return -ENOTCONN;
 		if (lv < len)
@@ -2333,7 +2333,7 @@ int sock_no_accept(struct socket *sock, struct socket *newsock, int flags)
 EXPORT_SYMBOL(sock_no_accept);
 
 int sock_no_getname(struct socket *sock, struct sockaddr *saddr,
-		    int peer)
+		    int *len, int peer)
 {
 	return -EOPNOTSUPP;
 }

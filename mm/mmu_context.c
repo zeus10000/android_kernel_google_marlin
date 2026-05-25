@@ -3,6 +3,7 @@
  * See ../COPYING for licensing terms.
  */
 
+#include <linux/sched/mm.h>
 #include <linux/sched/task.h>
 #include <linux/mm.h>
 #include <linux/sched.h>
