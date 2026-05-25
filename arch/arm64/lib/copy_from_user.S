@@ -3,6 +3,8 @@
  * Copyright (C) 2012 ARM Ltd.
  */
 
+#include <asm/alternative.h>
+#include <asm/asm-uaccess.h>
 #include <linux/linkage.h>
 
 #include <asm/cache.h>
