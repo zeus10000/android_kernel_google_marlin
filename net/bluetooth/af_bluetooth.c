@@ -24,6 +24,7 @@
 
 /* Bluetooth address family and sockets. */
 
+#include <linux/eventpoll.h>
 #include <linux/module.h>
 #include <linux/debugfs.h>
 #include <asm/ioctls.h>
