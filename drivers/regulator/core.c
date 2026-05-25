@@ -2266,8 +2266,12 @@ static int _regulator_disable(struct regulator_dev *rdev)
  */
 int regulator_disable(struct regulator *regulator)
 {
-	struct regulator_dev *rdev = regulator->rdev;
+	struct regulator_dev *rdev;
 	int ret = 0;
+
+	if (IS_ERR_OR_NULL(regulator))
+		return 0;
+	rdev = regulator->rdev;
 
 	if (regulator->always_on)
 		return 0;
