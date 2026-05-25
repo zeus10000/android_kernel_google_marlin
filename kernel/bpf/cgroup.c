@@ -17,7 +17,7 @@
 #include <net/sock.h>
 #include <net/bpf_sk_storage.h>
 
-#include "../cgroup/cgroup-internal.h"
+/* marlin: skip */
 
 DEFINE_STATIC_KEY_FALSE(cgroup_bpf_enabled_key);
 EXPORT_SYMBOL(cgroup_bpf_enabled_key);
