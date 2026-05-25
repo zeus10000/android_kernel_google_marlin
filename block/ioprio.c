@@ -19,6 +19,7 @@
  * See also Documentation/block/ioprio.txt
  *
  */
+#include <linux/sched/task.h>
 #include <linux/gfp.h>
 #include <linux/kernel.h>
 #include <linux/export.h>
