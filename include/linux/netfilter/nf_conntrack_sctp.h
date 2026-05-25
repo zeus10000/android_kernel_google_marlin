@@ -7,7 +7,7 @@
 
 
 struct ip_ct_sctp {
-	unsigned int state; /* marlin: use uint as state */
+	enum sctp_conntrack state;
 
 	__be32 vtag[IP_CT_DIR_MAX];
 };

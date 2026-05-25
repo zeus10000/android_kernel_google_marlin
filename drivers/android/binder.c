@@ -51,6 +51,8 @@
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
+#include <linux/sched/mm.h>
+#include <linux/sched/task.h>
 #include <asm/cacheflush.h>
 #include <linux/fdtable.h>
 #include <linux/file.h>
