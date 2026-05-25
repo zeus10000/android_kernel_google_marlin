@@ -1137,6 +1137,8 @@ struct bpf_sock_ops_kern {
 
 	u8 remaining_opt_len;
 	/* marlin: more v5 fields */
+	struct sk_buff *skb;
+	u8 remaining_opt_len;
 };
 
 
