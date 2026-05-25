@@ -1220,7 +1220,7 @@ archscripts:
 
 PHONY += __headers
 __headers: $(version_h) scripts_basic asm-generic archheaders archscripts
-	$(Q)$(MAKE) $(build)=scripts build_unifdef
+	$(Q)$(MAKE) $(build)=scripts unifdef
 
 PHONY += headers_install_all
 headers_install_all:
