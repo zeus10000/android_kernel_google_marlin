@@ -978,8 +978,7 @@ static struct sk_psock_progs *sock_map_progs(struct bpf_map *map)
 	return NULL;
 }
 
-int sock_map_prog_update(struct bpf_map *map, struct bpf_prog *prog,
-			 u32 which)
+int sock_map_prog_update(struct bpf_map *map, struct bpf_prog *prog, struct bpf_prog *old, u32 which)
 {
 	struct sk_psock_progs *progs = sock_map_progs(map);
 
