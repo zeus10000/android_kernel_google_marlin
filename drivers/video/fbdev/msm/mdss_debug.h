@@ -166,10 +166,10 @@ void mdss_misr_crc_collect(struct mdss_data_type *mdata, int block_id,
 int mdss_create_xlog_debug(struct mdss_debug_data *mdd);
 void mdss_xlog(const char *name, int line, int flag, ...);
 void mdss_xlog_tout_handler_default(bool queue, const char *name, ...);
-u32 get_dump_range(struct dump_offset *range_node, size_t max_offset);
-void mdss_dump_reg(const char *dump_name, u32 reg_dump_flag, char *addr,
+static inline u32 get_dump_range(struct dump_offset *range_node, size_t max_offset);
+static inline void mdss_dump_reg(const char *dump_name, u32 reg_dump_flag, char *addr,
 	int len, u32 **dump_mem, bool from_isr);
-void mdss_mdp_debug_mid(u32 mid);
+static inline void mdss_mdp_debug_mid(u32 mid);
 void mdss_dump_dsi_debug_bus(u32 bus_dump_flag, u32 **dump_mem);
 #else
 struct mdss_debug_base;
@@ -213,11 +213,11 @@ static inline void mdss_xlog(const char *name, int line, int flag, ...) { }
 static inline void mdss_dsi_debug_check_te(struct mdss_panel_data *pdata) { }
 static inline void mdss_xlog_tout_handler_default(bool queue,
 	const char *name, ...) { }
-u32 get_dump_range(struct dump_offset *range_node, size_t max_offset)
+static inline u32 get_dump_range(struct dump_offset *range_node, size_t max_offset)
 	{ return 0; }
-void mdss_dump_reg(const char *dump_name, u32 reg_dump_flag, char *addr,
+static inline void mdss_dump_reg(const char *dump_name, u32 reg_dump_flag, char *addr,
 	int len, u32 **dump_mem, bool from_isr) { }
-void mdss_mdp_debug_mid(u32 mid) { }
+static inline void mdss_mdp_debug_mid(u32 mid) { }
 #endif
 
 int mdss_dump_misr_data(char **buf, u32 size);
