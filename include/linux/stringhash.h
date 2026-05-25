@@ -2,6 +2,9 @@
 #ifndef __LINUX_STRINGHASH_H
 #define __LINUX_STRINGHASH_H
 
+/* marlin: __hash_32 alias to hash_32 */
+#define __hash_32(val) hash_32(val, 32)
+
 #include <linux/compiler.h>	/* For __pure */
 #include <linux/types.h>	/* For u32, u64 */
 #include <linux/hash.h>

@@ -75,11 +75,6 @@ extern struct dentry_stat_t dentry_stat;
  * Finally: cut down the number of bits to a int value (and try to avoid
  * losing bits)
  */
-static inline unsigned long end_name_hash(unsigned long hash)
-{
-	return (unsigned int) hash;
-}
-
 /* Compute the hash for a name string. */
 
 /*
