@@ -14,7 +14,8 @@ struct sockaddr;
 struct bpf_prog;
 struct bpf_sock_ops_kern;
 
-int __cgroup_bpf_run_filter_sock_addr(struct sock *sk, struct sockaddr *uaddr, int type, int flags)
+#include <linux/bpf-cgroup.h>
+int __cgroup_bpf_run_filter_sock_addr(struct sock *sk, struct sockaddr *uaddr, enum bpf_attach_type type, void *t_ctx)
 {
 	return 0;
 }
