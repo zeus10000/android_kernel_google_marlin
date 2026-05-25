@@ -171,7 +171,7 @@ enum metadata_type {
 /* Compat: metadata_dst_alloc_percpu with type arg */
 static inline struct metadata_dst __percpu *
 metadata_dst_alloc_percpu_typed(u8 optslen,
-				enum metadata_type unused,
+				enum metadata_type type,
 				gfp_t flags)
 {
 	return metadata_dst_alloc_percpu(optslen, type, flags);
