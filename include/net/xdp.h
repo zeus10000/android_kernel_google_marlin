@@ -39,6 +39,7 @@ enum xdp_mem_type {
 	MEM_TYPE_PAGE_SHARED = 0, /* Split-page refcnt based model */
 	MEM_TYPE_PAGE_ORDER0,     /* Orig XDP full page model */
 	MEM_TYPE_PAGE_POOL,
+	MEM_TYPE_ZERO_COPY,
 	MEM_TYPE_XSK_BUFF_POOL,
 	MEM_TYPE_MAX,
 };
@@ -73,6 +74,7 @@ struct xdp_buff {
 	struct xdp_rxq_info *rxq;
 	struct xdp_txq_info *txq;
 	u32 frame_sz; /* frame size to deduce data_hard_end/reserved tailroom*/
+	unsigned long handle; /* marlin */
 };
 
 /* Reserve memory area at end-of data area.
@@ -218,4 +220,5 @@ void xdp_attachment_setup(struct xdp_attachment_info *info,
 /* marlin: stubs */
 static inline void xdp_convert_frame_to_buff(struct xdp_frame *frame, struct xdp_buff *xdp) {}
 static inline int xdp_update_frame_from_buff(struct xdp_buff *xdp, struct xdp_frame *frame) { return 0; }
+struct zero_copy_allocator { int dummy; };
 #endif /* __LINUX_NET_XDP_H__ */

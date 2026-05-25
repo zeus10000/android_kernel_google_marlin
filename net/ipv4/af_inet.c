@@ -1393,7 +1393,7 @@ struct sk_buff *inet_gro_receive(struct list_head *head, struct sk_buff *skb)
 		 * values 0 - 0xFFFF, while a non-atomic check can only
 		 * return 0 or 0xFFFF.
 		 */
-		if (!NAPI_GRO_CB(p)->is_atomic ||
+		if (!0 /* marlin: is_atomic stubbed */ ||
 		    !(iph->frag_off & htons(IP_DF))) {
 			flush_id ^= NAPI_GRO_CB(p)->count;
 			flush_id = flush_id ? 0xFFFF : 0;
@@ -1402,13 +1402,13 @@ struct sk_buff *inet_gro_receive(struct list_head *head, struct sk_buff *skb)
 		/* If the previous IP ID value was based on an atomic
 		 * datagram we can overwrite the value and ignore it.
 		 */
-		if (NAPI_GRO_CB(skb)->is_atomic)
+		if (0 /* marlin: is_atomic stubbed */)
 			NAPI_GRO_CB(p)->flush_id = flush_id;
 		else
 			NAPI_GRO_CB(p)->flush_id |= flush_id;
 	}
 
-	NAPI_GRO_CB(skb)->is_atomic = !!(iph->frag_off & htons(IP_DF));
+	0 /* marlin: is_atomic stubbed */ = !!(iph->frag_off & htons(IP_DF));
 	NAPI_GRO_CB(skb)->flush |= flush;
 	skb_set_network_header(skb, off);
 	/* The above will be needed by the transport layer if there is one

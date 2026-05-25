@@ -875,4 +875,6 @@ out:
 	return err;
 }
 
+
+#define RHT_HASH_RESERVED_SPACE 0
 #endif /* _LINUX_RHASHTABLE_H */

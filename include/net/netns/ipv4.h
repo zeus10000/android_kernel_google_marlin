@@ -30,6 +30,9 @@ struct ping_group_range {
 };
 
 struct netns_ipv4 {
+	int sysctl_ip_default_ttl;
+	int sysctl_ip_early_demux;
+
 	struct { atomic_t tw_count; int sysctl_max_tw_buckets; int sysctl_tw_recycle; } tcp_death_row;
 
 #ifdef CONFIG_SYSCTL

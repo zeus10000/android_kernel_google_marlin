@@ -192,4 +192,7 @@ bool netlink_ns_capable(const struct sk_buff *skb,
 bool netlink_capable(const struct sk_buff *skb, int cap);
 bool netlink_net_capable(const struct sk_buff *skb, int cap);
 
+
+#define NL_SET_ERR_MSG(extack, msg) do { (void)(extack); (void)(msg); } while (0)
+#define NL_SET_ERR_MSG_MOD(extack, msg) NL_SET_ERR_MSG(extack, msg)
 #endif	/* __LINUX_NETLINK_H */

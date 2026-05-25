@@ -2421,4 +2421,6 @@ extern struct reclaim_param reclaim_task_anon(struct task_struct *task,
 #endif
 
 #endif /* __KERNEL__ */
+
+#define page_to_virt(page) __va(PFN_PHYS(page_to_pfn(page)))
 #endif /* _LINUX_MM_H */

@@ -203,4 +203,6 @@ static inline bool page_pool_put(struct page_pool *pool)
 	return refcount_dec_and_test(&pool->user_cnt);
 }
 
+
+static inline void *page_pool_get(struct rhashtable *ht, void *xa) { return NULL; }
 #endif /* _NET_PAGE_POOL_H */

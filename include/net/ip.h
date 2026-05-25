@@ -617,6 +617,4 @@ static inline bool inetdev_valid_mtu(unsigned int mtu)
 
 
 
-/* marlin: inet_current_timestamp stub */
-static inline u32 inet_current_timestamp(void) { return 0; }
 #endif	/* _IP_H */
