@@ -2371,6 +2371,7 @@ static int tcp_repair_options_est(struct tcp_sock *tp,
 static int do_tcp_setsockopt(struct sock *sk, int level,
 		int optname, char __user *optval, unsigned int optlen)
 {
+	struct net *net = sock_net(sk); /* marlin: net=sock_net(sk) */
 	struct tcp_sock *tp = tcp_sk(sk);
 	struct inet_connection_sock *icsk = inet_csk(sk);
 	int val;
