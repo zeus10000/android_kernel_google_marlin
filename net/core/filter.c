@@ -17,7 +17,6 @@
  * Kris Katterjohn - Added many additional checks in bpf_check_classic()
  */
 
-#include <net/addrconf.h>
 #include <linux/sockptr.h>
 #include <linux/win_minmax.h>
 #include <linux/module.h>
@@ -38,6 +37,7 @@
 #include <net/netlink.h>
 #include <linux/skbuff.h>
 #include <linux/skmsg.h>
+#include <net/addrconf.h>
 #include <net/sock.h>
 #include <net/flow_dissector.h>
 #include <linux/errno.h>
