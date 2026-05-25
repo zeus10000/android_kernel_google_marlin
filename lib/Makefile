@@ -211,12 +211,6 @@ quiet_cmd_crc32 = GEN     $@
 $(obj)/crc32table.h: $(obj)/gen_crc32table
 	$(call cmd,crc32)
 
-$(obj)/: $(obj)/crc64table.h
-
-quiet_cmd_crc64 = GEN     $@
-      cmd_crc64 = $< > $@
-
-	$(call cmd,crc64)
 
 #
 # Build a fast OID lookip registry from include/linux/oid_registry.h
