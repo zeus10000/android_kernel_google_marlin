@@ -4,6 +4,8 @@
 /* SCTP tracking. */
 
 #include <uapi/linux/netfilter/nf_conntrack_sctp.h>
+/* marlin: enum forward */
+enum sctp_conntrack;
 
 struct ip_ct_sctp {
 	enum sctp_conntrack state;

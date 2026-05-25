@@ -8,6 +8,9 @@
 #ifndef _LINUX_EVENTPOLL_H
 #define _LINUX_EVENTPOLL_H
 
+#include <linux/list.h>
+#include <linux/compiler.h>
+#include <linux/capability.h>
 #include <uapi/linux/eventpoll.h>
 
 
