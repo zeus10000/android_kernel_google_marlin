@@ -568,7 +568,7 @@ static ssize_t proc_sys_call_handler(struct file *filp, void __user *ubuf,
 	}
 
 	error = BPF_CGROUP_RUN_PROG_SYSCTL(head, table, write, &kbuf, &count,
-					   ppos);
+					   ppos, NULL);
 	if (error)
 		goto out_free_buf;
 
