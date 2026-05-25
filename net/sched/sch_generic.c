@@ -610,7 +610,8 @@ struct Qdisc *qdisc_alloc(struct netdev_queue *dev_queue,
 			  dev->qdisc_tx_busylock ?: &qdisc_tx_busylock);
 
 	seqcount_init(&sch->running);
-/* marlin: v5.x qdisc_running_key removed */
+	lockdep_set_class(&sch->running,
+			  dev->qdisc_running_key ?: &qdisc_running_key);
 
 	sch->ops = ops;
 	sch->enqueue = ops->enqueue;
