@@ -1934,6 +1934,7 @@ struct net_device {
 	struct lock_class_key *addr_list_lock_key;
 	struct netdev_name_node *name_node;
 	void *xdp_bulkq;
+	struct list_head net_notifier_list;
 };
 #define to_net_dev(d) container_of(d, struct net_device, dev)
 
