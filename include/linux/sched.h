@@ -16,6 +16,7 @@ struct sched_param {
 #include <asm/param.h>	/* for HZ */
 
 #include <linux/capability.h>
+#include <linux/sched/types.h>
 #include <linux/threads.h>
 #include <linux/kernel.h>
 #include <linux/types.h>
