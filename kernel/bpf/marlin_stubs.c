@@ -44,3 +44,11 @@ int compat_sock_common_getsockopt(struct socket *sock, int level, int optname, c
 int inet_send_prepare(struct sock *sk) { return 0; }
 int ipv6_anycast_init(void) { return 0; }
 int udpv6_offload_init(void) { return 0; }
+
+#include <linux/netdevice.h>
+struct bpf_prog;
+void generic_xdp_tx(struct sk_buff *skb, struct bpf_prog *xdp_prog) { kfree_skb(skb); }
+int dev_tx_weight = 64;
+u32 inet_current_timestamp(void) { return 0; }
+void inet_sk_set_state(struct sock *sk, int state) { sk->sk_state = state; }
+void inet_sk_state_store(struct sock *sk, int newstate) { sk->sk_state = newstate; }
