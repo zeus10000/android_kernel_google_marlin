@@ -28,6 +28,7 @@
 #include <linux/cgroup-defs.h>
 
 struct kernel_clone_args;
+u64 cgroup_id(struct cgroup *cgrp);
 
 #ifdef CONFIG_CGROUPS
 
