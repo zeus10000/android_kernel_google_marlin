@@ -1,4 +1,6 @@
 /*
+
+#include <linux/eventpoll.h>
  *  Initialization routines
  *  Copyright (c) by Jaroslav Kysela <perex@perex.cz>
  *
