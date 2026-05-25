@@ -563,6 +563,11 @@ static inline struct cgroup *cgroup_parent(struct cgroup *cgrp)
  * if @cgrp == @ancestor.  This function is safe to call as long as @cgrp
  * and @ancestor are accessible.
  */
+static inline ino_t cgroup_ino(struct cgroup *cgrp)
+{
+	return cgrp->kn->ino;
+}
+
 static inline u64 cgroup_id(struct cgroup *cgrp)
 {
 	return cgroup_ino(cgrp);
@@ -631,10 +636,6 @@ static inline bool cgroup_is_populated(struct cgroup *cgrp)
 }
 
 /* returns ino associated with a cgroup */
-static inline ino_t cgroup_ino(struct cgroup *cgrp)
-{
-	return cgrp->kn->ino;
-}
 
 /* cft/css accessors for cftype->write() operation */
 static inline struct cftype *of_cft(struct kernfs_open_file *of)
