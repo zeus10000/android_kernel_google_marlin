@@ -21,7 +21,7 @@ endif
 ifeq ($(CONFIG_PERF_EVENTS),y)
 obj-$(CONFIG_BPF_SYSCALL) += stackmap.o
 endif
-obj-$(CONFIG_CGROUP_BPF) += cgroup.o
+# marlin: skip cgroup.o (v5.x cgroup BPF runtime)
 ifeq ($(CONFIG_INET),y)
 endif
 ifeq ($(CONFIG_SYSFS),y)
