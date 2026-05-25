@@ -1954,7 +1954,6 @@ static inline int inet_set_rcvlowat(struct sock *sk, int val) { return -EINVAL; 
 
 static inline int tcp_inq(struct sock *sk) { return 0; }
 
-static inline int tcp_peek_len(struct socket *sock) { return -1; }
 #endif	/* _TCP_H */
 
 #define MODULE_ALIAS_TCP_ULP(name)				\

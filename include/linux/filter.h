@@ -1179,6 +1179,7 @@ struct bpf_sk_lookup_kern {
 	} v6;
 	struct sock *selected_sk;
 	u32 ingress_ifindex;
+	bool no_reuseport;
 };
 
 /* marlin: v5 BPF stubs */
