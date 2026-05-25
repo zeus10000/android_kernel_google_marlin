@@ -8,6 +8,7 @@
  *
  */
 
+#include <linux/sched/mm.h>
 #include <linux/kernel.h>
 #include <linux/errno.h>
 #include <linux/module.h>

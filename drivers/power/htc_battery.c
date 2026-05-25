@@ -2952,7 +2952,7 @@ static int htc_battery_prepare(struct device *dev)
 		check_time = BATT_SUSPEND_CHECK_TIME;
 
 	interval = ktime_set(check_time - htc_batt_timer.total_time_ms / 1000, 0);
-	next_alarm_sec = div_s64(interval.tv64, NSEC_PER_SEC);
+	next_alarm_sec = div_s64(interval, NSEC_PER_SEC);
 
 	/* check if alarm is over time or in 1 second near future */
 	if (next_alarm_sec <= 1) {

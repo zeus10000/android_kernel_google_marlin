@@ -201,7 +201,7 @@ static inline void skb_scrub_packet(struct sk_buff *skb, bool xnet)
 	memset(&skb->cvm_info, 0, sizeof(skb->cvm_info));
 	skb->cvm_reserved = 0;
 #endif
-	skb->tstamp.tv64 = 0;
+	skb->tstamp = 0;
 	skb->pkt_type = PACKET_HOST;
 	skb->skb_iif = 0;
 	skb_dst_drop(skb);
