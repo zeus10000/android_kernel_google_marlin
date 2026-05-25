@@ -1906,3 +1906,4 @@ static int __init ipv4_proc_init(void)
 
 MODULE_ALIAS_NETPROTO(PF_INET);
 
+int sysctl_ip_dynaddr __read_mostly = 0; /* marlin */

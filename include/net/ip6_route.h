@@ -3,7 +3,7 @@
 #define _NET_IP6_ROUTE_H
 
 struct net; struct net_device; struct flowi6;
-struct dst_entry *ip6_route_input_lookup(struct net *net, struct net_device *dev, struct flowi6 *fl6, int flags);
+struct dst_entry *ip6_route_input_lookup(struct net *net, struct net_device *dev, struct flowi6 *fl6, struct sk_buff *skb, int flags);
 
 struct route_info {
 	__u8			type;

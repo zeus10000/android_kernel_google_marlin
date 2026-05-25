@@ -217,6 +217,8 @@ static inline u64 snmp_fold_field64(void __percpu *mib, int offt, size_t syncp_o
 {
 	return snmp_fold_field(mib, offt);
 }
+
+extern int sysctl_ip_dynaddr;
 #endif
 
 void inet_get_local_port_range(struct net *net, int *low, int *high);

@@ -680,7 +680,7 @@ void __sock_recv_timestamp(struct msghdr *msg, struct sock *sk,
 
 	/* Race occurred between timestamp enabling and packet
 	   receiving.  Fill in the current time for now. */
-	if (need_software_tstamp && skb->tstamp == 0)
+	if (need_software_tstamp && skb->tstamp.tv64 == 0)
 		__net_timestamp(skb);
 
 	if (need_software_tstamp) {
@@ -1081,7 +1081,7 @@ static int sock_fasync(int fd, struct file *filp, int on)
 		return -EINVAL;
 
 	lock_sock(sk);
-	wq = rcu_dereference_protected(sock->wq, lockdep_sock_is_held(sk));
+	wq = rcu_dereference_protected(sock->wq, sock_owned_by_user(sk));
 	fasync_helper(fd, filp, on, &wq->fasync_list);
 
 	if (!wq->fasync_list)
@@ -1525,14 +1525,13 @@ SYSCALL_DEFINE4(accept4, int, fd, struct sockaddr __user *, upeer_sockaddr,
 	if (err)
 		goto out_fd;
 
-	err = sock->ops->accept(sock, newsock, sock->file->f_flags, false);
+	err = sock->ops->accept(sock, newsock, sock->file->f_flags);
 	if (err < 0)
 		goto out_fd;
 
 	if (upeer_sockaddr) {
-		len = newsock->ops->getname(newsock,
-					(struct sockaddr *)&address, 2);
-		if (len < 0) {
+		if (newsock->ops->getname(newsock, (struct sockaddr *)&address,
+					  &len, 2) < 0) {
 			err = -ECONNABORTED;
 			goto out_fd;
 		}
@@ -1615,7 +1614,7 @@ SYSCALL_DEFINE3(getsockname, int, fd, struct sockaddr __user *, usockaddr,
 {
 	struct socket *sock;
 	struct sockaddr_storage address;
-	int err, fput_needed;
+	int len, err, fput_needed;
 
 	sock = sockfd_lookup_light(fd, &err, &fput_needed);
 	if (!sock)
@@ -1625,11 +1624,10 @@ SYSCALL_DEFINE3(getsockname, int, fd, struct sockaddr __user *, usockaddr,
 	if (err)
 		goto out_put;
 
-	err = sock->ops->getname(sock, (struct sockaddr *)&address, 0);
-	if (err < 0)
+	err = sock->ops->getname(sock, (struct sockaddr *)&address, &len, 0);
+	if (err)
 		goto out_put;
-        /* "err" is actually length in this case */
-	err = move_addr_to_user(&address, err, usockaddr, usockaddr_len);
+	err = move_addr_to_user(&address, len, usockaddr, usockaddr_len);
 
 out_put:
 	fput_light(sock->file, fput_needed);
@@ -1647,7 +1645,7 @@ SYSCALL_DEFINE3(getpeername, int, fd, struct sockaddr __user *, usockaddr,
 {
 	struct socket *sock;
 	struct sockaddr_storage address;
-	int err, fput_needed;
+	int len, err, fput_needed;
 
 	sock = sockfd_lookup_light(fd, &err, &fput_needed);
 	if (sock != NULL) {
@@ -1657,10 +1655,11 @@ SYSCALL_DEFINE3(getpeername, int, fd, struct sockaddr __user *, usockaddr,
 			return err;
 		}
 
-		err = sock->ops->getname(sock, (struct sockaddr *)&address, 1);
-		if (err >= 0)
-			/* "err" is actually length in this case */
-			err = move_addr_to_user(&address, err, usockaddr,
+		err =
+		    sock->ops->getname(sock, (struct sockaddr *)&address, &len,
+				       1);
+		if (!err)
+			err = move_addr_to_user(&address, len, usockaddr,
 						usockaddr_len);
 		fput_light(sock->file, fput_needed);
 	}
@@ -3067,33 +3066,62 @@ struct rtentry32 {
 	unsigned short  rt_irtt;        /* Initial RTT                  */
 };
 
+struct in6_rtmsg32 {
+	struct in6_addr		rtmsg_dst;
+	struct in6_addr		rtmsg_src;
+	struct in6_addr		rtmsg_gateway;
+	u32			rtmsg_type;
+	u16			rtmsg_dst_len;
+	u16			rtmsg_src_len;
+	u32			rtmsg_metric;
+	u32			rtmsg_info;
+	u32			rtmsg_flags;
+	s32			rtmsg_ifindex;
+};
+
 static int routing_ioctl(struct net *net, struct socket *sock,
 			 unsigned int cmd, void __user *argp)
 {
-	struct rtentry32 __user *ur4 = argp;
 	int ret;
 	void *r = NULL;
+	struct in6_rtmsg r6;
 	struct rtentry r4;
 	char devname[16];
 	u32 rtdev;
 	mm_segment_t old_fs = get_fs();
 
-	ret = copy_from_user(&r4.rt_dst, &(ur4->rt_dst),
-				3 * sizeof(struct sockaddr));
-	ret |= get_user(r4.rt_flags, &(ur4->rt_flags));
-	ret |= get_user(r4.rt_metric, &(ur4->rt_metric));
-	ret |= get_user(r4.rt_mtu, &(ur4->rt_mtu));
-	ret |= get_user(r4.rt_window, &(ur4->rt_window));
-	ret |= get_user(r4.rt_irtt, &(ur4->rt_irtt));
-	ret |= get_user(rtdev, &(ur4->rt_dev));
-	if (rtdev) {
-		ret |= copy_from_user(devname, compat_ptr(rtdev), 15);
-		r4.rt_dev = (char __user __force *)devname;
-		devname[15] = 0;
-	} else
-		r4.rt_dev = NULL;
+	if (sock && sock->sk && sock->sk->sk_family == AF_INET6) { /* ipv6 */
+		struct in6_rtmsg32 __user *ur6 = argp;
+		ret = copy_from_user(&r6.rtmsg_dst, &(ur6->rtmsg_dst),
+			3 * sizeof(struct in6_addr));
+		ret |= get_user(r6.rtmsg_type, &(ur6->rtmsg_type));
+		ret |= get_user(r6.rtmsg_dst_len, &(ur6->rtmsg_dst_len));
+		ret |= get_user(r6.rtmsg_src_len, &(ur6->rtmsg_src_len));
+		ret |= get_user(r6.rtmsg_metric, &(ur6->rtmsg_metric));
+		ret |= get_user(r6.rtmsg_info, &(ur6->rtmsg_info));
+		ret |= get_user(r6.rtmsg_flags, &(ur6->rtmsg_flags));
+		ret |= get_user(r6.rtmsg_ifindex, &(ur6->rtmsg_ifindex));
 
-	r = (void *) &r4;
+		r = (void *) &r6;
+	} else { /* ipv4 */
+		struct rtentry32 __user *ur4 = argp;
+		ret = copy_from_user(&r4.rt_dst, &(ur4->rt_dst),
+					3 * sizeof(struct sockaddr));
+		ret |= get_user(r4.rt_flags, &(ur4->rt_flags));
+		ret |= get_user(r4.rt_metric, &(ur4->rt_metric));
+		ret |= get_user(r4.rt_mtu, &(ur4->rt_mtu));
+		ret |= get_user(r4.rt_window, &(ur4->rt_window));
+		ret |= get_user(r4.rt_irtt, &(ur4->rt_irtt));
+		ret |= get_user(rtdev, &(ur4->rt_dev));
+		if (rtdev) {
+			ret |= copy_from_user(devname, compat_ptr(rtdev), 15);
+			r4.rt_dev = (char __user __force *)devname;
+			devname[15] = 0;
+		} else
+			r4.rt_dev = NULL;
+
+		r = (void *) &r4;
+	}
 
 	if (ret) {
 		ret = -EFAULT;
@@ -3271,7 +3299,7 @@ int kernel_accept(struct socket *sock, struct socket **newsock, int flags)
 	if (err < 0)
 		goto done;
 
-	err = sock->ops->accept(sock, *newsock, flags, true);
+	err = sock->ops->accept(sock, *newsock, flags);
 	if (err < 0) {
 		sock_release(*newsock);
 		*newsock = NULL;
@@ -3293,15 +3321,17 @@ int kernel_connect(struct socket *sock, struct sockaddr *addr, int addrlen,
 }
 EXPORT_SYMBOL(kernel_connect);
 
-int kernel_getsockname(struct socket *sock, struct sockaddr *addr)
+int kernel_getsockname(struct socket *sock, struct sockaddr *addr,
+			 int *addrlen)
 {
-	return sock->ops->getname(sock, addr, 0);
+	return sock->ops->getname(sock, addr, addrlen, 0);
 }
 EXPORT_SYMBOL(kernel_getsockname);
 
-int kernel_getpeername(struct socket *sock, struct sockaddr *addr)
+int kernel_getpeername(struct socket *sock, struct sockaddr *addr,
+			 int *addrlen)
 {
-	return sock->ops->getname(sock, addr, 1);
+	return sock->ops->getname(sock, addr, addrlen, 1);
 }
 EXPORT_SYMBOL(kernel_getpeername);
 
