@@ -1976,3 +1976,7 @@ static int __init ipv4_proc_init(void)
 	return 0;
 }
 #endif /* CONFIG_PROC_FS */
+
+/* marlin: inet_current_timestamp impl */
+u32 inet_current_timestamp(void) { return 0; }
+EXPORT_SYMBOL(inet_current_timestamp);

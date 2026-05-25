@@ -204,5 +204,5 @@ static inline bool page_pool_put(struct page_pool *pool)
 }
 
 
-static inline void *page_pool_get(struct rhashtable *ht, void *xa) { return NULL; }
+static inline void *page_pool_get(void *xa) { return NULL; }
 #endif /* _NET_PAGE_POOL_H */

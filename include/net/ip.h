@@ -617,4 +617,6 @@ static inline bool inetdev_valid_mtu(unsigned int mtu)
 
 
 
+
+u32 inet_current_timestamp(void);
 #endif	/* _IP_H */
