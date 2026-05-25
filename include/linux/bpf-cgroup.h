@@ -22,6 +22,15 @@ struct bpf_sock_ops_kern;
 struct bpf_cgroup_storage;
 struct ctl_table;
 struct ctl_table_header;
+/* marlin: literal defensive defines - match bpf.h enum exactly */
+#ifndef MAX_BPF_CGROUP_STORAGE_TYPE
+#define MAX_BPF_CGROUP_STORAGE_TYPE 2
+#define BPF_CGROUP_STORAGE_SHARED 0
+#define BPF_CGROUP_STORAGE_PERCPU 1
+typedef int bpf_cgroup_storage_type_t;
+#endif
+
+
 /* marlin: minimal bpf_cgroup_storage_link def to satisfy ->link by-value embedding */
 struct bpf_cgroup_storage_link {
 	struct list_head list;
