@@ -6,6 +6,9 @@
 #include <linux/module.h>
 #include <linux/uaccess.h>
 
+extern int arm64_bpf_fixup_exception(const struct exception_table_entry *ex, struct pt_regs *regs);
+
+
 int fixup_exception(struct pt_regs *regs)
 {
 	const struct exception_table_entry *fixup;
