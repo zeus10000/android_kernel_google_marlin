@@ -1906,7 +1906,6 @@ struct net_device {
 	/* marlin: v5.x fields appended */
 	struct hlist_head qdisc_hash[16];
 	struct lock_class_key *qdisc_running_key;
-	void (*priv_destructor)(struct net_device *dev);
 };
 #define to_net_dev(d) container_of(d, struct net_device, dev)
 
