@@ -601,8 +601,8 @@ config USB_CONFIGFS_F_CCID
 	  USB CCID function driver creats transport layer between the
 	  userspace CCID component and the Windows Host.
 
-source "drivers/usb/gadget/legacy/Kconfig"
-
 endchoice
+
+source "drivers/usb/gadget/legacy/Kconfig"
 
 endif # USB_GADGET
