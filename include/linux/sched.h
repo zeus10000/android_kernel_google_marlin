@@ -2444,12 +2444,6 @@ static inline gfp_t memalloc_noio_flags(gfp_t flags)
 	return flags;
 }
 
-static inline unsigned int memalloc_noio_save(void)
-{
-	unsigned int flags = current->flags & PF_MEMALLOC_NOIO;
-	current->flags |= PF_MEMALLOC_NOIO;
-	return flags;
-}
 
 
 /* Per-process atomic flags. */
@@ -3018,11 +3012,11 @@ extern void __mmdrop(struct mm_struct *);
 
 
 /* mmput gets rid of the mappings and all user-space */
-extern int mmput(struct mm_struct *);
+/* marlin: removed dup mmput - sched/mm.h has void version */
 /* same as above but performs the slow path from the async kontext. Can
  * be called from the atomic context as well
  */
-extern void mmput_async(struct mm_struct *);
+/* marlin: removed dup mmput_async */
 
 /* Grab a reference to a task's mm, if it is not already going away */
 extern struct mm_struct *get_task_mm(struct task_struct *task);
