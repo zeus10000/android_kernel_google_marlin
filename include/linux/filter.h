@@ -1119,9 +1119,7 @@ struct bpf_sock_ops_kern {
 		u32 args[4];
 		u32 reply;
 		u32 replylong[4];
-		void *skb_data_end; /* marlin: v5 */
-	struct sk_buff *syn_skb; /* marlin: v5 */
-};
+	};
 	u32	is_fullsock;
 	u64	temp;			/* temp and everything after is not
 					 * initialized to 0 before calling
@@ -1132,7 +1130,10 @@ struct bpf_sock_ops_kern {
 					 * sock_ops_convert_ctx_access
 					 * as temporary storage of a register.
 					 */
-	void *skb_data_end; /* marlin: v5 */
+
+	void *skb_data_end;
+	struct sk_buff *syn_skb;
+	/* marlin: v5 */
 };
 
 
