@@ -27,7 +27,6 @@ struct module;
 struct bin_attribute;
 enum kobj_ns_type;
 
-#define _LINUX_SYSFS_STRUCT_ATTRIBUTE_DEFINED
 struct attribute {
 	const char		*name;
 	umode_t			mode;
@@ -37,6 +36,8 @@ struct attribute {
 	struct lock_class_key	skey;
 #endif
 };
+#define _LINUX_SYSFS_STRUCT_ATTRIBUTE_DEFINED
+
 
 /**
  *	sysfs_attr_init - initialize a dynamically allocated sysfs attribute

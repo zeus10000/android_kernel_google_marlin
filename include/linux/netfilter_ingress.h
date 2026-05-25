@@ -28,10 +28,11 @@ static inline int nf_hook_ingress(struct sk_buff *skb)
 	if (unlikely(!e))
 		return 0;
 
-	nf_hook_state_init(&state, NF_NETDEV_INGRESS,
-			   NFPROTO_NETDEV, skb->dev, NULL, NULL,
-			   dev_net(skb->dev), NULL);
-	ret = nf_hook_slow(skb, &state, e, 0);
+	/* marlin: v5.x nf_hook_state_init args */
+	nf_hook_state_init(&state, e, NF_NETDEV_INGRESS,
+			   INT_MIN, NFPROTO_NETDEV, skb->dev,
+			   NULL, NULL, dev_net(skb->dev), NULL);
+	ret = nf_hook_slow(skb, &state);
 	if (ret == 0)
 		return -1;
 

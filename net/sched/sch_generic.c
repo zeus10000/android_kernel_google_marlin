@@ -610,8 +610,7 @@ struct Qdisc *qdisc_alloc(struct netdev_queue *dev_queue,
 			  dev->qdisc_tx_busylock ?: &qdisc_tx_busylock);
 
 	seqcount_init(&sch->running);
-	lockdep_set_class(&sch->running,
-			  dev->qdisc_running_key ?: &qdisc_running_key);
+/* marlin: v5.x qdisc_running_key removed */
 
 	sch->ops = ops;
 	sch->enqueue = ops->enqueue;
@@ -929,8 +928,10 @@ static int qdisc_change_tx_queue_len(struct net_device *dev,
 	struct Qdisc *qdisc = dev_queue->qdisc_sleeping;
 	const struct Qdisc_ops *ops = qdisc->ops;
 
+#if 0 /* marlin: v5.x change_tx_queue_len absent */
 	if (ops->change_tx_queue_len)
 		return ops->change_tx_queue_len(qdisc, dev->tx_queue_len);
+#endif
 	return 0;
 }
 

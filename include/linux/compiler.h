@@ -240,7 +240,7 @@ unsigned long read_word_at_a_time(const void *addr)
 #define WRITE_ONCE(x, val) \
 ({							\
 	union { typeof(x) __val; char __c[1]; } __u =	\
-		{ .__val = (__force typeof(x)) (val) }; \
+		{ .__val = (val) }; \
 	__write_once_size(&(x), __u.__c, sizeof(x));	\
 	__u.__val;					\
 })

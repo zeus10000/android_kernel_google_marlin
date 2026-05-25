@@ -23,6 +23,17 @@
 #include <net/busy_poll.h>
 #include <net/pkt_sched.h>
 
+/* marlin: sysctl/bpf_jit_limit stubs */
+#ifndef SYSCTL_ONE
+static int sysctl_one_val = 1;
+#define SYSCTL_ONE (&sysctl_one_val)
+#endif
+#ifndef SYSCTL_ZERO
+static int sysctl_zero_val;
+#define SYSCTL_ZERO (&sysctl_zero_val)
+#endif
+extern int bpf_jit_limit __attribute__((weak));
+
 static int zero = 0;
 static int one = 1;
 static int two __maybe_unused = 2;
