@@ -1,4 +1,14 @@
 // SPDX-License-Identifier: GPL-2.0-only
+
+/* marlin: EPOLL* defines */
+#define EPOLLIN POLLIN
+#define EPOLLPRI POLLPRI
+#define EPOLLERR POLLERR
+#define EPOLLHUP POLLHUP
+#define EPOLLNVAL POLLNVAL
+#define EPOLLRDNORM POLLRDNORM
+#define EPOLLRDBAND POLLRDBAND
+#define EPOLLWRNORM POLLWRNORM
 /*
  *  linux/kernel/printk.c
  *
@@ -22,7 +32,6 @@
 #include <linux/tty.h>
 #include <linux/tty_driver.h>
 #include <linux/console.h>
-#include <linux/eventpoll.h>
 #include <linux/init.h>
 #include <linux/jiffies.h>
 #include <linux/nmi.h>

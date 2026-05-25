@@ -1,4 +1,14 @@
 // SPDX-License-Identifier: GPL-2.0-only
+
+/* marlin: EPOLL* defines */
+#define EPOLLIN POLLIN
+#define EPOLLPRI POLLPRI
+#define EPOLLERR POLLERR
+#define EPOLLHUP POLLHUP
+#define EPOLLNVAL POLLNVAL
+#define EPOLLRDNORM POLLRDNORM
+#define EPOLLRDBAND POLLRDBAND
+#define EPOLLWRNORM POLLWRNORM
 /*
  *  linux/mm/swapfile.c
  *
@@ -6,7 +16,6 @@
  *  Swap reorganised 29.12.95, Stephen Tweedie
  */
 
-#include <linux/eventpoll.h>
 #include <linux/mm.h>
 #include <linux/hugetlb.h>
 #include <linux/mman.h>

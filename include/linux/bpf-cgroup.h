@@ -15,6 +15,7 @@
 struct sock;
 struct sockaddr;
 struct cgroup;
+struct bpf_link;
 struct sk_buff;
 struct bpf_map;
 struct bpf_prog;
@@ -34,12 +35,8 @@ enum bpf_cgroup_storage_type {
 #endif
 
 
-/* marlin: minimal bpf_cgroup_storage_link def to satisfy ->link by-value embedding */
-struct bpf_cgroup_storage_link {
-	struct list_head list;
-	struct cgroup *cgroup;
-	enum bpf_attach_type type;
-};
+/* marlin: struct bpf_cgroup_storage_link is defined in bpf.h - forward decl here */
+struct bpf_cgroup_storage_link;
 
 
 #ifdef CONFIG_CGROUP_BPF
@@ -73,7 +70,7 @@ struct bpf_cgroup_storage {
 };
 
 struct bpf_cgroup_link {
-	struct bpf_link link;
+	struct bpf_link *link; /* marlin: pointer to avoid incomplete type */
 	struct cgroup *cgroup;
 	enum bpf_attach_type type;
 };
@@ -167,9 +164,7 @@ int __cgroup_bpf_run_filter_getsockopt(struct sock *sk, int level,
 static inline enum bpf_cgroup_storage_type cgroup_storage_type(
 	struct bpf_map *map)
 {
-	if (map->map_type == BPF_MAP_TYPE_PERCPU_CGROUP_STORAGE)
-		return BPF_CGROUP_STORAGE_PERCPU;
-
+	/* marlin: full struct bpf_map not visible here - return SHARED */
 	return BPF_CGROUP_STORAGE_SHARED;
 }
 

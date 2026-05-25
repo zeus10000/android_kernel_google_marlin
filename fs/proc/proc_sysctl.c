@@ -1,8 +1,17 @@
 // SPDX-License-Identifier: GPL-2.0
+
+/* marlin: EPOLL* defines */
+#define EPOLLIN POLLIN
+#define EPOLLPRI POLLPRI
+#define EPOLLERR POLLERR
+#define EPOLLHUP POLLHUP
+#define EPOLLNVAL POLLNVAL
+#define EPOLLRDNORM POLLRDNORM
+#define EPOLLRDBAND POLLRDBAND
+#define EPOLLWRNORM POLLWRNORM
 /*
  * /proc/sys support
  */
-#include <linux/eventpoll.h>
 #include <linux/init.h>
 #include <linux/sysctl.h>
 #include <linux/poll.h>

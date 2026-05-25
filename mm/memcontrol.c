@@ -31,6 +31,7 @@
  * GNU General Public License for more details.
  */
 
+#include <linux/sched/task.h>
 #include <linux/page_counter.h>
 #include <linux/memcontrol.h>
 #include <linux/cgroup.h>
