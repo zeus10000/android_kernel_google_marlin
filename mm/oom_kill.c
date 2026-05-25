@@ -18,6 +18,7 @@
  *  kernel subsystems and hints as to where to find out what things do.
  */
 
+#include <linux/sched/mm.h>
 #include <linux/oom.h>
 #include <linux/mm.h>
 #include <linux/err.h>

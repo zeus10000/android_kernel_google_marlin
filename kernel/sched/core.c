@@ -27,6 +27,7 @@
  *              Thomas Gleixner, Mike Kravetz
  */
 
+#include <linux/sched/mm.h>
 #include <linux/kasan.h>
 #include <linux/mm.h>
 #include <linux/module.h>
