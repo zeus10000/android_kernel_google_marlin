@@ -1152,4 +1152,26 @@ extern void *bpf_trampoline_lookup(u64 key);
 struct bpf_sysctl_kern { int dummy; };
 struct bpf_sockopt_kern { int dummy; };
 struct bpf_sk_lookup_kern { int dummy; };
+
+/* marlin: bpf_sk_lookup_kern stub */
+struct bpf_sk_lookup_kern {
+	u16 family;
+	u16 protocol;
+	__be16 sport;
+	__be16 dport;
+	struct {
+		__be32 saddr;
+		__be32 daddr;
+	} v4;
+	struct {
+		const struct in6_addr *saddr;
+		const struct in6_addr *daddr;
+	} v6;
+	struct sock *selected_sk;
+	u32 ingress_ifindex;
+};
+
+/* marlin: v5 BPF stubs */
+static inline int copy_bpf_fprog_from_user(struct sock_fprog *dst, void __user *src, int len) { return -EINVAL; }
+static inline void bpf_compute_data_end_sk_skb(struct sk_buff *skb) { }
 #endif /* __LINUX_FILTER_H__ */
