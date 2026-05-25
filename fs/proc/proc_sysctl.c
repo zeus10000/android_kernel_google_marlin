@@ -2,6 +2,7 @@
 /*
  * /proc/sys support
  */
+#include <linux/eventpoll.h>
 #include <linux/init.h>
 #include <linux/sysctl.h>
 #include <linux/poll.h>

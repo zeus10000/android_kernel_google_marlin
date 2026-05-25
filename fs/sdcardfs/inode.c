@@ -18,6 +18,7 @@
  * General Public License.
  */
 
+#include <linux/sched/task.h>
 #include "sdcardfs.h"
 #include <linux/fs_struct.h>
 #include <linux/ratelimit.h>
