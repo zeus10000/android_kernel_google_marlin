@@ -548,6 +548,8 @@ struct bpf_redirect_info {
 	struct bpf_map *map;
 	struct bpf_map *map_to_flush;
 	u32 kern_flags;
+	u32 tgt_index;
+	void *tgt_value; /* marlin: v5 */
 };
 
 DECLARE_PER_CPU(struct bpf_redirect_info, bpf_redirect_info);
