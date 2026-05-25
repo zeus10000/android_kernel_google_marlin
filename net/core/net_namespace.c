@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-only
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
+#include <linux/sched/mm.h>
+#include <linux/sched/task.h>
 #include <linux/workqueue.h>
 #include <linux/rtnetlink.h>
 #include <linux/cache.h>
@@ -228,7 +230,7 @@ static void rtnl_net_notifyid(struct net *net, int cmd, int id);
 /* This function returns the id of a peer netns. If no id is assigned, one will
  * be allocated and returned.
  */
-int peernet2id_alloc(struct net *net, struct net *peer)
+int peernet2id_alloc(struct net *net, struct net *peer, gfp_t gfp)
 {
 	unsigned long flags;
 	bool alloc;

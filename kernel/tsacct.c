@@ -16,6 +16,8 @@
  *
  */
 
+#include <linux/sched/mm.h>
+#include <linux/sched/task.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/tsacct_kern.h>

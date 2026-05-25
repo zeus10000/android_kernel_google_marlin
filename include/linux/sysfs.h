@@ -27,6 +27,7 @@ struct module;
 struct bin_attribute;
 enum kobj_ns_type;
 
+#define _LINUX_SYSFS_STRUCT_ATTRIBUTE_DEFINED
 struct attribute {
 	const char		*name;
 	umode_t			mode;
