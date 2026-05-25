@@ -790,4 +790,9 @@ static inline void put_cgroup_ns(struct cgroup_namespace *ns)
 		free_cgroup_ns(ns);
 }
 
+
+/* marlin: v5.x stubs */
+static inline void cgroup_release(struct task_struct *task) {}
+static inline u64 cgroup_id(struct cgroup *cgrp) { return 0; }
+
 #endif /* _LINUX_CGROUP_H */
