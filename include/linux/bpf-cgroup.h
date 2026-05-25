@@ -22,9 +22,15 @@ struct bpf_sock_ops_kern;
 struct bpf_cgroup_storage;
 struct ctl_table;
 struct ctl_table_header;
-/* marlin: literal defensive define for array sizing only */
-#ifndef MAX_BPF_CGROUP_STORAGE_TYPE
-#define MAX_BPF_CGROUP_STORAGE_TYPE 2
+/* marlin: defensive enum + MAX define for early include path */
+#ifndef _MARLIN_BPF_CGROUP_STORAGE_ENUM
+#define _MARLIN_BPF_CGROUP_STORAGE_ENUM
+enum bpf_cgroup_storage_type {
+	BPF_CGROUP_STORAGE_SHARED,
+	BPF_CGROUP_STORAGE_PERCPU,
+	__BPF_CGROUP_STORAGE_MAX
+};
+#define MAX_BPF_CGROUP_STORAGE_TYPE __BPF_CGROUP_STORAGE_MAX
 #endif
 
 

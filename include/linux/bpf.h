@@ -483,6 +483,8 @@ struct bpf_prog_offload {
 	u32			jited_len;
 };
 
+#ifndef _MARLIN_BPF_CGROUP_STORAGE_ENUM
+#define _MARLIN_BPF_CGROUP_STORAGE_ENUM
 enum bpf_cgroup_storage_type {
 	BPF_CGROUP_STORAGE_SHARED,
 	BPF_CGROUP_STORAGE_PERCPU,
@@ -490,6 +492,7 @@ enum bpf_cgroup_storage_type {
 };
 
 #define MAX_BPF_CGROUP_STORAGE_TYPE __BPF_CGROUP_STORAGE_MAX
+#endif
 
 /* The longest tracepoint has 12 args.
  * See include/trace/bpf_probe.h
