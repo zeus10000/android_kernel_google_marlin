@@ -1944,9 +1944,9 @@ static inline int tcp_sock_set_keepidle_locked(struct sock *sk, int val)
 {
 	return -EOPNOTSUPP; /* marlin stub */
 }
-static inline int tcp_saved_syn_len(const struct saved_syn *saved_syn)
+static inline int tcp_saved_syn_len(const u8 *saved_syn)
 {
-	return saved_syn ? saved_syn->tcp_hdrlen : 0;
+	return saved_syn ? *(u32 *)saved_syn : 0;
 }
 
 /* marlin: v5 TCP stubs */

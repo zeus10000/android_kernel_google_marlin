@@ -4562,9 +4562,9 @@ static int _bpf_getsockopt(struct sock *sk, int level, int optname,
 			tp = tcp_sk(sk);
 
 			if (optlen <= 0 || !tp->saved_syn ||
-			    optlen > tcp_saved_syn_len(tp->saved_syn))
+			    optlen > tcp_saved_syn_len((u8 *)tp->saved_syn))
 				goto err_clear;
-			memcpy(optval, tp->saved_syn->data, optlen);
+			memcpy(optval, ((struct saved_syn *)tp->saved_syn)->data, optlen);
 			break;
 		default:
 			goto err_clear;

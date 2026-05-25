@@ -367,7 +367,7 @@ struct tcp_sock {
 	 * socket. Used to retransmit SYNACKs etc.
 	 */
 	struct request_sock *fastopen_rsk;
-	struct saved_syn *saved_syn; /* marlin: v5 */
+	u32	*saved_syn;
 };
 
 enum tsq_flags {
