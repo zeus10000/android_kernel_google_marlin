@@ -605,7 +605,6 @@ struct cgroup_subsys {
 	 * anytime and thus must be okay with offline csses from previous
 	 * hierarchies coexisting with csses for the current one.
 	 */
-	bool implicit_on_dfl:1;
 
 	/*
 	 * If %true, the controller, on the default hierarchy, doesn't show

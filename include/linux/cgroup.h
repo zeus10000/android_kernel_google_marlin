@@ -568,7 +568,7 @@ static inline bool cgroup_is_descendant(struct cgroup *cgrp,
 {
 	if (cgrp->root != ancestor->root || cgrp->level < ancestor->level)
 		return false;
-	return cgrp->ancestor_ids[ancestor->level] == ancestor->id;
+	return cgrp->ancestor_ids[ancestor->level] == cgroup_id(ancestor);
 }
 
 /**
