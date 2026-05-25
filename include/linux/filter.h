@@ -1128,4 +1128,9 @@ struct bpf_sock_ops_kern {
 };
 
 
+
+/* marlin: v5.x BPF macros */
+#define BPF_JMP32_REG(OP, DST, SRC, OFF) BPF_JMP_REG(OP, DST, SRC, OFF)
+#define BPF_ZEXT_REG(REG) ((struct bpf_insn){0})
+#define BPF_IMAGE_ALIGNMENT 8
 #endif /* __LINUX_FILTER_H__ */

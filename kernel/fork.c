@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  *  linux/kernel/fork.c
  *
@@ -85,7 +84,7 @@
 
 #include <asm/pgtable.h>
 #include <asm/pgalloc.h>
-#include <linux/uaccess.h>
+#include <asm/uaccess.h>
 #include <asm/mmu_context.h>
 #include <asm/cacheflush.h>
 #include <asm/tlbflush.h>
@@ -413,8 +412,7 @@ free_tsk:
 }
 
 #ifdef CONFIG_MMU
-static __latent_entropy int dup_mmap(struct mm_struct *mm,
-					struct mm_struct *oldmm)
+static int dup_mmap(struct mm_struct *mm, struct mm_struct *oldmm)
 {
 	struct vm_area_struct *mpnt, *tmp, *prev, **pprev;
 	struct rb_node **rb_link, *rb_parent;
@@ -904,9 +902,7 @@ static int wait_for_vfork_done(struct task_struct *child,
 	int killed;
 
 	freezer_do_not_count();
-	cgroup_enter_frozen();
 	killed = wait_for_completion_killable(vfork);
-	cgroup_leave_frozen(false);
 	freezer_count();
 
 	if (killed) {
@@ -1392,8 +1388,7 @@ static int pidfd_create(struct pid *pid)
  * parts of the process environment (as per the clone
  * flags). The actual kick-off is left to the caller.
  */
-static __latent_entropy struct task_struct *copy_process(
-					unsigned long clone_flags,
+static struct task_struct *copy_process(unsigned long clone_flags,
 					unsigned long stack_start,
 					unsigned long stack_size,
 					int __user *parent_tidptr,

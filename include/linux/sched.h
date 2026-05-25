@@ -3725,4 +3725,8 @@ static inline void mmap_read_unlock_non_owner(struct mm_struct *mm)
 	up_read(&mm->mmap_sem);
 }
 #endif
+
+/* marlin: v5.x stub current_restore_flags */
+static inline void current_restore_flags(unsigned long orig_flags, unsigned long flags) { current->flags = (current->flags & ~flags) | (orig_flags & flags); }
+
 #endif /* __ASSEMBLY__ */
