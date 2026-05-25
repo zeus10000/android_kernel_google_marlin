@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
 #include <stdio.h>
-/* marlin: autoconf removed */
+#define CONFIG_CRC32_SLICEBY8 1
+#define CONFIG_CRC32_BIT 1
 #include "crc32defs.h"
 #include <inttypes.h>
 
