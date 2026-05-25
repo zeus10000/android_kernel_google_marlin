@@ -52,6 +52,7 @@ struct stack_info {
  */
 struct stackframe {
 	unsigned long fp;
+	unsigned long sp; /* marlin: v4.4 alias */
 	unsigned long pc;
 	DECLARE_BITMAP(stacks_done, __NR_STACK_TYPES);
 	unsigned long prev_fp;

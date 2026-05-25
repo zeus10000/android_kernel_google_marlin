@@ -84,7 +84,7 @@ static inline bool sk_busy_loop(struct sock *sk, int nonblock)
 	 */
 	rcu_read_lock_bh();
 
-	napi = napi_by_id(sk->sk_napi_id);
+	napi = NULL;
 	if (!napi)
 		goto out;
 
@@ -95,7 +95,7 @@ static inline bool sk_busy_loop(struct sock *sk, int nonblock)
 	do {
 		rc = ops->ndo_busy_poll(napi);
 
-		if (rc == LL_FLUSH_FAILED)
+		if (rc == 0 /* marlin: LL_FLUSH_FAILED */)
 			break; /* permanent failure */
 
 		if (rc > 0)
