@@ -361,4 +361,6 @@ static inline void              fib6_rules_cleanup(void)
 	return ;
 }
 #endif
+
+static inline int call_fib6_entry_notifiers(struct net *net, int event, struct fib6_info *rt, struct netlink_ext_ack *extack) { return 0; }
 #endif

@@ -303,7 +303,7 @@ static inline struct sock *__inet_lookup(struct net *net,
 					 struct sk_buff *skb, int doff,
 					 const __be32 saddr, const __be16 sport,
 					 const __be32 daddr, const __be16 dport,
-					 const int dif,
+					 const int dif, const int sdif,
 					 bool *refcounted)
 {
 	u16 hnum = ntohs(dport);
@@ -325,7 +325,7 @@ static inline struct sock *inet_lookup(struct net *net,
 
 	local_bh_disable();
 	sk = __inet_lookup(net, hashinfo, skb, doff, saddr, sport, daddr,
-			   dport, dif, NULL);
+			   dport, dif, 0, NULL);
 	local_bh_enable();
 
 	return sk;
@@ -345,7 +345,7 @@ static inline struct sock *__inet_lookup_skb(struct inet_hashinfo *hashinfo,
 	else
 		return __inet_lookup(dev_net(skb_dst(skb)->dev), hashinfo, skb,
 				     doff, iph->saddr, sport,
-				     iph->daddr, dport, inet_iif(skb), NULL);
+				     iph->daddr, dport, inet_iif(skb), 0, NULL);
 }
 
 u32 sk_ehashfn(const struct sock *sk);
