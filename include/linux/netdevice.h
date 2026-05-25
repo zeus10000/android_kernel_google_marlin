@@ -4352,4 +4352,6 @@ extern int dev_tx_weight;
 
 /* marlin: skb_gro_flush_final stub */
 static inline void skb_gro_flush_final(struct sk_buff *skb, struct sk_buff *pp, int flush) { }
+
+static inline bool netif_testing(const struct net_device *dev) { return false; } /* marlin: netif_testing stub */
 #endif	/* _LINUX_NETDEVICE_H */

@@ -121,4 +121,7 @@ void twsk_net_set(struct inet_timewait_sock *twsk, struct net *net)
 {
 	write_pnet(&twsk->tw_net, net);
 }
+
+/* marlin: inet_timewait_death_row stub */
+struct inet_timewait_death_row { int dummy; };
 #endif	/* _INET_TIMEWAIT_SOCK_ */

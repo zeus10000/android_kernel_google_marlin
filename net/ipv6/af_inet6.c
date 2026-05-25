@@ -67,6 +67,17 @@
 
 #include "ip6_offload.h"
 
+/* marlin: fib6 stubs */
+static int fib6_table_lookup(struct net *net, struct fib6_table *table, int oif, struct flowi6 *fl6, struct fib6_result *res, int flags) { return -ENOENT; }
+static void fib6_select_path(const struct net *net, struct fib6_result *res, struct flowi6 *fl6, int oif, bool have_oif_match, const struct sk_buff *skb, int strict) { }
+static u32 ip6_mtu_from_fib6(const struct fib6_result *res, const struct in6_addr *daddr, const struct in6_addr *saddr) { return 1500; }
+static int fib6_nh_init(struct net *net, struct fib6_nh *fib6_nh, struct fib6_config *cfg, gfp_t gfp_flags, struct netlink_ext_ack *extack) { return -ENOTSUPP; }
+static void fib6_nh_release(struct fib6_nh *fib6_nh) { }
+static int fib6_update_sernum_stub(struct net *net, struct fib6_info *f6i) { return 0; }
+static int fib6_rt_update(struct net *net, struct fib6_info *f6i, struct nl_info *info) { return 0; }
+static int seg6_init(void) { return 0; }
+static void seg6_exit(void) { }
+
 MODULE_AUTHOR("Cast of dozens");
 MODULE_DESCRIPTION("IPv6 protocol stack for Linux");
 MODULE_LICENSE("GPL");
