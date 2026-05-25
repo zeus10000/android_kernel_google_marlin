@@ -1,3 +1,11 @@
+
+/* marlin: v5 constants/macros */
+#ifndef GRO_HASH_BUCKETS
+#define GRO_HASH_BUCKETS 8
+#endif
+#ifndef IFF_LIVE_RENAME_OK
+#define IFF_LIVE_RENAME_OK 0
+#endif
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 /*
  * INET		An implementation of the TCP/IP protocol suite for the LINUX
@@ -1629,10 +1637,21 @@ enum netdev_priv_flags {
  *	moves out.
  */
 
-/* marlin: v5.x forward decls for fields referenced via macros */
-struct dev_ifalias;
-struct netdev_name_node;
-struct netdev_net_notifier;
+/* marlin: v5.x full stub structs for fields referenced via macros */
+struct dev_ifalias {
+	struct rcu_head rcuhead;
+	char ifalias[];
+};
+struct netdev_name_node {
+	struct hlist_node hlist;
+	struct list_head list;
+	struct net_device *dev;
+	const char *name;
+};
+struct netdev_net_notifier {
+	struct list_head list;
+	struct notifier_block *nb;
+};
 
 struct net_device {
 	char			name[IFNAMSIZ];
@@ -1912,6 +1931,9 @@ struct net_device {
 	/* marlin: v5.x fields appended */
 	struct hlist_head qdisc_hash[16];
 	struct lock_class_key *qdisc_running_key;
+	struct lock_class_key *addr_list_lock_key;
+	struct netdev_name_node *name_node;
+	void *xdp_bulkq;
 };
 #define to_net_dev(d) container_of(d, struct net_device, dev)
 
@@ -4566,4 +4588,7 @@ do {								\
 
 void generic_xdp_tx(struct sk_buff *skb, struct bpf_prog *xdp_prog);
 
+
+/* marlin: netdev_change_owner stub */
+static inline int netdev_change_owner(struct net_device *ndev, const struct net *net_old, const struct net *net_new) { return 0; }
 #endif	/* _LINUX_NETDEVICE_H */
