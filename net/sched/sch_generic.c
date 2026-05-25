@@ -929,8 +929,10 @@ static int qdisc_change_tx_queue_len(struct net_device *dev,
 	const struct Qdisc_ops *ops = qdisc->ops;
 
 #if 0 /* marlin: v5.x change_tx_queue_len absent */
+#if 0 /* marlin: v5.x change_tx_queue_len absent */
 	if (ops->change_tx_queue_len)
 		return ops->change_tx_queue_len(qdisc, dev->tx_queue_len);
+#endif
 #endif
 	return 0;
 }
