@@ -71,12 +71,6 @@ extern struct dentry_stat_t dentry_stat;
 /* Hash courtesy of the R5 hash in reiserfs modulo sign bits */
 
 /* partial hash update function. Assume roughly 4 bits per character */
-static inline unsigned long
-partial_name_hash(unsigned long c, unsigned long prevhash)
-{
-	return (prevhash + (c << 4) + (c >> 4)) * 11;
-}
-
 /*
  * Finally: cut down the number of bits to a int value (and try to avoid
  * losing bits)
