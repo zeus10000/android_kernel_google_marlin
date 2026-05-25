@@ -39,7 +39,6 @@
 #define EPOLLWRBAND	0x00000200
 #define EPOLLMSG	0x00000400
 #define EPOLLRDHUP	0x00002000
-#define EPOLLNVAL	0x00000020	/* marlin: align with POLLNVAL */
 
 /* Set exclusive wakeup mode for the target file descriptor */
 #define EPOLLEXCLUSIVE (1U << 28)

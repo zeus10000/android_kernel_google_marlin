@@ -23,6 +23,14 @@
 #include <net/busy_poll.h>
 #include <net/pkt_sched.h>
 
+/* marlin: v5 net core sysctl globals */
+int dev_rx_weight __read_mostly = 64;
+int dev_weight_rx_bias __read_mostly = 1;
+int dev_weight_tx_bias __read_mostly = 1;
+int netdev_budget_usecs __read_mostly = 2000;
+int gro_normal_batch __read_mostly = 8;
+int rfs_needed __read_mostly = 0;
+
 /* marlin: sysctl/bpf_jit_limit stubs */
 #ifndef SYSCTL_ONE
 static int sysctl_one_val = 1;

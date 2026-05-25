@@ -16,6 +16,7 @@
  *
  */
 
+#include <linux/sched/task.h>
 #include <linux/cpu.h>
 #include <linux/cpumask.h>
 #include <linux/cpufreq.h>
