@@ -1134,6 +1134,9 @@ struct bpf_sock_ops_kern {
 	void *skb_data_end;
 	struct sk_buff *syn_skb;
 	/* marlin: v5 */
+
+	u8 remaining_opt_len;
+	/* marlin: more v5 fields */
 };
 
 
@@ -1179,4 +1182,6 @@ struct bpf_sk_lookup_kern {
 /* marlin: v5 BPF stubs */
 static inline int copy_bpf_fprog_from_user(struct sock_fprog *dst, void __user *src, int len) { return -EINVAL; }
 static inline void bpf_compute_data_end_sk_skb(struct sk_buff *skb) { }
+
+#define bpf_ctx_range_ptr(TYPE, MEMBER) bpf_ctx_range(TYPE, MEMBER) /* marlin: v5 alias */
 #endif /* __LINUX_FILTER_H__ */

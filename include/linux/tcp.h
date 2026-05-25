@@ -14,6 +14,7 @@
 #define _LINUX_TCP_H
 
 
+#include <linux/win_minmax.h>
 #include <linux/skbuff.h>
 #include <net/sock.h>
 #include <net/inet_connection_sock.h>
