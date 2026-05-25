@@ -784,7 +784,10 @@ static struct kernfs_node *kernfs_find_ns(struct kernfs_node *parent,
 					  const unsigned char *name,
 					  const void *ns)
 {
-	struct rb_node *node = parent->dir.children.rb_node;
+	struct rb_node *node;
+	if (!parent || kernfs_type(parent) != KERNFS_DIR)
+		return NULL;
+	node = parent->dir.children.rb_node;
 	bool has_ns = kernfs_ns_enabled(parent);
 	unsigned int hash;
 
