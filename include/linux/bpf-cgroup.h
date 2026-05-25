@@ -2,6 +2,11 @@
 #ifndef _BPF_CGROUP_H
 #define _BPF_CGROUP_H
 
+/* marlin: defensive */
+#ifndef MAX_BPF_CGROUP_STORAGE_TYPE
+#define MAX_BPF_CGROUP_STORAGE_TYPE 2
+#endif
+
 #include <linux/bpf.h>
 #include <linux/errno.h>
 #include <linux/jump_label.h>
@@ -380,3 +385,6 @@ static inline int bpf_percpu_cgroup_storage_update(struct bpf_map *map,
 #endif /* CONFIG_CGROUP_BPF */
 
 #endif /* _BPF_CGROUP_H */
+
+/* marlin: stub */
+static inline int cgroup_bpf_link_attach(void *attr, struct bpf_prog *prog) { return -EINVAL; }
