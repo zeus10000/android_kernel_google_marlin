@@ -209,8 +209,15 @@ static int klist_dec_and_del(struct klist_node *n)
 
 static void klist_put(struct klist_node *n, bool kill)
 {
-	struct klist *k = knode_klist(n);
-	void (*put)(struct klist_node *) = k->put;
+	struct klist *k;
+	void (*put)(struct klist_node *);
+
+	if (!n)
+		return;
+	k = knode_klist(n);
+	if (!k)
+		return;
+	put = k->put;
 
 	spin_lock(&k->k_lock);
 	if (kill)
