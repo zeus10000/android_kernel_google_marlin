@@ -598,10 +598,6 @@ static const struct btf_var *btf_type_var(const struct btf_type *t)
 	return (const struct btf_var *)(t + 1);
 }
 
-static const struct btf_var_secinfo *btf_type_var_secinfo(const struct btf_type *t)
-{
-	return (const struct btf_var_secinfo *)(t + 1);
-}
 
 static const struct btf_kind_operations *btf_type_ops(const struct btf_type *t)
 {
