@@ -309,7 +309,7 @@ struct kernfs_node *kernfs_get_parent(struct kernfs_node *kn)
  */
 static unsigned int kernfs_name_hash(const char *name, const void *ns)
 {
-	unsigned long hash = init_name_hash();
+	unsigned long hash = init_name_hash(0);
 	unsigned int len = strlen(name);
 	while (len--)
 		hash = partial_name_hash(*name++, hash);

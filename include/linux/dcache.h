@@ -68,7 +68,6 @@ extern struct dentry_stat_t dentry_stat;
 
 /* Name hashing routines. Initial hash value */
 /* Hash courtesy of the R5 hash in reiserfs modulo sign bits */
-#define init_name_hash()		0
 
 /* partial hash update function. Assume roughly 4 bits per character */
 static inline unsigned long
@@ -87,7 +86,6 @@ static inline unsigned long end_name_hash(unsigned long hash)
 }
 
 /* Compute the hash for a name string. */
-extern unsigned int full_name_hash(const unsigned char *, unsigned int);
 
 /*
  * Try to keep struct dentry aligned on 64 byte cachelines (this will
