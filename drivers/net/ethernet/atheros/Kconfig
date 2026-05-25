@@ -7,7 +7,7 @@ config NET_VENDOR_ATHEROS
 	bool "Atheros devices"
 	default y
 	depends on PCI
-	---help---
+	help
 	  If you have a network (Ethernet) card belonging to this class, say Y.
 
 	  Note that the answer to this question doesn't directly affect the
@@ -22,7 +22,7 @@ config ATL2
 	depends on PCI
 	select CRC32
 	select MII
-	---help---
+	help
 	  This driver supports the Atheros L2 fast ethernet adapter.
 
 	  To compile this driver as a module, choose M here.  The module
@@ -33,7 +33,7 @@ config ATL1
 	depends on PCI
 	select CRC32
 	select MII
-	---help---
+	help
 	  This driver supports the Atheros/Attansic L1 gigabit ethernet
 	  adapter.
 
@@ -45,7 +45,7 @@ config ATL1E
 	depends on PCI
 	select CRC32
 	select MII
-	---help---
+	help
 	  This driver supports the Atheros L1E gigabit ethernet adapter.
 
 	  To compile this driver as a module, choose M here.  The module
@@ -56,7 +56,7 @@ config ATL1C
 	depends on PCI
 	select CRC32
 	select MII
-	---help---
+	help
 	  This driver supports the Atheros L1C gigabit ethernet adapter.
 
 	  To compile this driver as a module, choose M here.  The module
