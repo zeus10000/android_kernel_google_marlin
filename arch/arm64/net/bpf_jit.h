@@ -206,3 +206,14 @@
 #define A64_BTI_JC A64_HINT(AARCH64_INSN_HINT_BTIJC)
 
 #endif /* _BPF_JIT_H */
+/* marlin: v5.x immediate variant macros - stubs */
+#define A64_AND_I(sf, Rd, Rn, imm) A64_AND(sf, Rd, Rn, Rn)
+#define A64_ORR_I(sf, Rd, Rn, imm) A64_ORR(sf, Rd, Rn, Rn)
+#define A64_EOR_I(sf, Rd, Rn, imm) A64_EOR(sf, Rd, Rn, Rn)
+#define A64_TST_I(sf, Rn, imm)     A64_TST(sf, Rn, Rn)
+
+#define AARCH64_INSN_HINT_BTIC AARCH64_INSN_HINT_NOP
+#define AARCH64_INSN_HINT_BTIJ AARCH64_INSN_HINT_NOP
+
+#define BPF_PROBE_MEM 0xc0  /* marlin: v5.x BPF_PROBE_MEM stub */
+
