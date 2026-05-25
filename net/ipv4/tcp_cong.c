@@ -337,7 +337,7 @@ out:
 }
 
 /* Change congestion control for socket */
-int tcp_set_congestion_control(struct sock *sk, const char *name)
+int tcp_set_congestion_control(struct sock *sk, const char *name, bool load, bool reinit)
 {
 	struct inet_connection_sock *icsk = inet_csk(sk);
 	const struct tcp_congestion_ops *ca;

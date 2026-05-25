@@ -129,4 +129,6 @@ struct inet_timewait_death_row {
 	atomic_t tw_count;
 	int sysctl_max_tw_buckets;
 };
+
+extern struct inet_timewait_death_row tcp_death_row;
 #endif	/* _INET_TIMEWAIT_SOCK_ */

@@ -991,7 +991,7 @@ void tcp_get_default_congestion_control(char *name);
 void tcp_get_available_congestion_control(char *buf, size_t len);
 void tcp_get_allowed_congestion_control(char *buf, size_t len);
 int tcp_set_allowed_congestion_control(char *allowed);
-int tcp_set_congestion_control(struct sock *sk, const char *name);
+int tcp_set_congestion_control(struct sock *sk, const char *name, bool load, bool reinit);
 u32 tcp_slow_start(struct tcp_sock *tp, u32 acked);
 void tcp_cong_avoid_ai(struct tcp_sock *tp, u32 w, u32 acked);
 
@@ -1954,6 +1954,8 @@ static inline int inet_set_rcvlowat(struct sock *sk, int val) { return -EINVAL; 
 
 static inline int tcp_inq(struct sock *sk) { return 0; }
 
+
+static inline int tcp_fastopen_defer_connect(struct sock *sk, int *err) { *err = -EOPNOTSUPP; return 0; }
 #endif	/* _TCP_H */
 
 #define MODULE_ALIAS_TCP_ULP(name)				\

@@ -303,7 +303,8 @@ static inline struct sock *__inet_lookup(struct net *net,
 					 struct sk_buff *skb, int doff,
 					 const __be32 saddr, const __be16 sport,
 					 const __be32 daddr, const __be16 dport,
-					 const int dif)
+					 const int dif,
+					 bool *refcounted)
 {
 	u16 hnum = ntohs(dport);
 	struct sock *sk = __inet_lookup_established(net, hashinfo,

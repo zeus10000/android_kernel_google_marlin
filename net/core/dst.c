@@ -273,7 +273,7 @@ struct metadata_dst *metadata_dst_alloc(u8 optslen, gfp_t flags)
 }
 EXPORT_SYMBOL_GPL(metadata_dst_alloc);
 
-struct metadata_dst __percpu *metadata_dst_alloc_percpu(u8 optslen, gfp_t flags)
+struct metadata_dst __percpu *metadata_dst_alloc_percpu(u8 optslen, enum metadata_type type, gfp_t flags)
 {
 	int cpu;
 	struct metadata_dst __percpu *md_dst;
