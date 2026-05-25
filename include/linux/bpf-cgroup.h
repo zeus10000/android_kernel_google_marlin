@@ -12,20 +12,6 @@
 
 
 
-/* marlin: defensive cgroup storage type defs in case bpf.h is not yet fully loaded */
-#ifndef MAX_BPF_CGROUP_STORAGE_TYPE
-enum bpf_cgroup_storage_type_marlin {
-	BPF_CGROUP_STORAGE_SHARED_M = 0,
-	BPF_CGROUP_STORAGE_PERCPU_M,
-	__BPF_CGROUP_STORAGE_MAX_M
-};
-#define BPF_CGROUP_STORAGE_SHARED BPF_CGROUP_STORAGE_SHARED_M
-#define BPF_CGROUP_STORAGE_PERCPU BPF_CGROUP_STORAGE_PERCPU_M
-#define MAX_BPF_CGROUP_STORAGE_TYPE __BPF_CGROUP_STORAGE_MAX_M
-typedef enum bpf_cgroup_storage_type_marlin bpf_cgroup_storage_type_t;
-#define enum_bpf_cgroup_storage_type enum bpf_cgroup_storage_type_marlin
-#endif
-
 struct sock;
 struct sockaddr;
 struct cgroup;
@@ -36,6 +22,13 @@ struct bpf_sock_ops_kern;
 struct bpf_cgroup_storage;
 struct ctl_table;
 struct ctl_table_header;
+/* marlin: minimal bpf_cgroup_storage_link def to satisfy ->link by-value embedding */
+struct bpf_cgroup_storage_link {
+	struct list_head list;
+	struct cgroup *cgroup;
+	enum bpf_attach_type type;
+};
+
 
 #ifdef CONFIG_CGROUP_BPF
 

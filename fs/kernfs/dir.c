@@ -309,7 +309,7 @@ struct kernfs_node *kernfs_get_parent(struct kernfs_node *kn)
  */
 static unsigned int kernfs_name_hash(const char *name, const void *ns)
 {
-	unsigned long hash = init_name_hash(ns);
+	unsigned long hash = init_name_hash();
 	unsigned int len = strlen(name);
 	while (len--)
 		hash = partial_name_hash(*name++, hash);
@@ -679,7 +679,7 @@ static struct kernfs_node *__kernfs_new_node(struct kernfs_root *root,
 	return kn;
 
  err_out3:
-	idr_remove(&root->ino_idr, kn->id.ino);
+	ida_simple_remove(&root->ino_ida, kn->ino);
  err_out2:
 	kmem_cache_free(kernfs_node_cache, kn);
  err_out1:

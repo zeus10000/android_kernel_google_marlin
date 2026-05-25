@@ -5,6 +5,7 @@
  * Written by David Howells (dhowells@redhat.com)
  */
 
+#include <linux/sched/task.h>
 #include <linux/proc_fs.h>
 #include <linux/proc_ns.h>
 #include <linux/spinlock.h>
