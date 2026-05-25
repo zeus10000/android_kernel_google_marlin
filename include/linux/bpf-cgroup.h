@@ -34,6 +34,9 @@ extern struct static_key_false cgroup_bpf_enabled_key;
 DECLARE_PER_CPU(struct bpf_cgroup_storage*,
 		bpf_cgroup_storage[MAX_BPF_CGROUP_STORAGE_TYPE]);
 
+
+static inline enum bpf_cgroup_storage_type cgroup_storage_type(struct bpf_map *map) { return BPF_CGROUP_STORAGE_SHARED; }
+
 #define for_each_cgroup_storage_type(stype) \
 	for (stype = 0; stype < MAX_BPF_CGROUP_STORAGE_TYPE; stype++)
 
@@ -385,6 +388,3 @@ static inline int bpf_percpu_cgroup_storage_update(struct bpf_map *map,
 #endif /* CONFIG_CGROUP_BPF */
 
 #endif /* _BPF_CGROUP_H */
-
-/* marlin: stub */
-static inline int cgroup_bpf_link_attach(void *attr, struct bpf_prog *prog) { return -EINVAL; }
