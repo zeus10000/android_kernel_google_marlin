@@ -37,3 +37,10 @@ int tcp_sendmsg_locked(struct sock *sk, struct msghdr *msg, size_t size) { retur
 int tcp_sendpage_locked(struct sock *sk, struct page *page, int offset, size_t size, int flags) { return -EINVAL; }
 void ipv6_list_rcv(struct list_head *head, struct packet_type *pt, struct net_device *orig_dev) { }
 int __cgroup_bpf_run_filter_skb(struct sock *sk, struct sk_buff *skb, enum bpf_attach_type type) { return 0; }
+
+int __cgroup_bpf_run_filter_sk(struct sock *sk, enum bpf_attach_type type) { return 0; }
+int compat_sock_common_setsockopt(struct socket *sock, int level, int optname, char __user *optval, unsigned int optlen) { return -EINVAL; }
+int compat_sock_common_getsockopt(struct socket *sock, int level, int optname, char __user *optval, int __user *optlen) { return -EINVAL; }
+int inet_send_prepare(struct sock *sk) { return 0; }
+int ipv6_anycast_init(void) { return 0; }
+int udpv6_offload_init(void) { return 0; }
