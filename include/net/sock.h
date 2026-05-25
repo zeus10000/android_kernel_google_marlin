@@ -2494,5 +2494,8 @@ struct saved_syn {
 	u8 data[];
 };
 
+
+extern int sock_get_timestamp(struct sock *sk, struct timeval __user *tv);
+extern int sock_get_timestampns(struct sock *sk, struct timespec __user *tv);
 #endif	/* _SOCK_H */
 #define sock_owned_by_me(sk) sock_owned_by_user(sk)

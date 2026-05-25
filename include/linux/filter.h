@@ -1171,7 +1171,8 @@ struct bpf_sk_lookup_kern {
 	struct {
 		__be32 saddr;
 		__be32 daddr;
-	} v4;
+		bool no_reuseport;
+} v4;
 	struct {
 		const struct in6_addr *saddr;
 		const struct in6_addr *daddr;
@@ -1181,7 +1182,7 @@ struct bpf_sk_lookup_kern {
 };
 
 /* marlin: v5 BPF stubs */
-static inline int copy_bpf_fprog_from_user(struct sock_fprog *dst, void __user *src, int len) { return -EINVAL; }
+/* removed - real def in filter.c */
 static inline void bpf_compute_data_end_sk_skb(struct sk_buff *skb) { }
 
 #define bpf_ctx_range_ptr(TYPE, MEMBER) bpf_ctx_range(TYPE, MEMBER) /* marlin: v5 alias */
