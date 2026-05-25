@@ -2152,7 +2152,6 @@ struct napi_gro_cb {
 
 	/* used in skb_gro_receive() slow path */
 	struct sk_buff *last;
-	u8 is_atomic:1; /* marlin: v5 */
 };
 
 #define NAPI_GRO_CB(skb) ((struct napi_gro_cb *)(skb)->cb)
