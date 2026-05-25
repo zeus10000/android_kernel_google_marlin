@@ -205,4 +205,6 @@ struct linux_xfrm_mib {
 #define SNMP_UPD_PO_STATS64_BH(mib, basefield, addend) SNMP_UPD_PO_STATS_BH(mib, basefield, addend)
 #endif
 
+
+#define __NET_INC_STATS(net, field) NET_INC_STATS(net, field) /* marlin */
 #endif

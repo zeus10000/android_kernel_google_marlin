@@ -21,6 +21,7 @@
  *			fixed requeue routine
  *		and many others. thanks.
  */
+#include <net/pkt_cls.h>
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/types.h>

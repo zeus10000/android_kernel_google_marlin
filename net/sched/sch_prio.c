@@ -7,6 +7,7 @@
  *              Init --  EINVAL when opt undefined
  */
 
+#include <net/pkt_cls.h>
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/types.h>

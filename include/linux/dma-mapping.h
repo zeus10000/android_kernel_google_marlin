@@ -316,15 +316,7 @@ static inline void dma_free_writecombine(struct device *dev, size_t size,
 	return dma_free_attrs(dev, size, cpu_addr, dma_addr, &attrs);
 }
 
-static inline int dma_mmap_writecombine(struct device *dev,
-					struct vm_area_struct *vma,
-					void *cpu_addr, dma_addr_t dma_addr,
-					size_t size)
-{
-	DEFINE_DMA_ATTRS(attrs);
-	dma_set_attr(DMA_ATTR_WRITE_COMBINE, &attrs);
-	return dma_mmap_attrs(dev, vma, cpu_addr, dma_addr, size, &attrs);
-}
+
 #endif /* CONFIG_HAVE_DMA_ATTRS */
 
 #ifdef CONFIG_NEED_DMA_MAP_STATE
@@ -349,5 +341,17 @@ static inline int dma_mmap_writecombine(struct device *dev,
 	dma_alloc_attrs(dev, size, dma_handle, gfp, DMA_ATTR_WRITE_COMBINE)
 #define dma_free_writecombine(dev, size, cpu_addr, dma_handle) \
 	dma_free_attrs(dev, size, cpu_addr, dma_handle, DMA_ATTR_WRITE_COMBINE)
+
+
+/* marlin: dma_mmap_writecombine moved outside guards */
+static inline int dma_mmap_writecombine(struct device *dev,
+					struct vm_area_struct *vma,
+					void *cpu_addr, dma_addr_t dma_addr,
+					size_t size)
+{
+	DEFINE_DMA_ATTRS(attrs);
+	dma_set_attr(DMA_ATTR_WRITE_COMBINE, &attrs);
+	return dma_mmap_attrs(dev, vma, cpu_addr, dma_addr, size, &attrs);
+}
 
 #endif
