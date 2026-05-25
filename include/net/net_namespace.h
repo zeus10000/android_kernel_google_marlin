@@ -319,6 +319,7 @@ struct pernet_operations {
 	void (*exit_batch)(struct list_head *net_exit_list);
 	int *id;
 	size_t size;
+	bool async; /* marlin: v5 */
 };
 
 /*
