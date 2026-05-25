@@ -34,7 +34,7 @@ static inline const char *printk_skip_level(const char *buffer)
 #define CONSOLE_EXT_LOG_MAX	8192
 
 /* printk's without a loglevel use this.. */
-#define MESSAGE_LOGLEVEL_DEFAULT CONFIG_MESSAGE_LOGLEVEL_DEFAULT
+#define MESSAGE_LOGLEVEL_DEFAULT 4 /* marlin: literal default when CONFIG_MESSAGE_LOGLEVEL_DEFAULT undefined */
 
 /* We show everything that is MORE important than this.. */
 #define CONSOLE_LOGLEVEL_SILENT  0 /* Mum's the word */
