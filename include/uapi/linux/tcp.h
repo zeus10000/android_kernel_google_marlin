@@ -214,4 +214,5 @@ struct tcp_md5sig {
 	__u8	tcpm_key[TCP_MD5SIG_MAXKEYLEN];		/* key (binary) */
 };
 
+#define TFO_SERVER_WO_SOCKOPT2 0x1000
 #endif /* _UAPI_LINUX_TCP_H */

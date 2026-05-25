@@ -139,14 +139,7 @@ struct page_pool *page_pool_create(const struct page_pool_params *params);
 void page_pool_destroy(struct page_pool *pool);
 void page_pool_use_xdp_mem(struct page_pool *pool, void (*disconnect)(void *));
 #else
-static inline void page_pool_destroy(struct page_pool *pool)
-{
-}
 
-static inline void page_pool_use_xdp_mem(struct page_pool *pool,
-					 void (*disconnect)(void *))
-{
-}
 #endif
 
 /* Never call this directly, use helpers below */

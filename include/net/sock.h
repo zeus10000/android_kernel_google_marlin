@@ -2497,5 +2497,8 @@ struct saved_syn {
 
 extern int sock_get_timestamp(struct sock *sk, struct timeval __user *tv);
 extern int sock_get_timestampns(struct sock *sk, struct timespec __user *tv);
+
+extern int compat_sock_common_setsockopt(struct socket *sock, int level, int optname, char __user *optval, unsigned int optlen);
+extern int compat_sock_common_getsockopt(struct socket *sock, int level, int optname, char __user *optval, int __user *optlen);
 #endif	/* _SOCK_H */
 #define sock_owned_by_me(sk) sock_owned_by_user(sk)

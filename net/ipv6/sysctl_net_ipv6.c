@@ -7,7 +7,6 @@
  */
 
 static int zero;
-static int one = 1;
 #include <linux/mm.h>
 #include <linux/sysctl.h>
 #include <linux/in6.h>
