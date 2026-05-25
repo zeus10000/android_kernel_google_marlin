@@ -62,11 +62,16 @@ struct module_attribute;
 #endif
 
 
+#if defined(_LINUX_KOBJECT_H_DONE) && defined(_LINUX_SYSFS_H_DONE)
 struct module_version_attribute {
 	struct module_attribute mattr;
 	const char *module_name;
 	const char *version;
 } __attribute__ ((__aligned__(sizeof(void *))));
+#else
+struct module_version_attribute;
+#endif
+
 
 extern ssize_t __modver_version_show(struct module_attribute *,
 				     struct module_kobject *, char *);
@@ -321,8 +326,14 @@ struct module {
 	char name[MODULE_NAME_LEN];
 
 	/* Sysfs stuff. */
+#if defined(_LINUX_KOBJECT_H_DONE) && defined(_LINUX_SYSFS_H_DONE)
 	struct module_kobject mkobj;
 	struct module_attribute *modinfo_attrs;
+#else
+	/* marlin: deferred — mkobj/modinfo_attrs require kobject+sysfs fully loaded */
+	void *mkobj[sizeof(struct kobject)/sizeof(void*) + 4]; /* opaque storage */
+	void *modinfo_attrs;
+#endif
 	const char *version;
 	const char *srcversion;
 	struct kobject *holders_dir;
