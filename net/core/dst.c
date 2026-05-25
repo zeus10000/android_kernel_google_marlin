@@ -26,6 +26,8 @@
 #include <net/dst.h>
 #include <net/dst_metadata.h>
 
+static inline void __dst_free(struct dst_entry *dst) { } /* marlin: __dst_free stub */
+
 /*
  * Theory of operations:
  * 1) We use a list, protected by a spinlock, to add

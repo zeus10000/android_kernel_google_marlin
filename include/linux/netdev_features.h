@@ -234,4 +234,12 @@ static inline int find_next_netdev_feature(u64 feature, unsigned long start)
 #define NETIF_F_ALL_CSUM	(NETIF_F_GEN_CSUM | NETIF_F_V4_CSUM | NETIF_F_V6_CSUM)
 #define NETIF_F_GSO_IPIP	NETIF_F_GSO_IPXIP6
 #define NETIF_F_GSO_SIT		NETIF_F_GSO_IPXIP6
+
+/* marlin: NETIF_F_GSO_IPIP_BIT alias (v4.4 ethtool.c references this) */
+enum {
+	NETIF_F_GSO_IPIP_BIT_ALIAS = NETIF_F_GSO_IPXIP6_BIT,
+	NETIF_F_GSO_SIT_BIT_ALIAS = NETIF_F_GSO_IPXIP6_BIT,
+};
+#define NETIF_F_GSO_IPIP_BIT NETIF_F_GSO_IPIP_BIT_ALIAS
+#define NETIF_F_GSO_SIT_BIT NETIF_F_GSO_SIT_BIT_ALIAS
 #endif	/* _LINUX_NETDEV_FEATURES_H */

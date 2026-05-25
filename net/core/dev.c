@@ -144,6 +144,14 @@
 
 #include "net-sysfs.h"
 
+/* marlin: missing stubs */
+#ifndef MARLIN_DEV_C_STUBS
+#define MARLIN_DEV_C_STUBS
+static inline int tc_classify(struct sk_buff *skb, const struct tcf_proto *tp, struct tcf_result *res, bool compat_mode) { return 0; }
+static inline int dst_subsys_init(void) { return 0; }
+static inline int dev_pre_changeaddr_notify(struct net_device *dev, const char *addr, void *extack) { return 0; }
+#endif
+
 /* Instead of increasing this, you should create a hash table. */
 #define MAX_GRO_SKBS 8
 
@@ -4602,7 +4610,7 @@ __sum16 __skb_gro_checksum_complete(struct sk_buff *skb)
 	if (likely(!sum)) {
 		if (unlikely(skb->ip_summed == CHECKSUM_COMPLETE) &&
 		    !skb->csum_complete_sw)
-			netdev_rx_csum_fault(skb->dev);
+			netdev_rx_csum_fault(skb->dev, NULL);
 	}
 
 	NAPI_GRO_CB(skb)->csum = wsum;
