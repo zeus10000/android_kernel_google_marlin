@@ -264,6 +264,10 @@ void bpf_cgroup_storage_release(struct bpf_prog *prog, struct bpf_map *map);
 })
 
 
+
+/* marlin: stub */
+static inline int __cgroup_bpf_run_filter_sysctl(struct ctl_table_header *head, struct ctl_table *table, int write, char **buf, size_t *count, loff_t *ppos, void **new_buf, int type) { return 0; }
+
 #define BPF_CGROUP_RUN_PROG_SYSCTL(head, table, write, buf, count, pos, nbuf)  \
 ({									       \
 	int __ret = 0;							       \

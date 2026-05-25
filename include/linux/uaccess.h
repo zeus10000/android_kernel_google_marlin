@@ -151,6 +151,10 @@ extern long strnlen_unsafe_user(const void __user *unsafe_addr, long count);
 #define unsafe_put_user(x, ptr, err) do { if (unlikely(__put_user(x, ptr))) goto err; } while (0)
 #endif
 
+
+/* marlin: stub v5.8 alias */
+#define copy_from_kernel_nofault(dst, src, size) probe_kernel_read(dst, src, size)
+
 #endif /* __ASSEMBLY__ */
 
 #endif /* __LINUX_UACCESS_H__ */

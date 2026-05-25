@@ -758,6 +758,8 @@ struct bpf_ctx_arg_aux {
 
 struct bpf_trampoline;
 struct bpf_prog_aux {
+	u32 saved_dst_prog_type; /* marlin */
+	u32 saved_dst_attach_type; /* marlin */
 	struct bpf_trampoline *trampoline; /* marlin: v5.x field */
 	struct bpf_prog *linked_prog; /* marlin: v5.x field */
 	atomic64_t refcnt;
