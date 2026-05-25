@@ -45,6 +45,8 @@ static inline __must_check bool refcount_dec_and_test(refcount_t *r)
 	return atomic_dec_and_test(&r->refs);
 }
 
+static inline void refcount_add(unsigned int n, refcount_t *r) { atomic_add(n, &r->refs); }
+
 static inline void refcount_dec(refcount_t *r)
 {
 	atomic_dec(&r->refs);

@@ -3724,6 +3724,7 @@ static inline struct sec_path *skb_sec_path(struct sk_buff *skb)
  * Keeps track of level of encapsulation of network headers.
  */
 struct skb_gso_cb {
+	int data_offset; /* marlin */
 	int	mac_offset;
 	int	encap_level;
 	__u16	csum_start;
