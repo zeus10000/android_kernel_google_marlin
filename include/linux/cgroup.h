@@ -28,7 +28,6 @@
 #include <linux/cgroup-defs.h>
 
 struct kernel_clone_args;
-u64 cgroup_id(struct cgroup *cgrp);
 
 #ifdef CONFIG_CGROUPS
 
@@ -564,6 +563,11 @@ static inline struct cgroup *cgroup_parent(struct cgroup *cgrp)
  * if @cgrp == @ancestor.  This function is safe to call as long as @cgrp
  * and @ancestor are accessible.
  */
+static inline u64 cgroup_id(struct cgroup *cgrp)
+{
+	return cgroup_ino(cgrp);
+}
+
 static inline bool cgroup_is_descendant(struct cgroup *cgrp,
 					struct cgroup *ancestor)
 {
@@ -838,9 +842,5 @@ static inline void put_cgroup_ns(struct cgroup_namespace *ns)
 }
 
 
-static inline u64 cgroup_id(struct cgroup *cgrp)
-{
-	return cgroup_ino(cgrp);
-}
 
 #endif /* _LINUX_CGROUP_H */

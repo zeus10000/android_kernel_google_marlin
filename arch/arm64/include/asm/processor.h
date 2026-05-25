@@ -16,6 +16,15 @@
 
 #ifdef __KERNEL__
 
+/* Provide inline definition; uses struct task_struct from sched.h via fwd decl */
+struct task_struct;
+extern void *__task_stack_page(const struct task_struct *task);
+static inline void *task_stack_page(const struct task_struct *task)
+{
+	return __task_stack_page(task);
+}
+
+
 #include <linux/string.h>
 
 #include <asm/alternative.h>

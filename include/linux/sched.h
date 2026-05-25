@@ -669,12 +669,6 @@ static inline void prev_cputime_init(struct prev_cputime *prev)
  * threads and thread groups.  Most things considering CPU time want to group
  * these counts together and treat all three of them in parallel.
  */
-struct task_cputime {
-	cputime_t utime;
-	cputime_t stime;
-	unsigned long long sum_exec_runtime;
-};
-
 /* Alternate field names when used to cache expirations. */
 #define virt_exp	utime
 #define prof_exp	stime
