@@ -243,4 +243,5 @@ CFLAGS_ubsan.o := $(call cc-option, -fno-stack-protector) $(DISABLE_STACKLEAK_PL
 
 # marlin: bring libfdt back for OF runtime parsing
 ccflags-y += -I$(srctree)/scripts/dtc/libfdt
+obj-$(CONFIG_SWIOTLB) += swiotlb.o
 lib-$(CONFIG_LIBFDT) += fdt.o fdt_ro.o fdt_rw.o fdt_sw.o fdt_wip.o fdt_empty_tree.o fdt_strerror.o
