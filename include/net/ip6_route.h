@@ -223,5 +223,4 @@ static inline bool rt6_duplicate_nexthop(struct rt6_info *a, struct rt6_info *b)
 	       !lwtunnel_cmp_encap(a->dst.lwtstate, b->dst.lwtstate);
 }
 
-static inline struct dst_entry *ip6_route_input_lookup(struct net *net, struct net_device *dev, struct flowi6 *fl6, struct sk_buff *skb, int flags) { return NULL; }
 #endif

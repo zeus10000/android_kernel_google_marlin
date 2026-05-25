@@ -1433,26 +1433,7 @@ void fib_sync_mtu(struct net_device *dev, u32 orig_mtu)
  * - if the new MTU is greater than the PMTU, don't make any change
  * - otherwise, unlock and set PMTU
  */
-static void nh_update_mtu(struct fib_nh *nh, u32 new, u32 orig)
-{
-	struct fnhe_hash_bucket *bucket;
-	int i;
 
-	bucket = rcu_dereference_protected(nh->nh_exceptions, 1);
-	if (!bucket)
-		return;
-
-	for (i = 0; i < FNHE_HASH_SIZE; i++) {
-		struct fib_nh_exception *fnhe;
-
-		for (fnhe = rcu_dereference_protected(bucket[i].chain, 1);
-		     fnhe;
-		     fnhe = rcu_dereference_protected(fnhe->fnhe_next, 1)) {
-			if (fnhe->fnhe_mtu_locked) {
-				if (new <= fnhe->fnhe_pmtu) {
-					fnhe->fnhe_pmtu = new;
-					fnhe->fnhe_mtu_locked = false;
-				}
 			} else if (new < fnhe->fnhe_pmtu ||
 				   orig == fnhe->fnhe_pmtu) {
 				fnhe->fnhe_pmtu = new;
@@ -1461,16 +1442,7 @@ static void nh_update_mtu(struct fib_nh *nh, u32 new, u32 orig)
 	}
 }
 
-void fib_sync_mtu(struct net_device *dev, u32 orig_mtu)
-{
-	unsigned int hash = fib_devindex_hashfn(dev->ifindex);
-	struct hlist_head *head = &fib_info_devhash[hash];
-	struct fib_nh *nh;
 
-	hlist_for_each_entry(nh, head, nh_hash) {
-		if (nh->nh_dev == dev)
-			nh_update_mtu(nh, dev->mtu, orig_mtu);
-	}
 }
 
 /* Event              force Flags           Description

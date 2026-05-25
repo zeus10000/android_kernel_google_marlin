@@ -44,8 +44,7 @@ int inet_bind(struct socket *sock, struct sockaddr *uaddr, int addr_len);
 #define BIND_FROM_BPF			(1 << 2)
 int __inet_bind(struct sock *sk, struct sockaddr *uaddr, int addr_len,
 		u32 flags);
-int inet_getname(struct socket *sock, struct sockaddr *uaddr,
-		 int peer);
+int inet_getname(struct socket *sock, struct sockaddr *uaddr, int *uaddr_len, int peer);
 int inet_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg);
 int inet_ctl_sock_create(struct sock **sk, unsigned short family,
 			 unsigned short type, unsigned char protocol,
