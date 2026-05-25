@@ -1,5 +1,3 @@
-/* marlin: lpm stub */
-static inline void lpm_suspend_wake_time(u64 t) {}
 /*
  * Alarmtimer interface
  *
@@ -28,6 +26,10 @@ static inline void lpm_suspend_wake_time(u64 t) {}
 #include <linux/workqueue.h>
 #include <linux/freezer.h>
 #include <linux/delay.h>
+
+/* marlin: lpm stub */
+static inline void lpm_suspend_wake_time(u64 t) {}
+
 
 #ifdef CONFIG_MSM_PM
 /* marlin: skip lpm-levels.h */
@@ -301,7 +303,7 @@ static int alarmtimer_suspend(struct device *dev)
 		uint64_t msec = 0;
 
 		msec = ktime_to_ms(min);
-		0; /* marlin: stub */ lpm_suspend_wake_time_stub(msec);
+		lpm_suspend_wake_time(msec);
 	} else {
 		/* Set alarm, if in the past reject suspend briefly to handle */
 		ret = rtc_timer_start(rtc, &rtctimer, now, ktime_set(0, 0));
