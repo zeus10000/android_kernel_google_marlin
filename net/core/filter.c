@@ -17,6 +17,7 @@
  * Kris Katterjohn - Added many additional checks in bpf_check_classic()
  */
 
+#include <net/addrconf.h>
 #include <linux/sockptr.h>
 #include <linux/win_minmax.h>
 #include <linux/module.h>

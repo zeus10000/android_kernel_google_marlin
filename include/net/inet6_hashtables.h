@@ -63,6 +63,7 @@ static inline struct sock *__inet6_lookup(struct net *net,
 					  const struct in6_addr *daddr,
 					  const u16 hnum,
 					  const int dif,
+					  const int sdif,
 				   bool *refcounted)
 {
 	struct sock *sk = __inet6_lookup_established(net, hashinfo, saddr,
