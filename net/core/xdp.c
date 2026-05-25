@@ -1,13 +1,10 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /* net/core/xdp.c
  *
  * Copyright (c) 2017 Jesper Dangaard Brouer, Red Hat Inc.
+ * Released under terms in GPL version 2.  See COPYING.
  */
-#include <linux/bpf.h>
-#include <linux/filter.h>
 #include <linux/types.h>
 #include <linux/mm.h>
-#include <linux/netdevice.h>
 #include <linux/slab.h>
 #include <linux/idr.h>
 #include <linux/rhashtable.h>
@@ -48,8 +45,8 @@ static u32 xdp_mem_id_hashfn(const void *data, u32 len, u32 seed)
 	BUILD_BUG_ON(FIELD_SIZEOF(struct xdp_mem_allocator, mem.id)
 		     != sizeof(u32));
 
-	/* Use cyclic increasing ID as direct hash key */
-	return key;
+	/* Use cyclic increasing ID as direct hash key, see rht_bucket_index */
+	return key << RHT_HASH_RESERVED_SPACE;
 }
 
 static int xdp_mem_id_cmp(struct rhashtable_compare_arg *arg,
@@ -94,33 +91,30 @@ static void __xdp_mem_allocator_rcu_free(struct rcu_head *rcu)
 	kfree(xa);
 }
 
-void xdp_rxq_info_unreg_mem_model(struct xdp_rxq_info *xdp_rxq)
+static void __xdp_rxq_info_unreg_mem_model(struct xdp_rxq_info *xdp_rxq)
 {
 	struct xdp_mem_allocator *xa;
 	int id = xdp_rxq->mem.id;
-
-	if (xdp_rxq->reg_state != REG_STATE_REGISTERED) {
-		WARN(1, "Missing register, driver bug");
-		return;
-	}
-
-	if (xdp_rxq->mem.type != MEM_TYPE_PAGE_POOL &&
-	    xdp_rxq->mem.type != MEM_TYPE_ZERO_COPY) {
-		return;
-	}
+	int err;
 
 	if (id == 0)
 		return;
 
 	mutex_lock(&mem_id_lock);
 
-	xa = rhashtable_lookup_fast(mem_id_ht, &id, mem_id_rht_params);
-	if (xa && !rhashtable_remove_fast(mem_id_ht, &xa->node, mem_id_rht_params))
-		call_rcu(&xa->rcu, __xdp_mem_allocator_rcu_free);
+	xa = rhashtable_lookup(mem_id_ht, &id, mem_id_rht_params);
+	if (!xa) {
+		mutex_unlock(&mem_id_lock);
+		return;
+	}
+
+	err = rhashtable_remove_fast(mem_id_ht, &xa->node, mem_id_rht_params);
+	WARN_ON(err);
+
+	call_rcu(&xa->rcu, __xdp_mem_allocator_rcu_free);
 
 	mutex_unlock(&mem_id_lock);
 }
-EXPORT_SYMBOL_GPL(xdp_rxq_info_unreg_mem_model);
 
 void xdp_rxq_info_unreg(struct xdp_rxq_info *xdp_rxq)
 {
@@ -130,7 +124,7 @@ void xdp_rxq_info_unreg(struct xdp_rxq_info *xdp_rxq)
 
 	WARN(!(xdp_rxq->reg_state == REG_STATE_REGISTERED), "Driver BUG");
 
-	xdp_rxq_info_unreg_mem_model(xdp_rxq);
+	__xdp_rxq_info_unreg_mem_model(xdp_rxq);
 
 	xdp_rxq->reg_state = REG_STATE_UNREGISTERED;
 	xdp_rxq->dev = NULL;
@@ -299,13 +293,16 @@ int xdp_rxq_info_reg_mem_model(struct xdp_rxq_info *xdp_rxq,
 	xdp_alloc->allocator = allocator;
 
 	/* Insert allocator into ID lookup table */
-	ptr = rhashtable_insert_slow(mem_id_ht, &id, &xdp_alloc->node);
-	if (IS_ERR(ptr)) {
-		ida_simple_remove(&mem_id_pool, xdp_rxq->mem.id);
-		xdp_rxq->mem.id = 0;
-		errno = PTR_ERR(ptr);
-		goto err;
+	{
+		int rht_err = rhashtable_lookup_insert_key(mem_id_ht, &id, &xdp_alloc->node, mem_id_rht_params);
+		if (rht_err) {
+			errno = rht_err;
+			goto err;
+		}
 	}
+
+	if (type == MEM_TYPE_PAGE_POOL)
+		page_pool_get(xdp_alloc->page_pool);
 
 	mutex_unlock(&mem_id_lock);
 
@@ -335,16 +332,14 @@ static void __xdp_return(void *data, struct xdp_mem_info *mem, bool napi_direct,
 		/* mem->id is valid, checked in xdp_rxq_info_reg_mem_model() */
 		xa = rhashtable_lookup(mem_id_ht, &mem->id, mem_id_rht_params);
 		page = virt_to_head_page(data);
-		if (xa) {
-			napi_direct &= !xdp_return_frame_no_direct();
+		if (xa)
 			page_pool_put_page(xa->page_pool, page, napi_direct);
-		} else {
+		else
 			put_page(page);
-		}
 		rcu_read_unlock();
 		break;
 	case MEM_TYPE_PAGE_SHARED:
-		page_frag_free(data);
+		put_page(virt_to_head_page(data));
 		break;
 	case MEM_TYPE_PAGE_ORDER0:
 		page = virt_to_page(data); /* Assumes order0 page*/
@@ -355,7 +350,8 @@ static void __xdp_return(void *data, struct xdp_mem_info *mem, bool napi_direct,
 		rcu_read_lock();
 		/* mem->id is valid, checked in xdp_rxq_info_reg_mem_model() */
 		xa = rhashtable_lookup(mem_id_ht, &mem->id, mem_id_rht_params);
-		xa->zc_alloc->free(xa->zc_alloc, handle);
+		if (!WARN_ON_ONCE(!xa))
+			xa->zc_alloc->free(xa->zc_alloc, handle);
 		rcu_read_unlock();
 	default:
 		/* Not possible, checked in xdp_rxq_info_reg_mem_model() */
@@ -380,87 +376,3 @@ void xdp_return_buff(struct xdp_buff *xdp)
 	__xdp_return(xdp->data, &xdp->rxq->mem, true, xdp->handle);
 }
 EXPORT_SYMBOL_GPL(xdp_return_buff);
-
-/* Only called for MEM_TYPE_PAGE_POOL see xdp.h */
-void __xdp_release_frame(void *data, struct xdp_mem_info *mem)
-{
-	struct xdp_mem_allocator *xa;
-	struct page *page;
-
-	rcu_read_lock();
-	xa = rhashtable_lookup(mem_id_ht, &mem->id, mem_id_rht_params);
-	page = virt_to_head_page(data);
-	if (xa)
-		page_pool_release_page(xa->page_pool, page);
-	rcu_read_unlock();
-}
-EXPORT_SYMBOL_GPL(__xdp_release_frame);
-
-int xdp_attachment_query(struct xdp_attachment_info *info,
-			 struct netdev_bpf *bpf)
-{
-	bpf->prog_id = info->prog ? info->prog->aux->id : 0;
-	bpf->prog_flags = info->prog ? info->flags : 0;
-	return 0;
-}
-EXPORT_SYMBOL_GPL(xdp_attachment_query);
-
-bool xdp_attachment_flags_ok(struct xdp_attachment_info *info,
-			     struct netdev_bpf *bpf)
-{
-	if (info->prog && (bpf->flags ^ info->flags) & XDP_FLAGS_MODES) {
-		NL_SET_ERR_MSG(bpf->extack,
-			       "program loaded with different flags");
-		return false;
-	}
-	return true;
-}
-EXPORT_SYMBOL_GPL(xdp_attachment_flags_ok);
-
-void xdp_attachment_setup(struct xdp_attachment_info *info,
-			  struct netdev_bpf *bpf)
-{
-	if (info->prog)
-		bpf_prog_put(info->prog);
-	info->prog = bpf->prog;
-	info->flags = bpf->flags;
-}
-EXPORT_SYMBOL_GPL(xdp_attachment_setup);
-
-struct xdp_frame *xdp_convert_zc_to_xdp_frame(struct xdp_buff *xdp)
-{
-	unsigned int metasize, totsize;
-	void *addr, *data_to_copy;
-	struct xdp_frame *xdpf;
-	struct page *page;
-
-	/* Clone into a MEM_TYPE_PAGE_ORDER0 xdp_frame. */
-	metasize = xdp_data_meta_unsupported(xdp) ? 0 :
-		   xdp->data - xdp->data_meta;
-	totsize = xdp->data_end - xdp->data + metasize;
-
-	if (sizeof(*xdpf) + totsize > PAGE_SIZE)
-		return NULL;
-
-	page = dev_alloc_page();
-	if (!page)
-		return NULL;
-
-	addr = page_to_virt(page);
-	xdpf = addr;
-	memset(xdpf, 0, sizeof(*xdpf));
-
-	addr += sizeof(*xdpf);
-	data_to_copy = metasize ? xdp->data_meta : xdp->data;
-	memcpy(addr, data_to_copy, totsize);
-
-	xdpf->data = addr + metasize;
-	xdpf->len = totsize - metasize;
-	xdpf->headroom = 0;
-	xdpf->metasize = metasize;
-	xdpf->mem.type = MEM_TYPE_PAGE_ORDER0;
-
-	xdp_return_buff(xdp);
-	return xdpf;
-}
-EXPORT_SYMBOL_GPL(xdp_convert_zc_to_xdp_frame);

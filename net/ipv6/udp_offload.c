@@ -135,7 +135,7 @@ struct sk_buff *udp6_gro_receive(struct list_head *head, struct sk_buff *skb)
 
 skip:
 	NAPI_GRO_CB(skb)->is_ipv6 = 1;
-	return udp_gro_receive(head, skb, uh, udp6_lib_lookup_skb);
+	return udp_gro_receive(head, skb, uh, NULL);
 
 flush:
 	NAPI_GRO_CB(skb)->flush = 1;
