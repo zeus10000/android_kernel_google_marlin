@@ -4,6 +4,7 @@
  * policies)
  */
 
+#include <linux/sched/task.h>
 #include "sched.h"
 
 #include <linux/interrupt.h>

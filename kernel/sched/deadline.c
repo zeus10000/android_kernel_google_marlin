@@ -15,6 +15,7 @@
  *                    Michael Trimarchi <michael@amarulasolutions.com>,
  *                    Fabio Checconi <fchecconi@gmail.com>
  */
+#include <linux/sched/task.h>
 #include "sched.h"
 
 #include <linux/slab.h>

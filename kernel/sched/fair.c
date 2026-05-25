@@ -21,6 +21,7 @@
  *  Copyright (C) 2007 Red Hat, Inc., Peter Zijlstra
  */
 
+#include <linux/sched/task.h>
 #include <linux/latencytop.h>
 #include <linux/sched.h>
 #include <linux/cpumask.h>

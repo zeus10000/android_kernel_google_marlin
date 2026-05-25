@@ -10,6 +10,7 @@
  * Optimistic spinning by Tim Chen <tim.c.chen@intel.com>
  * and Davidlohr Bueso <davidlohr@hp.com>. Based on mutexes.
  */
+#include <linux/sched/task.h>
 #include <linux/rwsem.h>
 #include <linux/sched.h>
 #include <linux/init.h>

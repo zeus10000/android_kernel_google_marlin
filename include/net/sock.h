@@ -65,6 +65,13 @@
 #include <net/tcp_states.h>
 #include <linux/net_tstamp.h>
 
+/* marlin: stub lockdep_is_held when CONFIG_LOCKDEP=n */
+#ifndef lockdep_is_held
+#define lockdep_is_held(lock) 1
+#endif
+
+
+
 struct cgroup;
 struct cgroup_subsys;
 #ifdef CONFIG_NET

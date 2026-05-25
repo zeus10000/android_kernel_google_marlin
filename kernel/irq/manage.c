@@ -9,6 +9,7 @@
 
 #define pr_fmt(fmt) "genirq: " fmt
 
+#include <linux/sched/task.h>
 #include <linux/irq.h>
 #include <linux/kthread.h>
 #include <linux/module.h>

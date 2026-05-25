@@ -14,6 +14,7 @@
  * and Vikram Mulukutla
  */
 
+#include <linux/sched/task.h>
 #include <linux/cpufreq.h>
 #include <linux/list_sort.h>
 #include <linux/syscore_ops.h>

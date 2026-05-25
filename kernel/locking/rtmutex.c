@@ -11,6 +11,7 @@
  *
  *  See Documentation/locking/rt-mutex-design.txt for details.
  */
+#include <linux/sched/task.h>
 #include <linux/spinlock.h>
 #include <linux/export.h>
 #include <linux/sched.h>
