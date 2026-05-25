@@ -753,8 +753,9 @@ struct bpf_ctx_arg_aux {
 	u32 btf_id;
 };
 
+struct bpf_trampoline;
 struct bpf_prog_aux {
-	void *trampoline; /* marlin: v5.x field */
+	struct bpf_trampoline *trampoline; /* marlin: v5.x field */
 	struct bpf_prog *linked_prog; /* marlin: v5.x field */
 	atomic64_t refcnt;
 	u32 used_map_cnt;

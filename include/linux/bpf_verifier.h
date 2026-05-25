@@ -53,6 +53,7 @@ struct bpf_reg_state {
 		struct bpf_map *map_ptr;
 
 		u32 btf_id; /* for PTR_TO_BTF_ID */
+		u32 mem_size; /* marlin: v5.x PTR_TO_MEM size */
 
 		/* Max size from any of the above. */
 		unsigned long raw;

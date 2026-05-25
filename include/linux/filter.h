@@ -3,6 +3,8 @@
  * Linux Socket Filter Data Structures
  */
 #ifndef __LINUX_FILTER_H__
+#define BPF_PROBE_MEM	0xc0
+
 #define __LINUX_FILTER_H__
 
 #include <crypto/sha.h>
