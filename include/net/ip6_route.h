@@ -14,6 +14,8 @@ struct route_info {
 	__u8			reserved_l:3,
 				route_pref:2,
 				reserved_h:3;
+
+extern struct dst_entry *ip6_route_input_lookup(struct net *net, struct net_device *dev, struct flowi6 *fl6, int flags);
 #endif
 	__be32			lifetime;
 	__u8			prefix[0];	/* 0,8 or 16 */
@@ -159,6 +161,8 @@ static inline void ip6_dst_store(struct sock *sk, struct dst_entry *dst,
 	np->daddr_cache = daddr;
 #ifdef CONFIG_IPV6_SUBTREES
 	np->saddr_cache = saddr;
+
+extern struct dst_entry *ip6_route_input_lookup(struct net *net, struct net_device *dev, struct flowi6 *fl6, int flags);
 #endif
 }
 
@@ -223,4 +227,6 @@ static inline bool rt6_duplicate_nexthop(struct rt6_info *a, struct rt6_info *b)
 	       !lwtunnel_cmp_encap(a->dst.lwtstate, b->dst.lwtstate);
 }
 
+
+extern struct dst_entry *ip6_route_input_lookup(struct net *net, struct net_device *dev, struct flowi6 *fl6, int flags);
 #endif

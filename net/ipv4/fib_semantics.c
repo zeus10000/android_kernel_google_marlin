@@ -1434,16 +1434,8 @@ void fib_sync_mtu(struct net_device *dev, u32 orig_mtu)
  * - otherwise, unlock and set PMTU
  */
 
-			} else if (new < fnhe->fnhe_pmtu ||
-				   orig == fnhe->fnhe_pmtu) {
-				fnhe->fnhe_pmtu = new;
-			}
-		}
-	}
-}
 
 
-}
 
 /* Event              force Flags           Description
  * NETDEV_CHANGE      0     LINKDOWN        Carrier OFF, not for scope host

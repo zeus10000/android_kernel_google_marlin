@@ -1131,7 +1131,7 @@ static struct rt6_info *ip6_pol_route_input(struct net *net, struct fib6_table *
 	return ip6_pol_route(net, table, fl6->flowi6_iif, fl6, flags);
 }
 
-static struct dst_entry *ip6_route_input_lookup(struct net *net,
+struct dst_entry *ip6_route_input_lookup(struct net *net,
 						struct net_device *dev,
 						struct flowi6 *fl6, int flags)
 {
