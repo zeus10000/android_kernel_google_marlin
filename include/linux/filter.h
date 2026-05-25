@@ -1135,12 +1135,14 @@ struct bpf_sock_ops_kern {
 #define BPF_ZEXT_REG(REG) ((struct bpf_insn){0})
 #define BPF_IMAGE_ALIGNMENT 8
 
-/* marlin: v5.x stubs */
-static inline int bpf_remove_insns(struct bpf_prog *prog, u32 off, u32 cnt) { return 0; }
-static inline bool bpf_jit_needs_zext(void) { return false; }
-static inline u32 bpf_ctx_narrow_access_offset(u32 off, u32 size, u32 size_default) { return off; }
-static inline struct bpf_prog *bpf_prog_alloc_no_stats(unsigned int size, gfp_t gfp_extra_flags) { return NULL; }
-static inline int bpf_jit_add_poke_descriptor(struct bpf_prog *prog, void *desc) { return 0; }
+/* marlin: v5.x extern decls (impls in kernel/bpf/core.c) */
+extern int bpf_remove_insns(struct bpf_prog *prog, u32 off, u32 cnt);
+extern bool bpf_jit_needs_zext(void);
+extern u32 bpf_ctx_narrow_access_offset(u32 off, u32 size, u32 size_default);
+extern struct bpf_prog *bpf_prog_alloc_no_stats(unsigned int size, gfp_t gfp_extra_flags);
+struct bpf_jit_poke_descriptor;
+extern int bpf_jit_add_poke_descriptor(struct bpf_prog *prog, struct bpf_jit_poke_descriptor *poke);
 extern int btf_resolve_helper_id(void *unused, void *fn, int idx);
-struct bpf_reg_state_mem_size_compat { u32 mem_size; };
+extern struct static_key_false bpf_stats_enabled_key;
+extern void *bpf_trampoline_lookup(u64 key);
 #endif /* __LINUX_FILTER_H__ */

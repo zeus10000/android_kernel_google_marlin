@@ -754,6 +754,8 @@ struct bpf_ctx_arg_aux {
 };
 
 struct bpf_prog_aux {
+	void *trampoline; /* marlin: v5.x field */
+	struct bpf_prog *linked_prog; /* marlin: v5.x field */
 	atomic64_t refcnt;
 	u32 used_map_cnt;
 	u32 max_ctx_offset;
