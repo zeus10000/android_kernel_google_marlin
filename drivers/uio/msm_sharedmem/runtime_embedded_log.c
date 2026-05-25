@@ -121,8 +121,7 @@ static ssize_t rtel_store(struct device *d,
 
         // debug purpose, input userdebug/release to switch memory protect area
         if ( ( buf[0] == '1' && !uio_vaddr ) || !strncmp( buf, "userdebug", 9 ) ) {
-          uio_vaddr = dma_alloc_writecombine( uio_dev, rtel_size,
-                                              &rtel_addr, GFP_KERNEL);
+          uio_vaddr = dma_alloc_coherent(uio_dev, rtel_size, &rtel_addr, GFP_KERNEL);
 
           if ( uio_vaddr == NULL) {
             pr_err("Shared mem alloc fail, client=%s, size=%x\n",
@@ -179,8 +178,7 @@ static ssize_t rtel_store(struct device *d,
           if ( ret )
             pr_err("%s setup_shared_ram_perms fail!!\n", info->name);
 
-          dma_free_writecombine( uio_dev, rtel_size,
-                                   uio_vaddr , rtel_addr);
+          dma_free_coherent(uio_dev, rtel_size, uio_vaddr, rtel_addr);
           uio_vaddr = NULL;
         }
         else ;

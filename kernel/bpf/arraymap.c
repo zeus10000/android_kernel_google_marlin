@@ -214,7 +214,7 @@ static int array_map_direct_value_meta(const struct bpf_map *map, u64 imm,
 }
 
 /* emit BPF instructions equivalent to C code of array_map_lookup_elem() */
-static int array_map_gen_lookup(struct bpf_map *map, struct bpf_insn *insn_buf)
+static u32 array_map_gen_lookup(struct bpf_map *map, struct bpf_insn *insn_buf)
 {
 	struct bpf_array *array = container_of(map, struct bpf_array, map);
 	struct bpf_insn *insn = insn_buf;
@@ -1256,7 +1256,7 @@ static void *array_of_map_lookup_elem(struct bpf_map *map, void *key)
 	return READ_ONCE(*inner_map);
 }
 
-static int array_of_map_gen_lookup(struct bpf_map *map,
+static u32 array_of_map_gen_lookup(struct bpf_map *map,
 				   struct bpf_insn *insn_buf)
 {
 	struct bpf_array *array = container_of(map, struct bpf_array, map);
