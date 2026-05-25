@@ -2,6 +2,9 @@
 #ifndef __LINUX_UACCESS_H__
 #define __LINUX_UACCESS_H__
 
+#ifndef __ASSEMBLY__
+
+
 #include <linux/sched.h>
 
 #define uaccess_kernel() segment_eq(get_fs(), KERNEL_DS)
@@ -148,4 +151,6 @@ extern long strnlen_unsafe_user(const void __user *unsafe_addr, long count);
 #define unsafe_put_user(x, ptr, err) do { if (unlikely(__put_user(x, ptr))) goto err; } while (0)
 #endif
 
-#endif		/* __LINUX_UACCESS_H__ */
+#endif /* __ASSEMBLY__ */
+
+#endif /* __LINUX_UACCESS_H__ */
