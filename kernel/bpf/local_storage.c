@@ -9,7 +9,7 @@
 #include <linux/slab.h>
 #include <uapi/linux/btf.h>
 
-#include "../cgroup/cgroup-internal.h"
+/* marlin: skip cgroup-internal.h */
 
 DEFINE_PER_CPU(struct bpf_cgroup_storage*, bpf_cgroup_storage[MAX_BPF_CGROUP_STORAGE_TYPE]);
 

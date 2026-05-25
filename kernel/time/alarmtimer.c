@@ -28,7 +28,7 @@
 #include <linux/delay.h>
 
 #ifdef CONFIG_MSM_PM
-#include "lpm-levels.h"
+/* marlin: skip lpm-levels.h */
 #endif
 
 /**
