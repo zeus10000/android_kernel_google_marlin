@@ -1720,13 +1720,7 @@ struct device *__root_device_register(const char *name, struct module *owner)
 
 #ifdef CONFIG_MODULES	/* gotta find a "cleaner" way to do this */
 	if (owner) {
-		struct module_kobject *mk = &owner->mkobj;
-
-		err = sysfs_create_link(&root->dev.kobj, &mk->kobj, "module");
-		if (err) {
-			device_unregister(&root->dev);
-			return ERR_PTR(err);
-		}
+		/* marlin: module_kobject not visible in opaque module.h guard - skip sysfs link */
 		root->owner = owner;
 	}
 #endif
