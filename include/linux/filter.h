@@ -1151,7 +1151,6 @@ extern void *bpf_trampoline_lookup(u64 key);
 /* marlin: v5.x stub structs */
 struct bpf_sysctl_kern { int dummy; };
 struct bpf_sockopt_kern { int dummy; };
-struct bpf_sk_lookup_kern { int dummy; };
 
 /* marlin: bpf_sk_lookup_kern stub */
 struct bpf_sk_lookup_kern {
