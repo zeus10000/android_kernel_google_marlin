@@ -207,4 +207,6 @@ struct linux_xfrm_mib {
 
 
 #define __NET_INC_STATS(net, field) NET_INC_STATS(net, field) /* marlin */
+
+#define __NET_ADD_STATS(net, field, val) NET_ADD_STATS(net, field, val) /* marlin */
 #endif

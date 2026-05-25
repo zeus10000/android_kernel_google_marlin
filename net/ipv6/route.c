@@ -1158,7 +1158,7 @@ void ip6_route_input(struct sk_buff *skb)
 	if (tun_info && !(tun_info->mode & IP_TUNNEL_INFO_TX))
 		fl6.flowi6_tun_key.tun_id = tun_info->key.tun_id;
 	skb_dst_drop(skb);
-	skb_dst_set(skb, ip6_route_input_lookup(net, skb->dev, &fl6, flags));
+	skb_dst_set(skb, ip6_route_input_lookup(net, skb->dev, &fl6, skb, flags));
 }
 
 static struct rt6_info *ip6_pol_route_output(struct net *net, struct fib6_table *table,
@@ -3333,8 +3333,7 @@ static int inet6_rtm_getroute(struct sk_buff *in_skb, struct nlmsghdr *nlh)
 		if (!ipv6_addr_any(&fl6.saddr))
 			flags |= RT6_LOOKUP_F_HAS_SADDR;
 
-		rt = (struct rt6_info *)ip6_route_input_lookup(net, dev, &fl6,
-							       flags);
+		rt = (struct rt6_info *)ip6_route_input_lookup(net, dev, &fl6, NULL, flags);
 	} else {
 		fl6.flowi6_oif = oif;
 
