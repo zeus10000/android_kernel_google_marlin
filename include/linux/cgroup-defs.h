@@ -19,7 +19,6 @@
 #include <linux/percpu-rwsem.h>
 #include <linux/u64_stats_sync.h>
 #include <linux/sched/types.h>
-#include <linux/sched.h>  /* for prev_cputime */
 #include <linux/workqueue.h>
 #include <linux/bpf-cgroup.h>
 #include <linux/psi_types.h>

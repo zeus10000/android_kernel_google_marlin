@@ -643,14 +643,6 @@ struct cpu_itimer {
  * Stores previous user/system time values such that we can guarantee
  * monotonicity.
  */
-struct prev_cputime {
-#ifndef CONFIG_VIRT_CPU_ACCOUNTING_NATIVE
-	cputime_t utime;
-	cputime_t stime;
-	raw_spinlock_t lock;
-#endif
-};
-
 static inline void prev_cputime_init(struct prev_cputime *prev)
 {
 #ifndef CONFIG_VIRT_CPU_ACCOUNTING_NATIVE

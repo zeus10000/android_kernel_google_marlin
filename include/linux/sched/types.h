@@ -10,4 +10,15 @@ struct task_cputime {
 	unsigned long long		sum_exec_runtime;
 };
 
+
+#include <linux/spinlock.h>
+
+struct prev_cputime {
+#ifndef CONFIG_VIRT_CPU_ACCOUNTING_NATIVE
+	u64				utime;
+	u64				stime;
+	raw_spinlock_t			lock;
+#endif
+};
+
 #endif
