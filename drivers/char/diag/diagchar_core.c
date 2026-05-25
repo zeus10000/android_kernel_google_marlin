@@ -10,6 +10,8 @@
  * GNU General Public License for more details.
  */
 
+#include <linux/sched/task.h>
+#include <linux/sched/mm.h>
 #include <linux/slab.h>
 #include <linux/init.h>
 #include <linux/module.h>

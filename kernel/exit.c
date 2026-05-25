@@ -5,6 +5,7 @@
  *  Copyright (C) 1991, 1992  Linus Torvalds
  */
 
+#include <linux/sched/mm.h>
 #include <linux/sched/task.h>
 #include <linux/mm.h>
 #include <linux/slab.h>

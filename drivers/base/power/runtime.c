@@ -7,6 +7,7 @@
  * This file is released under the GPLv2.
  */
 
+#include <linux/sched/mm.h>
 #include <linux/sched.h>
 #include <linux/export.h>
 #include <linux/pm_runtime.h>
