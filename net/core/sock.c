@@ -2790,7 +2790,7 @@ int sock_common_getsockopt(struct socket *sock, int level, int optname,
 	struct sock *sk = sock->sk;
 
 #ifdef CONFIG_COMPAT
-	if (in_compat_syscal() && sk->sk_prot->compat_getsockopt)
+	if (in_compat_syscall() && sk->sk_prot->compat_getsockopt)
 		return sk->sk_prot->compat_getsockopt(sk, level, optname,
 						      optval, optlen);
 #endif

@@ -251,10 +251,10 @@ extern const typeof(name) __mod_##type##__##name##_device_table		\
  * local headers in "srcversion".
  */
 
-#if defined(MODULE) || !defined(CONFIG_SYSFS)
+#if 1 /* marlin: always use simple form to avoid deferred struct issue */
 #define MODULE_VERSION(_version) MODULE_INFO(version, _version)
 #else
-#define MODULE_VERSION(_version)					\
+#define MODULE_VERSION_OLD(_version)				\
 	static struct module_version_attribute ___modver_attr = {	\
 		.mattr	= {						\
 			.attr	= {					\

@@ -2397,6 +2397,7 @@ extern void thread_group_cputime_adjusted(struct task_struct *p, cputime_t *ut, 
 #define PF_FROZEN	0x00010000	/* frozen for system suspend */
 #define PF_FSTRANS	0x00020000	/* inside a filesystem transaction */
 #define PF_KSWAPD	0x00040000	/* I am kswapd */
+#define PF_MEMALLOC_NOFS	0x40000000	/* marlin */
 #define PF_MEMALLOC_NOIO 0x00080000	/* Allocating memory without IO involved */
 #define PF_LESS_THROTTLE 0x00100000	/* Throttle me less: I clean memory */
 #define PF_KTHREAD	0x00200000	/* I am a kernel thread */
@@ -2450,10 +2451,6 @@ static inline unsigned int memalloc_noio_save(void)
 	return flags;
 }
 
-static inline void memalloc_noio_restore(unsigned int flags)
-{
-	current->flags = (current->flags & ~PF_MEMALLOC_NOIO) | flags;
-}
 
 /* Per-process atomic flags. */
 #define PFA_NO_NEW_PRIVS 0	/* May not gain new privileges. */
@@ -3018,16 +3015,7 @@ extern struct mm_struct * mm_alloc(void);
 
 /* mmdrop drops the mm and the page tables */
 extern void __mmdrop(struct mm_struct *);
-static inline void mmdrop(struct mm_struct *mm)
-{
-	if (unlikely(atomic_dec_and_test(&mm->mm_count)))
-		__mmdrop(mm);
-}
 
-static inline bool mmget_not_zero(struct mm_struct *mm)
-{
-	return atomic_inc_not_zero(&mm->mm_users);
-}
 
 /* mmput gets rid of the mappings and all user-space */
 extern int mmput(struct mm_struct *);
