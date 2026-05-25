@@ -30,6 +30,8 @@ struct ping_group_range {
 };
 
 struct netns_ipv4 {
+	struct inet_timewait_death_row tcp_death_row;
+
 #ifdef CONFIG_SYSCTL
 	struct ctl_table_header	*forw_hdr;
 	struct ctl_table_header	*frags_hdr;
