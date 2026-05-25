@@ -362,4 +362,7 @@ tcf_match_indev(struct sk_buff *skb, int ifindex)
 }
 #endif /* CONFIG_NET_CLS_IND */
 
+
+/* marlin: tc_classify stub for v4.4 era dev.c */
+static inline int tc_classify(struct sk_buff *skb, const struct tcf_proto *tp, struct tcf_result *res, bool compat_mode) { return 0; }
 #endif

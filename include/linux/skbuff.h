@@ -702,6 +702,7 @@ struct sk_buff {
 
 #ifdef CONFIG_NET_SCHED
 	__u16			tc_index;	/* traffic control index */
+#define tc_verd tc_index /* marlin: v4.4 era alias */
 #endif
 
 	union {
