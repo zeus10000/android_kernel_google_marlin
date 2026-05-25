@@ -877,4 +877,6 @@ out:
 
 
 #define RHT_HASH_RESERVED_SPACE 0
+
+#define RHT_BASE_SHIFT 1
 #endif /* _LINUX_RHASHTABLE_H */
