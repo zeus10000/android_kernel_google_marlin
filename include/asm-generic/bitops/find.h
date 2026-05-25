@@ -61,3 +61,20 @@ extern unsigned long find_first_zero_bit(const unsigned long *addr,
 #endif /* CONFIG_GENERIC_FIND_FIRST_BIT */
 
 #endif /*_ASM_GENERIC_BITOPS_FIND_H_ */
+
+#ifndef find_next_and_bit
+/* marlin: backport find_next_and_bit from v4.14 */
+static inline unsigned long find_next_and_bit(const unsigned long *addr1,
+		const unsigned long *addr2, unsigned long size, unsigned long offset)
+{
+	unsigned long val;
+	while (offset < size) {
+		val = addr1[offset/BITS_PER_LONG] & addr2[offset/BITS_PER_LONG];
+		if (val & (1UL << (offset % BITS_PER_LONG)))
+			return offset;
+		offset++;
+	}
+	return size;
+}
+#endif
+

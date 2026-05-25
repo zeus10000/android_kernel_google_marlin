@@ -34,6 +34,11 @@
 #include <asm/pgtable.h>
 #include <asm/stacktrace.h>
 #include <asm/syscall.h>
+#ifndef trace_sys_enter
+static inline void trace_sys_enter(struct pt_regs *regs, long id) { }
+static inline void trace_sys_exit(struct pt_regs *regs, long ret) { }
+#endif
+
 #include <asm/traps.h>
 #include <asm/system_misc.h>
 

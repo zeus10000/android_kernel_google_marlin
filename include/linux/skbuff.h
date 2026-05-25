@@ -432,6 +432,10 @@ enum {
 	/* Compat: IP-in-IP GSO types (4.12+) */
 	SKB_GSO_IPXIP4 = 1 << 13,
 	SKB_GSO_IPXIP6 = 1 << 14,
+
+	/* marlin v5.x backport additions */
+	SKB_GSO_PARTIAL = 1 << 15,
+	SKB_GSO_TCP_FIXEDID = 1 << 16,
 };
 
 #if BITS_PER_LONG > 32

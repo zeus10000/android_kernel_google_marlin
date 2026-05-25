@@ -158,6 +158,10 @@ struct icmp6_filter {
 #define MLD2_CHANGE_TO_INCLUDE	3
 #define MLD2_CHANGE_TO_EXCLUDE	4
 #define MLD2_ALLOW_NEW_SOURCES	5
+
+/* marlin: v5.x ICMPV6_MSG_MAX */
+#define ICMPV6_MSG_MAX 255
+
 #define MLD2_BLOCK_OLD_SOURCES	6
 
 #define MLD2_ALL_MCR_INIT { { { 0xff,0x02,0,0,0,0,0,0,0,0,0,0,0,0,0,0x16 } } }
