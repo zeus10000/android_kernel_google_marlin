@@ -33,7 +33,7 @@ static inline bool is_adsp_raise_event(uint32_t opcode) { return false; }
 static inline uint32_t q6asm_get_flag_from_token(uint32_t token, uint32_t bit) { return 0; }
 
 /* marlin: stub v5.x */
-static inline uint32_t q6asm_update_token(uint8_t v1, uint8_t v2, uint8_t v3, uint8_t v4) { return 0; }
+static inline uint32_t q6asm_update_token(uint8_t v1, uint8_t v2, uint8_t v3, uint8_t v4, ...) { return 0; }
 static inline uint32_t q6asm_get_pcm_format_id(uint32_t fmt) { return 0; }
 
 

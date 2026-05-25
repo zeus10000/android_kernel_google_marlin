@@ -44,6 +44,7 @@
  *  along with this program; if not, write to the Free Software
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
+#include <linux/sched/mm.h>
 #include <linux/sched/task.h>
 #include <linux/compat.h>
 #include <linux/slab.h>

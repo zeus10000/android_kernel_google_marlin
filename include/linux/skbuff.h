@@ -3925,6 +3925,8 @@ static inline void skb_increase_gso_size(struct skb_shared_info *shinfo, u16 inc
 
 /* marlin: stubs */
 static inline struct sk_buff *build_skb_around(struct sk_buff *skb, void *data, unsigned int frag_size) { return skb; }
+
+#define skb_frag_foreach_page(f, off, sz, p, p_off, p_sz, copied) for (p = NULL, p_off = 0, p_sz = 0, copied = 0; 0; )
 #endif	/* _LINUX_SKBUFF_H */
 
 int skb_send_sock_locked(struct sock *sk, struct sk_buff *skb, int offset, int len);

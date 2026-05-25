@@ -678,4 +678,6 @@ static inline unsigned long compare_vlan_header(const struct vlan_hdr *h1,
 		(__force u32)h2->h_vlan_encapsulated_proto);
 #endif
 }
+
+static inline void __vlan_hwaccel_clear_tag(struct sk_buff *skb) { skb->vlan_tci = 0; }
 #endif /* !(_LINUX_IF_VLAN_H_) */
