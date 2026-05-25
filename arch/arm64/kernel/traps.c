@@ -229,7 +229,7 @@ void dump_backtrace(struct pt_regs *regs, struct task_struct *tsk, const char *l
 
 void show_stack(struct task_struct *tsk, unsigned long *sp)
 {
-	dump_backtrace(NULL, tsk);
+	dump_backtrace(NULL, tsk, KERN_DEFAULT);
 	barrier();
 }
 
@@ -261,7 +261,7 @@ static int __die(const char *str, int err, struct pt_regs *regs)
 		 end_of_stack(tsk));
 
 	if (!user_mode(regs) || in_interrupt()) {
-		dump_backtrace(regs, tsk);
+		dump_backtrace(regs, tsk, KERN_DEFAULT);
 		dump_instr(KERN_EMERG, regs);
 	}
 
