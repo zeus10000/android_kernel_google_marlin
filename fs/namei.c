@@ -2005,7 +2005,7 @@ static inline u64 hash_name(const char *name)
 
 unsigned int full_name_hash(const unsigned char *name, unsigned int len)
 {
-	unsigned long hash = init_name_hash();
+	unsigned long hash = init_name_hash(0);
 	while (len--)
 		hash = partial_name_hash(*name++, hash);
 	return end_name_hash(hash);
@@ -2018,7 +2018,7 @@ EXPORT_SYMBOL(full_name_hash);
  */
 static inline u64 hash_name(const char *name)
 {
-	unsigned long hash = init_name_hash();
+	unsigned long hash = init_name_hash(0);
 	unsigned long len = 0, c;
 
 	c = (unsigned char)*name;

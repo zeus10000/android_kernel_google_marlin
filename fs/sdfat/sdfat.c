@@ -252,7 +252,7 @@ static inline unsigned int __sdfat_full_name_hash(const struct dentry *unused, c
 
 static inline unsigned long __sdfat_init_name_hash(const struct dentry *unused)
 {
-	return init_name_hash();
+	return init_name_hash(0);
 }
 #endif
 

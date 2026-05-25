@@ -95,4 +95,13 @@ static inline struct proc_dir_entry *proc_net_mkdir(
 	return proc_mkdir_data(name, 0, parent, net);
 }
 
+
+/* marlin: v4.18+ proc_create_single stub */
+#define proc_create_single(name, mode, parent, show) \
+	proc_create_data(name, mode, parent, NULL, NULL)
+#define proc_create_single_data(name, mode, parent, show, data) \
+	proc_create_data(name, mode, parent, NULL, data)
+#define proc_create_seq(name, mode, parent, ops) \
+	proc_create_data(name, mode, parent, NULL, NULL)
+
 #endif /* _LINUX_PROC_FS_H */
