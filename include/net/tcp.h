@@ -80,6 +80,8 @@ int tcp_bpf_recvmsg(struct sock *sk, struct msghdr *msg, size_t len,
 		    int nonblock, int flags, int *addr_len);
 int __tcp_bpf_recvmsg(struct sock *sk, struct sk_psock *psock,
 		      struct msghdr *msg, int len, int flags);
+
+int tcp_peek_len(struct socket *sock);
 #endif /* CONFIG_BPF_STREAM_PARSER */
 void tcp_rate_check_app_limited(struct sock *sk);
 ssize_t do_tcp_sendpages(struct sock *sk, struct page *page, int offset, size_t size, int flags);
@@ -1956,6 +1958,7 @@ static inline int tcp_inq(struct sock *sk) { return 0; }
 
 
 static inline int tcp_fastopen_defer_connect(struct sock *sk, int *err) { *err = -EOPNOTSUPP; return 0; }
+
 #endif	/* _TCP_H */
 
 #define MODULE_ALIAS_TCP_ULP(name)				\

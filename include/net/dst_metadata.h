@@ -174,7 +174,7 @@ metadata_dst_alloc_percpu_typed(u8 optslen,
 				enum metadata_type unused,
 				gfp_t flags)
 {
-	return metadata_dst_alloc_percpu(optslen, flags);
+	return metadata_dst_alloc_percpu(optslen, type, flags);
 }
 
 /* Compat: metadata_dst_free_percpu stub */
