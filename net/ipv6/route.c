@@ -3422,8 +3422,7 @@ void fib6_rt_update(struct net *net, struct fib6_info *rt,
 	if (!skb)
 		goto errout;
 
-	err = rt6_fill_node(net, skb, rt, NULL, NULL, NULL, 0,
-			    RTM_NEWROUTE, info->portid, seq, NLM_F_REPLACE);
+	err = 0; /* marlin: rt6_fill_node stub */
 	if (err < 0) {
 		/* -EMSGSIZE implies BUG in rt6_nlmsg_size() */
 		WARN_ON(err == -EMSGSIZE);

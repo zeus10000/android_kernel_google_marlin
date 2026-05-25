@@ -83,8 +83,7 @@ void ip6_route_init_special_entries(void);
 int ip6_route_init(void);
 void ip6_route_cleanup(void);
 
-int ipv6_route_ioctl(struct net *net, unsigned int cmd,
-		struct in6_rtmsg *rtmsg);
+int ipv6_route_ioctl(struct net *net, unsigned int cmd, void __user *arg);
 
 int ip6_route_add(struct fib6_config *cfg);
 int ip6_ins_rt(struct rt6_info *);
