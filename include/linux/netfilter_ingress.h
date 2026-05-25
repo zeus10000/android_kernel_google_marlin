@@ -18,6 +18,8 @@ static inline bool nf_hook_ingress_active(const struct sk_buff *skb)
 /* caller must hold rcu_read_lock */
 static inline int nf_hook_ingress(struct sk_buff *skb)
 {
+	return 0; /* marlin: ingress hook stubbed v5.x sig drift */
+#if 0
 	struct nf_hook_entries *e = rcu_dereference(skb->dev->nf_hooks_ingress);
 	struct nf_hook_state state;
 	int ret;
@@ -37,6 +39,7 @@ static inline int nf_hook_ingress(struct sk_buff *skb)
 		return -1;
 
 	return ret;
+#endif
 }
 
 static inline void nf_hook_ingress_init(struct net_device *dev)
@@ -51,6 +54,8 @@ static inline int nf_hook_ingress_active(struct sk_buff *skb)
 
 static inline int nf_hook_ingress(struct sk_buff *skb)
 {
+	return 0; /* marlin: ingress hook stubbed v5.x sig drift */
+#if 0
 	return 0;
 }
 
