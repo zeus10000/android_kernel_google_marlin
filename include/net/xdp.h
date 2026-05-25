@@ -214,4 +214,8 @@ void xdp_attachment_setup(struct xdp_attachment_info *info,
 
 #define DEV_MAP_BULK_SIZE 16
 
+
+/* marlin: stubs */
+static inline void xdp_convert_frame_to_buff(struct xdp_frame *frame, struct xdp_buff *xdp) {}
+static inline int xdp_update_frame_from_buff(struct xdp_buff *xdp, struct xdp_frame *frame) { return 0; }
 #endif /* __LINUX_NET_XDP_H__ */
