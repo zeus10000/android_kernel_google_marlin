@@ -8,22 +8,22 @@ ccflags-remove-$(CONFIG_FUNCTION_TRACER) += $(CC_FLAGS_FTRACE)
 # These files are disabled because they produce lots of non-interesting and/or
 # flaky coverage that is not a function of syscall inputs. For example,
 # rbtree can be global and individual rotations don't correlate with inputs.
-KCOV_INSTRUMENT_string.o := n
-KCOV_INSTRUMENT_rbtree.o := n
-KCOV_INSTRUMENT_list_debug.o := n
-KCOV_INSTRUMENT_debugobjects.o := n
-KCOV_INSTRUMENT_dynamic_debug.o := n
-KCOV_INSTRUMENT_fault-inject.o := n
+:= n
+:= n
+:= n
+:= n
+:= n
+:= n
 
 # Early boot use of cmdline, don't instrument it
 ifdef CONFIG_AMD_MEM_ENCRYPT
-KASAN_SANITIZE_string.o := n
+:= n
 
-CFLAGS_string.o := $(call cc-option, -fno-stack-protector)
+:= $(call cc-option, -fno-stack-protector)
 endif
 
 lib-y := ctype.o string.o vsprintf.o cmdline.o \
-	 rbtree.o radix-tree.o timerqueue.o xarray.o \
+	 rbtree.o radix-tree.o timerqueue.o  \
 	 idr.o extable.o sha1.o irq_regs.o argv_split.o \
 	 flex_proportions.o ratelimit.o show_mem.o \
 	 is_single_threaded.o plist.o decompress.o kobject_uevent.o \
@@ -42,9 +42,8 @@ obj-y += bcd.o sort.o parser.o debug_locks.o random32.o \
 	 list_sort.o uuid.o iov_iter.o clz_ctz.o \
 	 bsearch.o find_bit.o llist.o memweight.o kfifo.o \
 	 percpu-refcount.o rhashtable.o \
-	 once.o refcount.o usercopy.o errseq.o bucket_locks.o \
-	 generic-radix-tree.o
-obj-y += string_helpers.o
+	 once.o refcount.o usercopy.o errseq.o \
+	 obj-y += string_helpers.o
 obj-$(CONFIG_TEST_STRING_HELPERS) += test-string_helpers.o
 obj-y += hexdump.o
 obj-y += kstrtox.o
@@ -53,10 +52,10 @@ obj-$(CONFIG_TEST_BPF) += test_bpf.o
 obj-$(CONFIG_TEST_FIRMWARE) += test_firmware.o
 obj-$(CONFIG_TEST_HASH) += test_hash.o test_siphash.o
 obj-$(CONFIG_TEST_KASAN) += test_kasan.o
-CFLAGS_test_kasan.o += -fno-builtin
-CFLAGS_test_kasan.o += $(call cc-disable-warning, vla)
-CFLAGS_test_ubsan.o += $(call cc-disable-warning, vla)
-UBSAN_SANITIZE_test_ubsan.o := y
++= -fno-builtin
++= $(call cc-disable-warning, vla)
++= $(call cc-disable-warning, vla)
+:= y
 obj-$(CONFIG_TEST_KSTRTOX) += test-kstrtox.o
 obj-$(CONFIG_TEST_LKM) += test_module.o
 obj-$(CONFIG_TEST_RHASHTABLE) += test_rhashtable.o
@@ -70,12 +69,12 @@ obj-$(CONFIG_TEST_LIVEPATCH) += livepatch/
 obj-$(CONFIG_KUNIT) += kunit/
 
 ifeq ($(CONFIG_DEBUG_KOBJECT),y)
-CFLAGS_kobject.o += -DDEBUG
-CFLAGS_kobject_uevent.o += -DDEBUG
++= -DDEBUG
++= -DDEBUG
 endif
 
 obj-$(CONFIG_DEBUG_INFO_REDUCED) += debug_info.o
-CFLAGS_debug_info.o += $(call cc-option, -femit-struct-debug-detailed=any)
++= $(call cc-option, -femit-struct-debug-detailed=any)
 
 obj-y += math/ crypto/
 
@@ -186,8 +185,8 @@ obj-$(CONFIG_SG_POOL) += sg_pool.o
 obj-$(CONFIG_STMP_DEVICE) += stmp_device.o
 
 obj-$(CONFIG_STACKDEPOT) += stackdepot.o
-KASAN_SANITIZE_stackdepot.o := n
-KCOV_INSTRUMENT_stackdepot.o := n
+:= n
+:= n
 
 
 obj-$(CONFIG_RBTREE_TEST) += rbtree_test.o
@@ -212,7 +211,7 @@ quiet_cmd_crc32 = GEN     $@
 $(obj)/crc32table.h: $(obj)/gen_crc32table
 	$(call cmd,crc32)
 
-$(obj)/crc64.o: $(obj)/crc64table.h
+$(obj)/: $(obj)/crc64table.h
 
 quiet_cmd_crc64 = GEN     $@
       cmd_crc64 = $< > $@
@@ -239,9 +238,9 @@ clean-files	+= oid_registry_data.c
 obj-$(CONFIG_UCS2_STRING) += ucs2_string.o
 obj-$(CONFIG_UBSAN) += ubsan.o
 
-UBSAN_SANITIZE_ubsan.o := n
-KASAN_SANITIZE_ubsan.o := n
-CFLAGS_ubsan.o := $(call cc-option, -fno-stack-protector) $(DISABLE_STACKLEAK_PLUGIN)
+:= n
+:= n
+:= $(call cc-option, -fno-stack-protector) $(DISABLE_STACKLEAK_PLUGIN)
 
 
 
