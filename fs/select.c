@@ -15,6 +15,8 @@
  *     of fds to overcome nfds < 16390 descriptors limit (Tigran Aivazian).
  */
 
+/* marlin: stub busy_loop_current_time v4.x */
+#define busy_loop_current_time busy_loop_end_time
 #include <linux/kernel.h>
 #include <linux/sched/signal.h>
 #include <linux/sched/rt.h>

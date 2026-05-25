@@ -142,7 +142,7 @@ static void dump_instr(const char *lvl, struct pt_regs *regs)
 	}
 }
 
-void dump_backtrace(struct pt_regs *regs, struct task_struct *tsk)
+void dump_backtrace(struct pt_regs *regs, struct task_struct *tsk, const char *loglvl)
 {
 	struct stackframe frame;
 	unsigned long irq_stack_ptr;
