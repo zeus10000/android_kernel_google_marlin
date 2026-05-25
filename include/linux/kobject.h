@@ -155,6 +155,8 @@ struct kset_uevent_ops {
 		      struct kobj_uevent_env *env);
 };
 
+/* marlin: ensure struct attribute is fully visible */
+#ifdef _LINUX_SYSFS_STRUCT_ATTRIBUTE_DEFINED
 struct kobj_attribute {
 	struct attribute attr;
 	ssize_t (*show)(struct kobject *kobj, struct kobj_attribute *attr,
@@ -162,6 +164,8 @@ struct kobj_attribute {
 	ssize_t (*store)(struct kobject *kobj, struct kobj_attribute *attr,
 			 const char *buf, size_t count);
 };
+
+#endif /* _LINUX_SYSFS_STRUCT_ATTRIBUTE_DEFINED */
 
 extern const struct sysfs_ops kobj_sysfs_ops;
 
