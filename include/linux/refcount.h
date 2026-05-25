@@ -53,5 +53,6 @@ static inline void refcount_dec(refcount_t *r)
 }
 
 
-struct spinlock; extern bool refcount_dec_and_lock(refcount_t *r, void *lock);
+#include <linux/spinlock_types.h>
+extern bool refcount_dec_and_lock(refcount_t *r, spinlock_t *lock);
 #endif /* _LINUX_REFCOUNT_H */
