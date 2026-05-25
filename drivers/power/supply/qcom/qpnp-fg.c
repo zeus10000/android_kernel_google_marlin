@@ -8229,7 +8229,8 @@ struct dentry *fg_dfs_get_root(void)
  * fg_dfs_create: adds new fg_mem if debugfs entry
  * @return zero on success
  */
-int fg_dfs_create(struct fg_chip *chip)
+int fg_dfs_create(struct fg_chip *chip) { return 0; } /* marlin: skip debugfs */
+int __unused_fg_dfs_create(struct fg_chip *chip)
 {
 	struct dentry *root;
 	struct dentry *file;
