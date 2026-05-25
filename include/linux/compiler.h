@@ -356,4 +356,14 @@ unsigned long read_word_at_a_time(const void *addr)
  */
 #define prevent_tail_call_optimization()	mb()
 
+
+/* marlin backport: fallthrough for switch case (v5.4+) */
+#ifndef fallthrough
+# if defined(__GNUC__) && __GNUC__ >= 7
+#  define fallthrough __attribute__((__fallthrough__))
+# else
+#  define fallthrough do {} while (0)
+# endif
+#endif
+
 #endif /* __LINUX_COMPILER_H */
