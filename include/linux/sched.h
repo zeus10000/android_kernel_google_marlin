@@ -1772,7 +1772,6 @@ struct task_struct {
 #endif
 #ifdef CONFIG_CGROUPS
 	/* disallow userland-initiated cgroup migration */
-	unsigned no_cgroup_migration:1;
 #endif
 #ifdef CONFIG_CGROUPS
 	/* disallow userland-initiated cgroup migration */

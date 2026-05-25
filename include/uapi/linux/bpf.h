@@ -4451,12 +4451,6 @@ struct bpf_link_info {
 	};
 } __attribute__((aligned(8)));
 
-struct bpf_btf_info {
-	__aligned_u64 btf;
-	__u32 btf_size;
-	__u32 id;
-} __attribute__((aligned(8)));
-
 /* User bpf_sock_addr struct to access socket fields and sockaddr struct passed
  * by user and intended to be used by socket (e.g. to bind to, depends on
  * attach type).
