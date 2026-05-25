@@ -322,10 +322,7 @@ static inline int inet_sdif(struct sk_buff *skb)
 extern int __inet_bind(struct sock *sk, struct sockaddr *uaddr, int addr_len,
 		       u32 flags);
 
-enum {
-	BIND_FORCE_ADDRESS_NO_PORT = 0,
-	BIND_FROM_BPF              = 1,
-};
+/* marlin: enum removed - macros defined in inet_common.h */
 
 static inline bool inet_can_nonlocal_bind(struct net *net, struct inet_sock *inet) { return false; }
 #endif	/* _INET_SOCK_H */
