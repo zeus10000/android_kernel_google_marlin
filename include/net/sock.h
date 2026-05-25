@@ -2485,5 +2485,13 @@ static inline void sock_valbool_flag(struct sock *sk, enum sock_flags bit, int v
 	else
 		sock_reset_flag(sk, bit);
 }
+
+/* marlin: v5 saved_syn stub */
+struct saved_syn {
+	u32 mac_hdrlen;
+	u32 network_hdrlen;
+	u32 tcp_hdrlen;
+	u8 data[];
+};
 #endif	/* _SOCK_H */
 #define sock_owned_by_me(sk) sock_owned_by_user(sk)
