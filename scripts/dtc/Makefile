@@ -3,7 +3,7 @@
 
 hostprogs := dtc
 ifeq ($(DTC_EXT),)
-always-y := $(hostprogs-y)
+always-y := $(hostprogs)
 endif
 
 dtc-objs	:= dtc.o flattree.o fstree.o data.o livetree.o treesource.o \
