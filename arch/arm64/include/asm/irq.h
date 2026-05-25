@@ -51,14 +51,6 @@ static inline int nr_legacy_irqs(void)
 void arch_trigger_all_cpu_backtrace(void);
 #define arch_trigger_all_cpu_backtrace arch_trigger_all_cpu_backtrace
 
-static inline bool on_irq_stack(unsigned long sp, int cpu)
-{
-	/* variable names the same as kernel/stacktrace.c */
-	unsigned long low = (unsigned long)per_cpu(irq_stack, cpu);
-	unsigned long high = low + IRQ_STACK_START_SP;
-
-	return (low <= sp && sp <= high);
-}
 
 #endif /* !__ASSEMBLER__ */
 #endif
