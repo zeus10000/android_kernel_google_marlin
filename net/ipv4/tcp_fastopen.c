@@ -14,7 +14,7 @@ struct tcp_fastopen_context __rcu *tcp_fastopen_ctx;
 
 static DEFINE_SPINLOCK(tcp_fastopen_ctx_lock);
 
-void tcp_fastopen_init_key_once(void)
+void tcp_fastopen_init_key_once(bool publish)
 {
 	static u8 key[TCP_FASTOPEN_KEY_LENGTH];
 
