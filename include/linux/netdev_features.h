@@ -226,4 +226,12 @@ static inline int find_next_netdev_feature(u64 feature, unsigned long start)
 				 NETIF_F_GSO_UDP_TUNNEL |		\
 				 NETIF_F_GSO_UDP_TUNNEL_CSUM)
 
+
+/* marlin: legacy CSUM aliases for v4.4-shape code */
+#define NETIF_F_GEN_CSUM	NETIF_F_HW_CSUM
+#define NETIF_F_V4_CSUM	(NETIF_F_IP_CSUM | NETIF_F_HW_CSUM)
+#define NETIF_F_V6_CSUM	(NETIF_F_IPV6_CSUM | NETIF_F_HW_CSUM)
+#define NETIF_F_ALL_CSUM	(NETIF_F_GEN_CSUM | NETIF_F_V4_CSUM | NETIF_F_V6_CSUM)
+#define NETIF_F_GSO_IPIP	NETIF_F_GSO_IPXIP6
+#define NETIF_F_GSO_SIT		NETIF_F_GSO_IPXIP6
 #endif	/* _LINUX_NETDEV_FEATURES_H */

@@ -4301,4 +4301,18 @@ do {								\
 
 void generic_xdp_tx(struct sk_buff *skb, struct bpf_prog *xdp_prog);
 
+
+/* marlin: legacy NETDEV VLAN events (aliases to existing CVLAN_FILTER) */
+#ifndef NETDEV_SVLAN_FILTER_DROP_INFO
+#define NETDEV_SVLAN_FILTER_DROP_INFO NETDEV_CHANGEUPPER
+#endif
+#ifndef NETDEV_SVLAN_FILTER_PUSH_INFO
+#define NETDEV_SVLAN_FILTER_PUSH_INFO NETDEV_CHANGEUPPER
+#endif
+#ifndef NETDEV_CVLAN_FILTER_DROP_INFO
+#define NETDEV_CVLAN_FILTER_DROP_INFO NETDEV_CHANGEUPPER
+#endif
+#ifndef NETDEV_CVLAN_FILTER_PUSH_INFO
+#define NETDEV_CVLAN_FILTER_PUSH_INFO NETDEV_CHANGEUPPER
+#endif
 #endif	/* _LINUX_NETDEVICE_H */
