@@ -561,4 +561,9 @@ static inline struct xfrm_state *dst_xfrm(const struct dst_entry *dst)
 }
 #endif
 
+
+/* marlin: dst_free stub */
+static inline void dst_free(struct dst_entry *dst) { dst_release(dst); }
+struct rcu_head;
+static inline void dst_rcu_free(struct rcu_head *head) { }
 #endif /* _NET_DST_H */
