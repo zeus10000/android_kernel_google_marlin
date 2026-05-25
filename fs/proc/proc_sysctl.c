@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0
 
+#ifndef memdup_user_nul
+#define memdup_user_nul(u, l) memdup_user(u, l)
+#endif
+
 /* marlin: EPOLL* defines */
 #define EPOLLIN POLLIN
 #define EPOLLPRI POLLPRI
