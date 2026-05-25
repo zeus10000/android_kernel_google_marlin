@@ -331,7 +331,7 @@ struct module {
 	struct module_attribute *modinfo_attrs;
 #else
 	/* marlin: deferred — mkobj/modinfo_attrs require kobject+sysfs fully loaded */
-	void *mkobj[sizeof(struct kobject)/sizeof(void*) + 4]; /* opaque storage */
+	char mkobj[256]; /* opaque storage - sizeof(struct kobject) ~ 88 bytes */
 	void *modinfo_attrs;
 #endif
 	const char *version;

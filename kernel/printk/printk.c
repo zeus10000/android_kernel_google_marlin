@@ -22,6 +22,7 @@
 #include <linux/tty.h>
 #include <linux/tty_driver.h>
 #include <linux/console.h>
+#include <linux/eventpoll.h>
 #include <linux/init.h>
 #include <linux/jiffies.h>
 #include <linux/nmi.h>
