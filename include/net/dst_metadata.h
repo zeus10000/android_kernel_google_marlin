@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __NET_DST_METADATA_H
 #define __NET_DST_METADATA_H 1
+enum metadata_type { METADATA_IP_TUNNEL = 0, METADATA_HW_PORT_MUX = 1 };
 
 #include <linux/skbuff.h>
 #include <net/ip_tunnels.h>
@@ -163,10 +164,6 @@ static inline struct metadata_dst *ipv6_tun_rx_dst(struct sk_buff *skb,
 }
 
 /* Compat: METADATA_IP_TUNNEL type enum added in 4.14+ */
-enum metadata_type {
-	METADATA_IP_TUNNEL,
-	METADATA_MACSEC,
-};
 
 /* Compat: metadata_dst_alloc_percpu with type arg */
 static inline struct metadata_dst __percpu *
