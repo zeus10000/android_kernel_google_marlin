@@ -96,11 +96,13 @@ static inline struct proc_dir_entry *proc_net_mkdir(
 }
 
 
-/* marlin: v4.18+ proc_create_single stub */
+/* marlin: v4.18+ proc_create_single helpers */
+struct proc_dir_entry *proc_create_single_data(const char *name, umode_t mode,
+	struct proc_dir_entry *parent,
+	int (*show)(struct seq_file *, void *), void *data);
 #define proc_create_single(name, mode, parent, show) \
-	proc_create_data(name, mode, parent, NULL, NULL)
-#define proc_create_single_data(name, mode, parent, show, data) \
-	proc_create_data(name, mode, parent, NULL, data)
+	proc_create_single_data(name, mode, parent, show, NULL)
+/* proc_create_seq stub remains a no-op for now */
 #define proc_create_seq(name, mode, parent, ops) \
 	proc_create_data(name, mode, parent, NULL, NULL)
 

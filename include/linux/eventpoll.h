@@ -23,7 +23,7 @@ struct file;
 
 /* Used to initialize the epoll bits inside the "struct file" */
 /* marlin: defer inline access — provide weak stub instead */
-static inline void eventpoll_init_file(struct file *file) { }
+static inline void eventpoll_init_file(struct file *file) { INIT_LIST_HEAD(&file->f_ep_links); INIT_LIST_HEAD(&file->f_tfile_llink); }
 
 
 /* Used to release the epoll bits inside the "struct file" */

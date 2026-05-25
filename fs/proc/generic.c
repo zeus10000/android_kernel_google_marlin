@@ -12,6 +12,8 @@
 #include <linux/errno.h>
 #include <linux/time.h>
 #include <linux/proc_fs.h>
+#include <linux/seq_file.h>
+#include <linux/slab.h>
 #include <linux/stat.h>
 #include <linux/mm.h>
 #include <linux/module.h>
@@ -645,3 +647,43 @@ void *PDE_DATA(const struct inode *inode)
 	return __PDE_DATA(inode);
 }
 EXPORT_SYMBOL(PDE_DATA);
+
+/* marlin: v4.18+ proc_create_single helpers */
+struct proc_single_priv {
+	int (*show)(struct seq_file *, void *);
+	void *data;
+};
+
+static int proc_single_open(struct inode *inode, struct file *file)
+{
+	struct proc_single_priv *p = PDE_DATA(inode);
+	return single_open(file, p->show, p->data);
+}
+
+static int proc_single_release(struct inode *inode, struct file *file)
+{
+	struct proc_single_priv *p = PDE_DATA(inode);
+	int ret = single_release(inode, file);
+	kfree(p);
+	return ret;
+}
+
+static const struct file_operations proc_single_fops = {
+	.open = proc_single_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+
+struct proc_dir_entry *proc_create_single_data(const char *name, umode_t mode,
+	struct proc_dir_entry *parent,
+	int (*show)(struct seq_file *, void *), void *data)
+{
+	struct proc_single_priv *priv = kmalloc(sizeof(*priv), GFP_KERNEL);
+	if (!priv)
+		return NULL;
+	priv->show = show;
+	priv->data = data;
+	return proc_create_data(name, mode, parent, &proc_single_fops, priv);
+}
+EXPORT_SYMBOL(proc_create_single_data);
