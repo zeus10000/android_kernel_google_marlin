@@ -490,7 +490,8 @@ struct bpf_prog {
 				kprobe_override:1, /* Do we override a kprobe? */
 				has_callchain_buf:1; /* callchain buffer allocated? */
 	enum bpf_prog_type	type;		/* Type of BPF program */
-	enum bpf_attach_type	expected_attach_type; /* For some prog types */
+	enum bpf_attach_type	expected_attach_type;
+	bool			enforce_expected_attach_type; /* For some prog types */
 	u32			len;		/* Number of filter blocks */
 	u32			jited_len;	/* Size of jited insns in bytes */
 	u8			tag[BPF_TAG_SIZE];
@@ -777,12 +778,12 @@ struct bpf_prog *bpf_int_jit_compile(struct bpf_prog *prog);
 void bpf_jit_compile(struct bpf_prog *prog);
 bool bpf_helper_changes_pkt_data(void *func);
 
-static inline bool bpf_dump_raw_ok(void)
+static inline bool bpf_dump_raw_ok(const struct cred *cred)
 {
 	/* Reconstruction of call-sites is dependent on kallsyms,
 	 * thus make dump the same restriction.
 	 */
-	return kallsyms_show_value(current_cred());
+	return kallsyms_show_value(cred);
 }
 
 struct bpf_prog *bpf_patch_insn_single(struct bpf_prog *prog, u32 off,
@@ -1133,4 +1134,13 @@ struct bpf_sock_ops_kern {
 #define BPF_JMP32_REG(OP, DST, SRC, OFF) BPF_JMP_REG(OP, DST, SRC, OFF)
 #define BPF_ZEXT_REG(REG) ((struct bpf_insn){0})
 #define BPF_IMAGE_ALIGNMENT 8
+
+/* marlin: v5.x stubs */
+static inline int bpf_remove_insns(struct bpf_prog *prog, u32 off, u32 cnt) { return 0; }
+static inline bool bpf_jit_needs_zext(void) { return false; }
+static inline u32 bpf_ctx_narrow_access_offset(u32 off, u32 size, u32 size_default) { return off; }
+static inline struct bpf_prog *bpf_prog_alloc_no_stats(unsigned int size, gfp_t gfp_extra_flags) { return NULL; }
+static inline int bpf_jit_add_poke_descriptor(struct bpf_prog *prog, void *desc) { return 0; }
+extern int btf_resolve_helper_id(void *unused, void *fn, int idx);
+struct bpf_reg_state_mem_size_compat { u32 mem_size; };
 #endif /* __LINUX_FILTER_H__ */
