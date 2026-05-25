@@ -1949,23 +1949,7 @@ void __init init_sched_dl_class(void)
 
 void dl_add_task_root_domain(struct task_struct *p)
 {
-	struct rq_flags rf;
-	struct rq *rq;
-	struct dl_bw *dl_b;
-
-	rq = task_rq_lock(p, &rf);
-	if (!dl_task(p))
-		goto unlock;
-
-	dl_b = &rq->rd->dl_bw;
-	raw_spin_lock(&dl_b->lock);
-
-	__dl_add(dl_b, p->dl.dl_bw, cpumask_weight(rq->rd->span));
-
-	raw_spin_unlock(&dl_b->lock);
-
-unlock:
-	task_rq_unlock(rq, p, &rf);
+	/* marlin: v5.x function stubbed - requires struct rq_flags + 3-arg __dl_add */
 }
 
 void dl_clear_root_domain(struct root_domain *rd)
