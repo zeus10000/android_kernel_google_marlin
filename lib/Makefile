@@ -200,7 +200,6 @@ obj-$(CONFIG_ASN1) += asn1_decoder.o
 obj-$(CONFIG_FONT_SUPPORT) += fonts/
 
 hostprogs	:= gen_crc32table
-hostprogs	+= gen_crc64table
 clean-files	:= crc32table.h
 clean-files	+= crc64table.h
 
@@ -217,7 +216,6 @@ $(obj)/: $(obj)/crc64table.h
 quiet_cmd_crc64 = GEN     $@
       cmd_crc64 = $< > $@
 
-$(obj)/crc64table.h: $(obj)/gen_crc64table
 	$(call cmd,crc64)
 
 #
