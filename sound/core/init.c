@@ -1,3 +1,5 @@
+/* marlin: define EPOLLNVAL */
+#define EPOLLNVAL	0x20
 /*
 
 #include <linux/eventpoll.h>
