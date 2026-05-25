@@ -1950,7 +1950,7 @@ static inline unsigned int fold_hash(unsigned long hash)
 
 #endif
 
-unsigned int full_name_hash(const unsigned char *name, unsigned int len)
+unsigned int full_name_hash(const void *salt, const char *name, unsigned int len)
 {
 	unsigned long a, mask;
 	unsigned long hash = 0;
@@ -2003,7 +2003,7 @@ static inline u64 hash_name(const char *name)
 
 #else
 
-unsigned int full_name_hash(const unsigned char *name, unsigned int len)
+unsigned int full_name_hash(const void *salt, const char *name, unsigned int len)
 {
 	unsigned long hash = init_name_hash(0);
 	while (len--)
@@ -2446,7 +2446,7 @@ struct dentry *lookup_one_len2(const char *name, struct vfsmount *mnt, struct de
 
 	this.name = name;
 	this.len = len;
-	this.hash = full_name_hash(name, len);
+	this.hash = full_name_hash(NULL, name, len);
 	if (!len)
 		return ERR_PTR(-EACCES);
 

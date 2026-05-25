@@ -1688,7 +1688,7 @@ struct dentry *d_alloc_name(struct dentry *parent, const char *name)
 
 	q.name = name;
 	q.len = strlen(name);
-	q.hash = full_name_hash(q.name, q.len);
+	q.hash = full_name_hash(NULL, q.name, q.len);
 	return d_alloc(parent, &q);
 }
 EXPORT_SYMBOL(d_alloc_name);
@@ -2383,7 +2383,7 @@ struct dentry *d_hash_and_lookup(struct dentry *dir, struct qstr *name)
 	 * calculate the standard hash first, as the d_op->d_hash()
 	 * routine may choose to leave the hash value unchanged.
 	 */
-	name->hash = full_name_hash(name->name, name->len);
+	name->hash = full_name_hash(NULL, name->name, name->len);
 	if (dir->d_flags & DCACHE_OP_HASH) {
 		int err = dir->d_op->d_hash(dir, name);
 		if (unlikely(err < 0))
