@@ -332,7 +332,7 @@ NETDEVICE_SHOW_RW(tx_queue_len, fmt_ulong);
 
 static int change_gro_flush_timeout(struct net_device *dev, unsigned long val)
 {
-	WRITE_ONCE(dev->gro_flush_timeout, val);
+	dev->gro_flush_timeout = val;
 	return 0;
 }
 
@@ -346,23 +346,6 @@ static ssize_t gro_flush_timeout_store(struct device *dev,
 	return netdev_store(dev, attr, buf, len, change_gro_flush_timeout);
 }
 NETDEVICE_SHOW_RW(gro_flush_timeout, fmt_ulong);
-
-static int change_napi_defer_hard_irqs(struct net_device *dev, unsigned long val)
-{
-	WRITE_ONCE(dev->napi_defer_hard_irqs, val);
-	return 0;
-}
-
-static ssize_t napi_defer_hard_irqs_store(struct device *dev,
-					  struct device_attribute *attr,
-					  const char *buf, size_t len)
-{
-	if (!capable(CAP_NET_ADMIN))
-		return -EPERM;
-
-	return netdev_store(dev, attr, buf, len, change_napi_defer_hard_irqs);
-}
-NETDEVICE_SHOW_RW(napi_defer_hard_irqs, fmt_dec);
 
 static ssize_t ifalias_store(struct device *dev, struct device_attribute *attr,
 			     const char *buf, size_t len)
@@ -379,7 +362,10 @@ static ssize_t ifalias_store(struct device *dev, struct device_attribute *attr,
 	if (len >  0 && buf[len - 1] == '\n')
 		--count;
 
+	if (!rtnl_trylock())
+		return restart_syscall();
 	ret = dev_set_alias(netdev, buf, count);
+	rtnl_unlock();
 
 	return ret < 0 ? ret : len;
 }
@@ -388,12 +374,13 @@ static ssize_t ifalias_show(struct device *dev,
 			    struct device_attribute *attr, char *buf)
 {
 	const struct net_device *netdev = to_net_dev(dev);
-	char tmp[IFALIASZ];
 	ssize_t ret = 0;
 
-	ret = dev_get_alias(netdev, tmp, sizeof(tmp));
-	if (ret > 0)
-		ret = sprintf(buf, "%s\n", tmp);
+	if (!rtnl_trylock())
+		return restart_syscall();
+	if (netdev->ifalias)
+		ret = sprintf(buf, "%s\n", netdev->ifalias);
+	rtnl_unlock();
 	return ret;
 }
 static DEVICE_ATTR_RW(ifalias);
@@ -473,7 +460,6 @@ static ssize_t phys_switch_id_show(struct device *dev,
 				   struct device_attribute *attr, char *buf)
 {
 	struct net_device *netdev = to_net_dev(dev);
-	const struct net_device_ops *ops = netdev->netdev_ops;
 	ssize_t ret = -EINVAL;
 
 	if (!rtnl_trylock())
@@ -485,11 +471,7 @@ static ssize_t phys_switch_id_show(struct device *dev,
 			.flags = SWITCHDEV_F_NO_RECURSE,
 		};
 
-		if (ops->ndo_get_port_parent_id)
-			ret = dev_get_port_parent_id(netdev, &attr.u.ppid,
-						     false);
-		else
-			ret = switchdev_port_attr_get(netdev, &attr);
+		ret = switchdev_port_attr_get(netdev, &attr);
 		if (!ret)
 			ret = sprintf(buf, "%*phN\n", attr.u.ppid.id_len,
 				      attr.u.ppid.id);
@@ -524,7 +506,6 @@ static struct attribute *net_class_attrs[] = {
 	&dev_attr_flags.attr,
 	&dev_attr_tx_queue_len.attr,
 	&dev_attr_gro_flush_timeout.attr,
-	&dev_attr_napi_defer_hard_irqs.attr,
 	&dev_attr_phys_port_id.attr,
 	&dev_attr_phys_port_name.attr,
 	&dev_attr_phys_switch_id.attr,
@@ -588,7 +569,6 @@ NETSTAT_ENTRY(tx_heartbeat_errors);
 NETSTAT_ENTRY(tx_window_errors);
 NETSTAT_ENTRY(rx_compressed);
 NETSTAT_ENTRY(tx_compressed);
-NETSTAT_ENTRY(rx_nohandler);
 
 static struct attribute *netstat_attrs[] = {
 	&dev_attr_rx_packets.attr,
@@ -614,7 +594,6 @@ static struct attribute *netstat_attrs[] = {
 	&dev_attr_tx_window_errors.attr,
 	&dev_attr_rx_compressed.attr,
 	&dev_attr_tx_compressed.attr,
-	&dev_attr_rx_nohandler.attr,
 	NULL
 };
 
@@ -744,9 +723,9 @@ static ssize_t store_rps_map(struct netdev_rx_queue *queue,
 	rcu_assign_pointer(queue->rps_map, map);
 
 	if (map)
-		static_branch_inc(&rps_needed);
+		static_key_slow_inc(&rps_needed);
 	if (old_map)
-		static_branch_dec(&rps_needed);
+		static_key_slow_dec(&rps_needed);
 
 	mutex_unlock(&rps_map_mutex);
 
@@ -1019,6 +998,7 @@ static ssize_t show_trans_timeout(struct netdev_queue *queue,
 	return sprintf(buf, fmt_ulong, trans_timeout);
 }
 
+#ifdef CONFIG_XPS
 static unsigned int get_netdev_queue_index(struct netdev_queue *queue)
 {
 	struct net_device *dev = queue->dev;
@@ -1030,21 +1010,6 @@ static unsigned int get_netdev_queue_index(struct netdev_queue *queue)
 	return i;
 }
 
-static ssize_t show_traffic_class(struct netdev_queue *queue,
-				  struct netdev_queue_attribute *attribute,
-				  char *buf)
-{
-	struct net_device *dev = queue->dev;
-	int index = get_netdev_queue_index(queue);
-	int tc = netdev_txq_to_tc(dev, index);
-
-	if (tc < 0)
-		return -EINVAL;
-
-	return sprintf(buf, "%u\n", tc);
-}
-
-#ifdef CONFIG_XPS
 static ssize_t show_tx_maxrate(struct netdev_queue *queue,
 			       struct netdev_queue_attribute *attribute,
 			       char *buf)
@@ -1086,9 +1051,6 @@ static struct netdev_queue_attribute queue_tx_maxrate =
 
 static struct netdev_queue_attribute queue_trans_timeout =
 	__ATTR(tx_timeout, S_IRUGO, show_trans_timeout, NULL);
-
-static struct netdev_queue_attribute queue_traffic_class =
-	__ATTR(traffic_class, S_IRUGO, show_traffic_class, NULL);
 
 #ifdef CONFIG_BQL
 /*
@@ -1205,38 +1167,29 @@ static ssize_t show_xps_map(struct netdev_queue *queue,
 			    struct netdev_queue_attribute *attribute, char *buf)
 {
 	struct net_device *dev = queue->dev;
-	int cpu, len, num_tc = 1, tc = 0;
 	struct xps_dev_maps *dev_maps;
 	cpumask_var_t mask;
 	unsigned long index;
+	int i, len;
 
 	if (!zalloc_cpumask_var(&mask, GFP_KERNEL))
 		return -ENOMEM;
 
 	index = get_netdev_queue_index(queue);
 
-	if (dev->num_tc) {
-		num_tc = dev->num_tc;
-		tc = netdev_txq_to_tc(dev, index);
-		if (tc < 0)
-			return -EINVAL;
-	}
-
 	rcu_read_lock();
-	dev_maps = rcu_dereference(dev->xps_cpus_map);
+	dev_maps = rcu_dereference(dev->xps_maps);
 	if (dev_maps) {
-		for_each_possible_cpu(cpu) {
-			int i, tci = cpu * num_tc + tc;
-			struct xps_map *map;
-
-			map = rcu_dereference(dev_maps->attr_map[tci]);
-			if (!map)
-				continue;
-
-			for (i = map->len; i--;) {
-				if (map->queues[i] == index) {
-					cpumask_set_cpu(cpu, mask);
-					break;
+		for_each_possible_cpu(i) {
+			struct xps_map *map =
+			    rcu_dereference(dev_maps->cpu_map[i]);
+			if (map) {
+				int j;
+				for (j = 0; j < map->len; j++) {
+					if (map->queues[j] == index) {
+						cpumask_set_cpu(i, mask);
+						break;
+					}
 				}
 			}
 		}
@@ -1284,7 +1237,6 @@ static struct netdev_queue_attribute xps_cpus_attribute =
 
 static struct attribute *netdev_queue_default_attrs[] = {
 	&queue_trans_timeout.attr,
-	&queue_traffic_class.attr,
 #ifdef CONFIG_XPS
 	&xps_cpus_attribute.attr,
 	&queue_tx_maxrate.attr,
@@ -1493,10 +1445,7 @@ static void netdev_release(struct device *d)
 
 	BUG_ON(dev->reg_state != NETREG_RELEASED);
 
-	/* no need to wait for rcu grace period:
-	 * device is dead and about to be freed.
-	 */
-	kfree(rcu_access_pointer(dev->ifalias));
+	kfree(dev->ifalias);
 	netdev_freemem(dev);
 }
 
