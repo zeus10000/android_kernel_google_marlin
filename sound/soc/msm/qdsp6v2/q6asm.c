@@ -26,6 +26,12 @@
 #include <linux/slab.h>
 #include <linux/msm_audio.h>
 
+/* marlin: stub v5.x audio symbols */
+static const uint32_t adsp_reg_event_opcode[] = {0};
+static inline bool is_adsp_reg_event(uint32_t opcode) { return false; }
+static inline bool is_adsp_raise_event(uint32_t opcode) { return false; }
+static inline uint32_t q6asm_get_flag_from_token(uint32_t token, uint32_t bit) { return 0; }
+
 #include <linux/debugfs.h>
 #include <linux/time.h>
 #include <linux/atomic.h>

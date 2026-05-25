@@ -27,6 +27,8 @@
  * License v2.
  */
 
+#include <linux/sched/task.h>
+#include <linux/sched/mm.h>
 #include <linux/list.h>
 #include <linux/spinlock.h>
 #include <linux/atomic.h>

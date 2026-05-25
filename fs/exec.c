@@ -23,6 +23,7 @@
  * formats.
  */
 
+#include <linux/sched/mm.h>
 #include <linux/sched/task.h>
 #include <linux/slab.h>
 #include <linux/file.h>

@@ -446,7 +446,7 @@ static void exit_mm(struct task_struct *tsk)
 	task_unlock(tsk);
 	mm_update_next_owner(mm);
 
-	mm_released = mmput(mm);
+	mmput(mm); int mm_released = 1;
 	if (test_thread_flag(TIF_MEMDIE))
 		exit_oom_victim();
 	if (mm_released)
