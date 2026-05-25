@@ -161,7 +161,7 @@ void dump_backtrace(struct pt_regs *regs, struct task_struct *tsk, const char *l
 	 * non-preemptible context.
 	 */
 	if (tsk == current && !preemptible())
-		irq_stack_ptr = IRQ_STACK_PTR();
+		irq_stack_ptr = IRQ_STACK_PTR(raw_smp_processor_id());
 	else
 		irq_stack_ptr = 0;
 
