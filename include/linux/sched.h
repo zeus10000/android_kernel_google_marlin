@@ -2339,11 +2339,6 @@ extern void free_task(struct task_struct *tsk);
 
 extern void __put_task_struct(struct task_struct *t);
 
-static inline void put_task_struct(struct task_struct *t)
-{
-	if (atomic_dec_and_test(&t->usage))
-		__put_task_struct(t);
-}
 
 #ifdef CONFIG_VIRT_CPU_ACCOUNTING_GEN
 extern void task_cputime(struct task_struct *t,
@@ -3060,12 +3055,6 @@ extern int copy_thread(unsigned long, unsigned long, unsigned long,
 
 /* Architectures that haven't opted into copy_thread_tls get the tls argument
  * via pt_regs, so ignore the tls argument passed via C. */
-static inline int copy_thread_tls(
-		unsigned long clone_flags, unsigned long sp, unsigned long arg,
-		struct task_struct *p, unsigned long tls)
-{
-	return copy_thread(clone_flags, sp, arg, p);
-}
 #endif
 extern void flush_thread(void);
 
@@ -3203,15 +3192,7 @@ static inline int thread_group_empty(struct task_struct *p)
  * It must not be nested with write_lock_irq(&tasklist_lock),
  * neither inside nor outside.
  */
-static inline void task_lock(struct task_struct *p)
-{
-	spin_lock(&p->alloc_lock);
-}
 
-static inline void task_unlock(struct task_struct *p)
-{
-	spin_unlock(&p->alloc_lock);
-}
 
 extern struct sighand_struct *__lock_task_sighand(struct task_struct *tsk,
 							unsigned long *flags);
