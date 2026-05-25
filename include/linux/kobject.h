@@ -18,7 +18,6 @@
 
 #include <linux/types.h>
 #include <linux/list.h>
-#include <linux/sysfs.h>
 #include <linux/compiler.h>
 #include <linux/spinlock.h>
 #include <linux/kref.h>
@@ -77,6 +76,9 @@ struct kobject {
 	unsigned int state_remove_uevent_sent:1;
 	unsigned int uevent_suppress:1;
 };
+
+#include <linux/sysfs.h>
+
 
 extern __printf(2, 3)
 int kobject_set_name(struct kobject *kobj, const char *name, ...);
