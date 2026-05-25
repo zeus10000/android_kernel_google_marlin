@@ -48,6 +48,7 @@
  *  Overall revision about smaps.
  */
 
+#include <linux/sched/mm.h>
 #include <linux/uaccess.h>
 
 #include <linux/errno.h>
