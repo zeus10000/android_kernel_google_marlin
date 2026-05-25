@@ -1147,4 +1147,9 @@ extern int bpf_jit_add_poke_descriptor(struct bpf_prog *prog, struct bpf_jit_pok
 extern int btf_resolve_helper_id(void *unused, void *fn, int idx);
 extern struct static_key_false bpf_stats_enabled_key;
 extern void *bpf_trampoline_lookup(u64 key);
+
+/* marlin: v5.x stub structs */
+struct bpf_sysctl_kern { int dummy; };
+struct bpf_sockopt_kern { int dummy; };
+struct bpf_sk_lookup_kern { int dummy; };
 #endif /* __LINUX_FILTER_H__ */
