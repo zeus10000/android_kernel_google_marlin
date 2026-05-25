@@ -15,6 +15,7 @@
 #include <linux/elf.h>
 #include <linux/stringify.h>
 #include <linux/kobject.h>
+#include <linux/sysfs.h>
 #include <linux/moduleparam.h>
 #include <linux/jump_label.h>
 #include <linux/export.h>
