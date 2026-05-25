@@ -19,10 +19,12 @@
 #include <linux/bpf_verifier.h>
 #include <linux/btf.h>
 #include <linux/btf_ids.h>
+#include <net/xdp.h>
 #include <linux/skmsg.h>
 #include <linux/perf_event.h>
 #include <linux/bsearch.h>
 #include <linux/btf_ids.h>
+#include <net/xdp.h>
 #include <net/sock.h>
 
 /* BTF (BPF Type Format) is the meta data format which describes
