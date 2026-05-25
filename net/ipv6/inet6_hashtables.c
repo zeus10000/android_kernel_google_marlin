@@ -197,8 +197,7 @@ struct sock *inet6_lookup(struct net *net, struct inet_hashinfo *hashinfo,
 	struct sock *sk;
 
 	local_bh_disable();
-	sk = __inet6_lookup(net, hashinfo, skb, doff, saddr, sport, daddr,
-			    ntohs(dport), dif);
+	sk = __inet6_lookup(net, hashinfo, skb, doff, saddr, sport, daddr, ntohs(dport), dif, 0, NULL);
 	local_bh_enable();
 
 	return sk;
