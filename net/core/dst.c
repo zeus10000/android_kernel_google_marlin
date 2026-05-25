@@ -6,6 +6,7 @@
  *
  */
 
+#include <linux/marlin_v5_stubs.h>
 #include <linux/bitops.h>
 #include <linux/errno.h>
 #include <linux/init.h>

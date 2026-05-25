@@ -72,6 +72,7 @@
  *				        - netif_rx() feedback
  */
 
+#include <linux/marlin_v5_stubs.h>
 #include <asm/uaccess.h>
 #include <linux/bitops.h>
 #include <linux/capability.h>
@@ -144,13 +145,6 @@
 
 #include "net-sysfs.h"
 
-/* marlin: missing stubs */
-#ifndef MARLIN_DEV_C_STUBS
-#define MARLIN_DEV_C_STUBS
-static inline int tc_classify(struct sk_buff *skb, const struct tcf_proto *tp, struct tcf_result *res, bool compat_mode) { return 0; }
-static inline int dst_subsys_init(void) { return 0; }
-static inline int dev_pre_changeaddr_notify(struct net_device *dev, const char *addr, void *extack) { return 0; }
-#endif
 
 /* Instead of increasing this, you should create a hash table. */
 #define MAX_GRO_SKBS 8
@@ -4953,7 +4947,7 @@ static int napi_poll(struct napi_struct *n, struct list_head *repoll)
 
 		sd->current_napi = n;
 		work = n->poll(n, weight);
-		trace_napi_poll(n);
+		trace_napi_poll(n, 0, 0);
 	}
 
 	WARN_ON_ONCE(work > weight);

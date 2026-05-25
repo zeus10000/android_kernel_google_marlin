@@ -7,6 +7,7 @@
  * addresses lists.
  */
 
+#include <linux/marlin_v5_stubs.h>
 #include <linux/netdevice.h>
 #include <linux/rtnetlink.h>
 #include <linux/export.h>

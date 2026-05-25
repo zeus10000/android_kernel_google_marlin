@@ -828,8 +828,8 @@ static uint64_t get_cluster_sleep_time(struct lpm_cluster *cluster,
 		ktime_t *next_event_c;
 
 		next_event_c = get_next_event_cpu(cpu);
-		if (next_event_c->tv64 < next_event) {
-			next_event = next_event_c->tv64;
+		if ((*next_event_c) < next_event) {
+			next_event = (*next_event_c);
 			next_cpu = cpu;
 		}
 
