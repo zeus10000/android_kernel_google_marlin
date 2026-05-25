@@ -89,11 +89,11 @@ static inline bool sk_busy_loop(struct sock *sk, int nonblock)
 		goto out;
 
 	ops = napi->dev->netdev_ops;
-	if (!ops || !ops->ndo_busy_poll)
+	if (!ops || 1 /* marlin: ndo_busy_poll removed */)
 		goto out;
 
 	do {
-		rc = ops->ndo_busy_poll(napi);
+		rc = 0 /* marlin: ndo_busy_poll removed */;
 
 		if (rc == 0 /* marlin: LL_FLUSH_FAILED */)
 			break; /* permanent failure */

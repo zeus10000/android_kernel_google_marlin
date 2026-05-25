@@ -1754,7 +1754,7 @@ schedule_hrtimeout_range_clock(ktime_t *expires, u64 delta,
 	 * Optimize when a zero timeout value is given. It does not
 	 * matter whether this is an absolute or a relative time.
 	 */
-	if (expires && !expires->tv64) {
+	if (expires && !*expires) {
 		__set_current_state(TASK_RUNNING);
 		return 0;
 	}
