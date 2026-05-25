@@ -16,7 +16,6 @@ msm_kgsl_core-y = \
 msm_kgsl_core-$(CONFIG_QCOM_KGSL_IOMMU) += kgsl_iommu.o
 msm_kgsl_core-$(CONFIG_DEBUG_FS) += kgsl_debugfs.o
 msm_kgsl_core-$(CONFIG_QCOM_KGSL_CFF_DUMP) += kgsl_cffdump.o
-msm_kgsl_core-$(CONFIG_SYNC) += kgsl_sync.o
 msm_kgsl_core-$(CONFIG_COMPAT) += kgsl_compat.o
 
 msm_adreno-y += \

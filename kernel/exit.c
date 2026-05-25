@@ -393,6 +393,7 @@ assign_new_owner:
  */
 static void exit_mm(struct task_struct *tsk)
 {
+	int mm_released = 0;
 	struct mm_struct *mm = tsk->mm;
 	struct core_state *core_state;
 	int mm_released;
@@ -446,7 +447,7 @@ static void exit_mm(struct task_struct *tsk)
 	task_unlock(tsk);
 	mm_update_next_owner(mm);
 
-	mmput(mm); int mm_released = 1;
+	mmput(mm); mm_released = 1;
 	if (test_thread_flag(TIF_MEMDIE))
 		exit_oom_victim();
 	if (mm_released)
