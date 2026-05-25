@@ -324,6 +324,7 @@ struct napi_struct {
 	struct list_head	dev_list;
 	struct hlist_node	napi_hash_node;
 	unsigned int		napi_id;
+	unsigned long gro_bitmask; /* marlin: v5 napi gro_bitmask */
 };
 
 enum {
@@ -1627,6 +1628,11 @@ enum netdev_priv_flags {
  *	FIXME: cleanup struct net_device such that network protocol info
  *	moves out.
  */
+
+/* marlin: v5.x forward decls for fields referenced via macros */
+struct dev_ifalias;
+struct netdev_name_node;
+struct netdev_net_notifier;
 
 struct net_device {
 	char			name[IFNAMSIZ];

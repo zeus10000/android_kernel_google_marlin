@@ -343,4 +343,11 @@ static inline int dma_mmap_writecombine(struct device *dev,
 #define dma_unmap_len_set(PTR, LEN_NAME, VAL)    do { } while (0)
 #endif
 
+
+/* marlin: v4 dma_*_writecombine stubs */
+#define dma_alloc_writecombine(dev, size, dma_handle, gfp) \
+	dma_alloc_attrs(dev, size, dma_handle, gfp, DMA_ATTR_WRITE_COMBINE)
+#define dma_free_writecombine(dev, size, cpu_addr, dma_handle) \
+	dma_free_attrs(dev, size, cpu_addr, dma_handle, DMA_ATTR_WRITE_COMBINE)
+
 #endif
