@@ -30,7 +30,7 @@ struct ping_group_range {
 };
 
 struct netns_ipv4 {
-	struct inet_timewait_death_row tcp_death_row;
+	struct { atomic_t tw_count; int sysctl_max_tw_buckets; int sysctl_tw_recycle; } tcp_death_row;
 
 #ifdef CONFIG_SYSCTL
 	struct ctl_table_header	*forw_hdr;
