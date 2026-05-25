@@ -40,7 +40,7 @@ static int pfifo_tail_enqueue(struct sk_buff *skb, struct Qdisc *sch)
 
 	prev_backlog = sch->qstats.backlog;
 	/* queue full, remove one skb to fulfill the limit */
-	__qdisc_queue_drop_head(sch, &sch->q);
+	__qdisc_queue_drop_head(sch, &sch->q, NULL);
 	qdisc_qstats_drop(sch);
 	qdisc_enqueue_tail(skb, sch);
 

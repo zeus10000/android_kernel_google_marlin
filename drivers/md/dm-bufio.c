@@ -6,6 +6,7 @@
  * This file is released under the GPL.
  */
 
+#include <linux/sched/mm.h>
 #include "dm-bufio.h"
 
 #include <linux/device-mapper.h>

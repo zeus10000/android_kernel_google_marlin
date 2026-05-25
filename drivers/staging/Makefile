@@ -48,4 +48,3 @@ obj-$(CONFIG_FSL_MC_BUS)	+= fsl-mc/
 obj-$(CONFIG_WILC1000)		+= wilc1000/
 obj-$(CONFIG_MOST)		+= most/
 obj-$(CONFIG_NANOHUB)           += nanohub/
-obj-$(CONFIG_QCA_CLD_WLAN)	+= qcacld-2.0/

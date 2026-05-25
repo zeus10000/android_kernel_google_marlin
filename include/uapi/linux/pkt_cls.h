@@ -80,6 +80,7 @@ enum {
 #define TCA_ACT_NOREPLACE	0
 
 #define TC_ACT_VALUE_MAX TC_ACT_REDIRECT
+#define TC_ACT_TRAP 8
 #define TC_ACT_UNSPEC	(-1)
 #define TC_ACT_OK		0
 #define TC_ACT_RECLASSIFY	1

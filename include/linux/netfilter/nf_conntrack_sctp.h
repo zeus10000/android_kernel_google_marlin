@@ -4,11 +4,10 @@
 /* SCTP tracking. */
 
 #include <uapi/linux/netfilter/nf_conntrack_sctp.h>
-/* marlin: enum forward */
-enum sctp_conntrack;
+
 
 struct ip_ct_sctp {
-	enum sctp_conntrack state;
+	unsigned int state; /* marlin: use uint as state */
 
 	__be32 vtag[IP_CT_DIR_MAX];
 };

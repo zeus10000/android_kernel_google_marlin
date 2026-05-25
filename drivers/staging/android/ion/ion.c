@@ -16,6 +16,7 @@
  *
  */
 
+#include <linux/sched/task.h>
 #include <linux/atomic.h>
 #include <linux/err.h>
 #include <linux/file.h>

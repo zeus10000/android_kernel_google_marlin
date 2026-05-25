@@ -365,4 +365,7 @@ tcf_match_indev(struct sk_buff *skb, int ifindex)
 
 /* marlin: tc_classify stub for v4.4 era dev.c */
 static inline int tc_classify(struct sk_buff *skb, const struct tcf_proto *tp, struct tcf_result *res, bool compat_mode) { return 0; }
+
+/* marlin: tcf_classify stub for v5 sch_htb */
+static inline int tcf_classify(struct sk_buff *skb, const struct tcf_proto *tp, struct tcf_result *res, bool compat_mode) { return 0; }
 #endif

@@ -5,6 +5,7 @@
  * This file is released under the GPL.
  */
 
+#include <linux/sched/mm.h>
 #include "dm.h"
 
 #include <linux/module.h>
