@@ -20,6 +20,9 @@ dtb-$(CONFIG_ARCH_MSM8996) += \
 	msm8996-v3-htc_marlin-xa.dtb \
 	msm8996-v3-htc_sailfish-xa.dtb \
 
-always          := $(dtb-y)
+always-y := $(dtb-y)
 subdir-y        := $(dts-dirs)
 clean-files := *.dtb
+
+# v5.x kbuild compat: explicit targets
+targets += $(dtb-y)

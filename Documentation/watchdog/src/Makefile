@@ -2,4 +2,4 @@
 hostprogs-y := watchdog-simple watchdog-test
 
 # Tell kbuild to always build the programs
-always := $(hostprogs-y)
+always-y := $(hostprogs-y)

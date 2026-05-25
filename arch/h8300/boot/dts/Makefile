@@ -12,5 +12,5 @@ dtb-$(CONFIG_H8S_EDOSK2674) := edosk2674.dtb
 dtstree		:= $(srctree)/$(src)
 dtb-$(CONFIG_OF_ALL_DTBS) := $(patsubst $(dtstree)/%.dts,%.dtb, $(wildcard $(dtstree)/*.dts))
 
-always	    := $(dtb-y)
+always-y := $(dtb-y)
 clean-files := *.dtb.S *.dtb

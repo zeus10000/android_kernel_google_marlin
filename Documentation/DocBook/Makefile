@@ -102,7 +102,7 @@ endef
 	$(call if_changed_rule,docproc)
 
 # Tell kbuild to always build the programs
-always := $(hostprogs-y)
+always-y := $(hostprogs-y)
 
 notfoundtemplate = echo "*** You have to install docbook-utils or xmlto ***"; \
 		   exit 1

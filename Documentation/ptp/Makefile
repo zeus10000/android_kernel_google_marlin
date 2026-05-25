@@ -2,7 +2,7 @@
 hostprogs-y := testptp
 
 # Tell kbuild to always build the programs
-always := $(hostprogs-y)
+always-y := $(hostprogs-y)
 
 HOSTCFLAGS_testptp.o += -I$(objtree)/usr/include
 HOSTLOADLIBES_testptp := -lrt

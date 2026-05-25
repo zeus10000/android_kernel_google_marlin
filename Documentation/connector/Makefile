@@ -6,7 +6,7 @@ endif
 hostprogs-y := ucon
 
 # Tell kbuild to always build the programs
-always := $(hostprogs-y)
+always-y := $(hostprogs-y)
 
 HOSTCFLAGS_ucon.o += -I$(objtree)/usr/include
 

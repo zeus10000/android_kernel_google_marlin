@@ -21,6 +21,6 @@ dtb-$(CONFIG_ARCH_MESON) += meson-gxm-q200.dtb
 dtb-$(CONFIG_ARCH_MESON) += meson-gxm-q201.dtb
 dtb-$(CONFIG_ARCH_MESON) += meson-gxm-rbox-pro.dtb
 
-always		:= $(dtb-y)
+always-y := $(dtb-y)
 subdir-y	:= $(dts-dirs)
 clean-files	:= *.dtb

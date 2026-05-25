@@ -37,13 +37,13 @@ HOSTLDLIBS_bpf-direct += $(MFLAG)
 HOSTLDLIBS_bpf-fancy += $(MFLAG)
 HOSTLDLIBS_dropper += $(MFLAG)
 endif
-always := $(hostprogs-y)
+always-y := $(hostprogs-y)
 else
 # MIPS system calls are defined based on the -mabi that is passed
 # to the toolchain which may or may not be a valid option
 # for the host toolchain. So disable tests if target architecture
 # is MIPS but the host isn't.
 ifndef CONFIG_MIPS
-always := $(hostprogs-y)
+always-y := $(hostprogs-y)
 endif
 endif
