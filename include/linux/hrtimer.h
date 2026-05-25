@@ -15,6 +15,8 @@
 #ifndef _LINUX_HRTIMER_H
 #define _LINUX_HRTIMER_H
 
+#ifndef __ASSEMBLY__
+
 #include <linux/rbtree.h>
 #include <linux/ktime.h>
 #include <linux/init.h>
@@ -490,3 +492,4 @@ extern void __init hrtimers_init(void);
 extern void sysrq_timer_list_show(void);
 
 #endif
+#endif /* __ASSEMBLY__ */

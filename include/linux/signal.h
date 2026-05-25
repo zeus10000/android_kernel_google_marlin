@@ -2,6 +2,8 @@
 #ifndef _LINUX_SIGNAL_H
 #define _LINUX_SIGNAL_H
 
+#ifndef __ASSEMBLY__
+
 #include <linux/list.h>
 #include <linux/bug.h>
 #include <uapi/linux/signal.h>
@@ -486,5 +488,7 @@ int __save_altstack(stack_t __user *, unsigned long);
 struct seq_file;
 extern void render_sigset_t(struct seq_file *, const char *, sigset_t *);
 #endif
+
+#endif /* __ASSEMBLY__ */
 
 #endif /* _LINUX_SIGNAL_H */

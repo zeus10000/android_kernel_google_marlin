@@ -2,6 +2,8 @@
 #ifndef _LINUX_SCHED_H
 #define _LINUX_SCHED_H
 
+#ifndef __ASSEMBLY__
+
 #include <uapi/linux/sched.h>
 
 #include <linux/sched/prio.h>
@@ -3723,3 +3725,4 @@ static inline void mmap_read_unlock_non_owner(struct mm_struct *mm)
 	up_read(&mm->mmap_sem);
 }
 #endif
+#endif /* __ASSEMBLY__ */
