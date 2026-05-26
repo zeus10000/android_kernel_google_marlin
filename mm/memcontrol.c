@@ -32,6 +32,8 @@
  */
 
 #include <linux/page_counter.h>
+#include <linux/sched/mm.h>
+#include <linux/sched/task.h>
 #include <linux/memcontrol.h>
 #include <linux/cgroup.h>
 #include <linux/mm.h>
