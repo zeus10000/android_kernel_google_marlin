@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * mm/readahead.c - address_space-level file readahead.
  *

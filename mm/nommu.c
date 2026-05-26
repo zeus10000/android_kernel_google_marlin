@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  *  linux/mm/nommu.c
  *
@@ -37,7 +36,7 @@
 #include <linux/sched/sysctl.h>
 #include <linux/printk.h>
 
-#include <linux/uaccess.h>
+#include <asm/uaccess.h>
 #include <asm/tlb.h>
 #include <asm/tlbflush.h>
 #include <asm/mmu_context.h>
@@ -268,7 +267,8 @@ void *vmalloc_user(unsigned long size)
 {
 	void *ret;
 
-	ret = __vmalloc(size, GFP_KERNEL | __GFP_ZERO, PAGE_KERNEL);
+	ret = __vmalloc(size, GFP_KERNEL | __GFP_HIGHMEM | __GFP_ZERO,
+			PAGE_KERNEL);
 	if (ret) {
 		struct vm_area_struct *vma;
 

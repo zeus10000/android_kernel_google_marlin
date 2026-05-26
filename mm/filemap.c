@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  *	linux/mm/filemap.c
  *
@@ -13,7 +12,6 @@
 #include <linux/export.h>
 #include <linux/compiler.h>
 #include <linux/fs.h>
-#include <linux/sched/signal.h>
 #include <linux/uaccess.h>
 #include <linux/capability.h>
 #include <linux/kernel_stat.h>

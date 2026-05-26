@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  *  linux/mm/memory.c
  *
@@ -39,7 +38,6 @@
  * Aug/Sep 2004 Changed to four level page tables (Andi Kleen)
  */
 
-#include <linux/sched/mm.h>
 #include <linux/kernel_stat.h>
 #include <linux/mm.h>
 #include <linux/hugetlb.h>
@@ -67,7 +65,7 @@
 
 #include <asm/io.h>
 #include <asm/pgalloc.h>
-#include <linux/uaccess.h>
+#include <asm/uaccess.h>
 #include <asm/tlb.h>
 #include <asm/tlbflush.h>
 #include <asm/pgtable.h>

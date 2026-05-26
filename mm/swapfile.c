@@ -1,14 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
-
-/* marlin: EPOLL* defines */
-#define EPOLLIN POLLIN
-#define EPOLLPRI POLLPRI
-#define EPOLLERR POLLERR
-#define EPOLLHUP POLLHUP
-#define EPOLLNVAL POLLNVAL
-#define EPOLLRDNORM POLLRDNORM
-#define EPOLLRDBAND POLLRDBAND
-#define EPOLLWRNORM POLLWRNORM
 /*
  *  linux/mm/swapfile.c
  *
@@ -16,7 +5,6 @@
  *  Swap reorganised 29.12.95, Stephen Tweedie
  */
 
-#include <linux/sched/mm.h>
 #include <linux/mm.h>
 #include <linux/hugetlb.h>
 #include <linux/mman.h>
@@ -2074,10 +2062,10 @@ static unsigned swaps_poll(struct file *file, poll_table *wait)
 
 	if (seq->poll_event != atomic_read(&proc_poll_event)) {
 		seq->poll_event = atomic_read(&proc_poll_event);
-		return EPOLLIN | EPOLLRDNORM | EPOLLERR | EPOLLPRI;
+		return POLLIN | POLLRDNORM | POLLERR | POLLPRI;
 	}
 
-	return EPOLLIN | EPOLLRDNORM;
+	return POLLIN | POLLRDNORM;
 }
 
 /* iterator */

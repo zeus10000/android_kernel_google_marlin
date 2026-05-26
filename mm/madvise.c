@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  *	linux/mm/madvise.c
  *
@@ -82,16 +81,6 @@ static long madvise_behavior(struct vm_area_struct *vma,
 			goto out;
 		}
 		new_flags &= ~VM_DONTDUMP;
-		break;
-	case MADV_WIPEONFORK:
-		if (!vma_is_anonymous(vma)) {
-			error = -EINVAL;
-			goto out;
-		}
-		new_flags |= VM_WIPEONFORK;
-		break;
-	case MADV_KEEPONFORK:
-		new_flags &= ~VM_WIPEONFORK;
 		break;
 	case MADV_MERGEABLE:
 	case MADV_UNMERGEABLE:
@@ -417,8 +406,6 @@ madvise_behavior_valid(int behavior)
 #endif
 	case MADV_DONTDUMP:
 	case MADV_DODUMP:
-	case MADV_WIPEONFORK:
-	case MADV_KEEPONFORK:
 		return true;
 
 	default:

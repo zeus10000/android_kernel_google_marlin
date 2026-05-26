@@ -1,8 +1,7 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2014 Davidlohr Bueso.
  */
-#include <linux/sched/signal.h>
+#include <linux/sched.h>
 #include <linux/mm.h>
 #include <linux/vmacache.h>
 

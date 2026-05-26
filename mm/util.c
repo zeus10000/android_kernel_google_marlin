@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
-#include <linux/sched/mm.h>
 #include <linux/mm.h>
 #include <linux/slab.h>
 #include <linux/string.h>
@@ -15,7 +13,7 @@
 #include <linux/vmalloc.h>
 
 #include <asm/sections.h>
-#include <linux/uaccess.h>
+#include <asm/uaccess.h>
 
 #include "internal.h"
 

@@ -40,8 +40,7 @@
 #include <linux/mm.h>
 #include <linux/page-flags.h>
 #include <linux/kernel-page-flags.h>
-#include <linux/sched/signal.h>
-#include <linux/sched/task.h>
+#include <linux/sched.h>
 #include <linux/ksm.h>
 #include <linux/rmap.h>
 #include <linux/export.h>

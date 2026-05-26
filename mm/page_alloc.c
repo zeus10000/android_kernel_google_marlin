@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  *  linux/mm/page_alloc.c
  *
@@ -34,6 +33,7 @@
 #include <linux/slab.h>
 #include <linux/ratelimit.h>
 #include <linux/oom.h>
+#include <linux/notifier.h>
 #include <linux/topology.h>
 #include <linux/sysctl.h>
 #include <linux/cpu.h>
@@ -2003,13 +2003,7 @@ static struct list_head *get_populated_pcp_list(struct zone *zone,
 			unsigned int order, struct per_cpu_pages *pcp,
 			int migratetype, int cold)
 {
-	struct list_head *list;
-	if (!pcp || (unsigned long)pcp < PAGE_OFFSET ||
-	    migratetype < 0 || migratetype >= MIGRATE_PCPTYPES)
-		return NULL;
-	if (!virt_addr_valid(pcp))
-		return NULL;
-	list = &pcp->lists[migratetype];
+	struct list_head *list = &pcp->lists[migratetype];
 
 	if (list_empty(list)) {
 		pcp->count += rmqueue_bulk(zone, order,

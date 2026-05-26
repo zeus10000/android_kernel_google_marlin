@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  *  linux/mm/oom_kill.c
  * 
@@ -18,7 +17,6 @@
  *  kernel subsystems and hints as to where to find out what things do.
  */
 
-#include <linux/sched/mm.h>
 #include <linux/oom.h>
 #include <linux/mm.h>
 #include <linux/err.h>

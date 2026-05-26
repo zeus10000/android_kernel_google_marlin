@@ -31,8 +31,6 @@
  * GNU General Public License for more details.
  */
 
-#include <linux/sched/mm.h>
-#include <linux/sched/task.h>
 #include <linux/page_counter.h>
 #include <linux/memcontrol.h>
 #include <linux/cgroup.h>
@@ -71,7 +69,7 @@
 #include <net/tcp_memcontrol.h>
 #include "slab.h"
 
-#include <linux/uaccess.h>
+#include <asm/uaccess.h>
 
 #include <trace/events/vmscan.h>
 
@@ -3850,7 +3848,7 @@ static void memcg_event_remove(struct work_struct *work)
 }
 
 /*
- * Gets called on EPOLLHUP on eventfd when user closes it.
+ * Gets called on POLLHUP on eventfd when user closes it.
  *
  * Called with wqh->lock held and interrupts disabled.
  */
@@ -3862,7 +3860,7 @@ static int memcg_event_wake(wait_queue_t *wait, unsigned mode,
 	struct mem_cgroup *memcg = event->memcg;
 	unsigned long flags = (unsigned long)key;
 
-	if (flags & EPOLLHUP) {
+	if (flags & POLLHUP) {
 		/*
 		 * If the event has been detached at cgroup removal, we
 		 * can simply return knowing the other side will cleanup
