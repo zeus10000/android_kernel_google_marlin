@@ -6,7 +6,6 @@
 #define __ASM_DEVICE_H
 
 struct dev_archdata {
-	void *mapping; /* marlin: iommu mapping field */
 	const struct dma_map_ops *dma_ops;
 #ifdef CONFIG_IOMMU_API
 	void *iommu;			/* private IOMMU data */

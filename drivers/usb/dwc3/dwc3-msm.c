@@ -38,6 +38,7 @@
 #include <linux/usb/msm_hsusb.h>
 #include <linux/regulator/consumer.h>
 #include <linux/pm_wakeup.h>
+#include <linux/pm_qos.h>
 #include <linux/power_supply.h>
 #include <linux/cdev.h>
 #include <linux/completion.h>

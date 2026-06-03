@@ -1931,16 +1931,22 @@ arm_iommu_create_mapping(struct bus_type *bus, dma_addr_t base, size_t size)
 	if (!mapping->bitmap)
 		mapping->bitmap = vzalloc(bitmap_size);
 
-	if (!mapping->bitmap)
+	if (!mapping->bitmap) {
+		pr_err("ACM: bitmap alloc failed size=%u\n", bitmap_size);
 		goto err2;
+	}
 
 	mapping->base = base;
 	mapping->bits = bits;
 	spin_lock_init(&mapping->lock);
 
+	pr_err("ACM: bus=%p iommu_ops=%p base=%llx size=%zx bits=%u bitmap_size=%u\n",
+		bus, bus ? bus->iommu_ops : NULL, (u64)base, size, bits, bitmap_size);
 	mapping->domain = iommu_domain_alloc(bus);
-	if (!mapping->domain)
+	if (!mapping->domain) {
+		pr_err("ACM: iommu_domain_alloc returned NULL\n");
 		goto err3;
+	}
 
 	kref_init(&mapping->kref);
 	return mapping;

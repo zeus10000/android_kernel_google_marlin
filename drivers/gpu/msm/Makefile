@@ -1,4 +1,4 @@
-ccflags-y := -Idrivers/staging/android
+ccflags-y := -I$(srctree)/drivers/staging/android -I$(srctree)/drivers/gpu/msm
 
 msm_kgsl_core-y = \
 	kgsl.o \
@@ -9,7 +9,10 @@ msm_kgsl_core-y = \
 	kgsl_pwrscale.o \
 	kgsl_mmu.o \
 	kgsl_snapshot.o \
-	kgsl_pool.o
+	kgsl_pool.o \
+	kgsl_drawobj.o \
+	kgsl_sync.o \
+	kgsl_events.o
 
 msm_kgsl_core-$(CONFIG_QCOM_KGSL_IOMMU) += kgsl_iommu.o
 msm_kgsl_core-$(CONFIG_DEBUG_FS) += kgsl_debugfs.o

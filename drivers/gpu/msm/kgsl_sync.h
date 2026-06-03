@@ -1,8 +1,3 @@
-/* marlin: stub sync structs */
-struct sync_timeline { int dummy; };
-struct sync_pt { int dummy; };
-struct sync_fence_waiter { int dummy; };
-struct sync_fence { int dummy; };
 /* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -18,7 +13,7 @@ struct sync_fence { int dummy; };
 #ifndef __KGSL_SYNC_H
 #define __KGSL_SYNC_H
 
-/* marlin: skip sync.h */
+#include "sync.h"
 #include "kgsl_device.h"
 
 struct kgsl_sync_timeline {

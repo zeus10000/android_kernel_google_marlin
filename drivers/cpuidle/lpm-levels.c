@@ -1583,6 +1583,17 @@ static int lpm_cpuidle_enter(struct cpuidle_device *dev,
 	int64_t start_time = ktime_to_ns(ktime_get()), end_time;
 	struct power_params *pwr_params;
 
+	/*
+	 * marlin: defensively fall back to plain WFI if the lpm cluster
+	 * topology was not built for this CPU (cpu_cluster NULL) instead of
+	 * dereferencing NULL and panicking in the idle path.
+	 */
+	if (unlikely(!cluster || !cluster->cpu)) {
+		cpu_do_idle();
+		local_irq_enable();
+		return idx;
+	}
+
 	pwr_params = &cluster->cpu->levels[idx].pwr;
 	sched_set_cpu_cstate(smp_processor_id(), idx + 1,
 		pwr_params->energy_overhead, pwr_params->latency_us);

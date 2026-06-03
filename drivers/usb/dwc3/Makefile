@@ -39,3 +39,6 @@ obj-$(CONFIG_USB_DWC3_EXYNOS)		+= dwc3-exynos.o
 obj-$(CONFIG_USB_DWC3_PCI)		+= dwc3-pci.o
 obj-$(CONFIG_USB_DWC3_KEYSTONE)		+= dwc3-keystone.o
 obj-$(CONFIG_USB_DWC3_ST)		+= dwc3-st.o
+
+CFLAGS_dwc3-msm.o			:= -I$(srctree)/drivers/usb/host -I$(srctree)/drivers/base/power
+obj-$(CONFIG_USB_DWC3_QCOM)		+= dwc3-qcom.o dwc3-msm.o dbm.o
