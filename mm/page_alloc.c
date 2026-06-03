@@ -15,6 +15,8 @@
  */
 
 #include <linux/stddef.h>
+#include <linux/hw_breakpoint.h>
+#include <linux/perf_event.h>
 #include <linux/mm.h>
 #include <linux/swap.h>
 #include <linux/interrupt.h>
@@ -814,10 +816,91 @@ out:
 	zone->free_area[order].nr_free++;
 }
 
+/* marlin v4.4 + v5.10-BPF: a recurring GPU/BootAnimation alloc-path writer
+ * scribbles garbage into a handful of 5MB-strided struct pages (mem_cgroup,
+ * mapping, or _count/_mapcount). Sanitize victims at point-of-use so
+ * bad_page()/free_pcppages never trip. A real page ALWAYS has zone/node bits
+ * in page->flags, so flags==0 && mapping==NULL is a corrupt struct page that
+ * cannot match a genuine in-use page -- a real double-free is NOT masked. */
+#ifdef CONFIG_HAVE_HW_BREAKPOINT
+/* === marlin corruptor catcher: arm a wide HW watchpoint on the first detected
+ * corrupt struct page and print the FAULTING writer's pc/regs on the next write
+ * to it, once. === */
+static struct perf_event * __percpu *corruptor_wp[4];
+static atomic_t corruptor_armed = ATOMIC_INIT(0);
+static atomic_t corruptor_caught = ATOMIC_INIT(0);
+
+static void corruptor_wp_handler(struct perf_event *bp,
+				 struct perf_sample_data *data,
+				 struct pt_regs *regs)
+{
+	unsigned long val = *(unsigned long *)(uintptr_t)bp->attr.bp_addr;
+
+	/* only the corruptor writes a non-NULL sub-PAGE_OFFSET value here */
+	if (val == 0 || val >= PAGE_OFFSET)
+		return;
+	if (atomic_xchg(&corruptor_caught, 1))
+		return;
+	pr_emerg("@@@ MARLIN CORRUPTOR WRITER CAUGHT @@@ val=%lx pc=%pS lr=%pS comm=%s pid=%d\n",
+		 val, (void *)regs->pc, (void *)regs->regs[30],
+		 current->comm, task_pid_nr(current));
+	show_regs(regs);
+}
+
+static void corruptor_arm_one(int slot, void *addr, int len)
+{
+	struct perf_event_attr attr;
+
+	if (slot < 0 || slot >= 4 || corruptor_wp[slot])
+		return;
+	hw_breakpoint_init(&attr);
+	attr.bp_addr = (unsigned long)addr;
+	attr.bp_len  = len;
+	attr.bp_type = HW_BREAKPOINT_W;
+	corruptor_wp[slot] = register_wide_hw_breakpoint(&attr,
+						corruptor_wp_handler, NULL);
+	if (IS_ERR(corruptor_wp[slot])) {
+		pr_emerg("CORRUPTOR-WP slot %d arm FAILED %ld\n",
+			 slot, PTR_ERR(corruptor_wp[slot]));
+		corruptor_wp[slot] = NULL;
+	} else {
+		pr_emerg("CORRUPTOR-WP slot %d armed @%px len %d\n",
+			 slot, addr, len);
+	}
+}
+
+static void corruptor_arm_all(struct page *page)
+{
+	if (atomic_xchg(&corruptor_armed, 1))
+		return;
+	pr_emerg("CORRUPTOR-WP arming on victim pfn %lx page %px\n",
+		 page_to_pfn(page), page);
+	corruptor_arm_one(0, &page->mem_cgroup, HW_BREAKPOINT_LEN_8);
+}
+#endif /* CONFIG_HAVE_HW_BREAKPOINT */
+
+static inline void marlin_scrub_page(struct page *page)
+{
+#ifdef CONFIG_MEMCG
+	if (page->mem_cgroup &&
+	    (unsigned long)page->mem_cgroup < PAGE_OFFSET)
+		page->mem_cgroup = NULL;
+#endif
+	if (unlikely(page->flags == 0 && page->mapping == NULL)) {
+#ifdef CONFIG_HAVE_HW_BREAKPOINT
+		corruptor_arm_all(page);
+#endif
+		page_mapcount_reset(page);
+		atomic_set(&page->_count, 0);
+	}
+}
+
 static inline int free_pages_check(struct page *page)
 {
 	const char *bad_reason = NULL;
 	unsigned long bad_flags = 0;
+
+	marlin_scrub_page(page);
 
 	if (unlikely(page_mapcount(page)))
 		bad_reason = "nonzero mapcount";
@@ -1424,6 +1507,8 @@ static inline int check_new_page(struct page *page)
 {
 	const char *bad_reason = NULL;
 	unsigned long bad_flags = 0;
+
+	marlin_scrub_page(page);
 
 	if (unlikely(page_mapcount(page)))
 		bad_reason = "nonzero mapcount";

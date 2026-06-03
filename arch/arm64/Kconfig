@@ -28,7 +28,7 @@ config ARM64
 	select ARM_PSCI_FW
 	select BUILDTIME_TABLE_SORT
 	select CLONE_BACKWARDS
-	select COMMON_CLK
+	select COMMON_CLK if !ARCH_QCOM
 	select CPU_PM if (SUSPEND || CPU_IDLE)
 	select DCACHE_WORD_ACCESS
 	select EDAC_SUPPORT
@@ -197,6 +197,32 @@ config NEED_SG_DMA_LENGTH
 
 config SMP
 	def_bool y
+
+config ARM64_DMA_USE_IOMMU
+	bool
+	select ARM_HAS_SG_CHAIN
+	select NEED_SG_DMA_LENGTH
+
+if ARM64_DMA_USE_IOMMU
+
+config ARM64_DMA_IOMMU_ALIGNMENT
+	int "Maximum PAGE_SIZE order of alignment for DMA IOMMU buffers"
+	range 4 9
+	default 9
+	help
+	  DMA mapping framework by default aligns all buffers to the smallest
+	  PAGE_SIZE order which is greater than or equal to the requested buffer
+	  size. This works well for buffers up to a few hundreds kilobytes, but
+	  for larger buffers it just a waste of address space. Drivers which has
+	  relatively small addressing window (like 64Mib) might run out of
+	  virtual space with just a few allocations.
+
+	  With this parameter you can specify the maximum PAGE_SIZE order for
+	  DMA IOMMU buffers. Larger buffers will be aligned only to this
+	  specified order. The order is expressed as a power of two multiplied
+	  by the PAGE_SIZE.
+
+endif
 
 config SWIOTLB
 	def_bool y
@@ -976,6 +1002,33 @@ config SYSVIPC_COMPAT
 	def_bool y
 	depends on COMPAT && SYSVIPC
 
+config KUSER_HELPERS
+	bool "Enable the kuser helpers page in 32-bit processes"
+	depends on COMPAT
+	default y
+	help
+	  Warning: disabling this option may break 32-bit applications.
+
+	  Provide kuser helpers in a special purpose fixed-address page. The
+	  kernel provides helper code to userspace in read-only form at a fixed
+	  location to allow userspace to be independent of the CPU type fitted
+	  to the system. This permits 32-bit binaries to be run on ARMv6 through
+	  to ARMv8 without modification.
+
+	  See Documentation/arm/kernel_user_helpers.rst for details.
+
+	  However, the fixed-address nature of these helpers can be used by ROP
+	  (return-oriented programming) authors when creating exploits.
+
+	  If all of the binaries and libraries which run on your platform are
+	  built specifically for your platform, and make no use of these helpers,
+	  then you can turn this option off to hinder such exploits. However,
+	  in that case, if a binary or library relying on those helpers is run,
+	  it will not function correctly.
+
+	  Say N here only if you are absolutely certain that you do not need
+	  these helpers; otherwise, the safe option is to say Y.
+
 endmenu
 
 menu "Power management options"
@@ -1015,7 +1068,7 @@ source "fs/Kconfig"
 
 source "arch/arm64/kvm/Kconfig"
 
-source "arch/arm64/Kconfig.debug"
+source "lib/Kconfig.debug"
 
 source "security/Kconfig"
 
