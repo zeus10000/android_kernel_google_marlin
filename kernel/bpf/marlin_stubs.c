@@ -6,8 +6,6 @@
 #include <linux/net.h>
 #include <linux/skbuff.h>
 
-struct static_key_false cgroup_bpf_enabled_key;
-EXPORT_SYMBOL_GPL(cgroup_bpf_enabled_key);
 
 struct sock;
 struct sockaddr;
@@ -15,11 +13,6 @@ struct bpf_prog;
 struct bpf_sock_ops_kern;
 
 #include <linux/bpf-cgroup.h>
-int __cgroup_bpf_run_filter_sock_addr(struct sock *sk, struct sockaddr *uaddr, enum bpf_attach_type type, void *t_ctx)
-{
-	return 0;
-}
-EXPORT_SYMBOL(__cgroup_bpf_run_filter_sock_addr);
 
 int sock_gettstamp(struct socket *sock, void __user *userstamp, bool timeval, bool time32)
 {
@@ -36,9 +29,7 @@ void ipv6_anycast_cleanup(void) { }
 int tcp_sendmsg_locked(struct sock *sk, struct msghdr *msg, size_t size) { return -EINVAL; }
 int tcp_sendpage_locked(struct sock *sk, struct page *page, int offset, size_t size, int flags) { return -EINVAL; }
 void ipv6_list_rcv(struct list_head *head, struct packet_type *pt, struct net_device *orig_dev) { }
-int __cgroup_bpf_run_filter_skb(struct sock *sk, struct sk_buff *skb, enum bpf_attach_type type) { return 0; }
 
-int __cgroup_bpf_run_filter_sk(struct sock *sk, enum bpf_attach_type type) { return 0; }
 int compat_sock_common_setsockopt(struct socket *sock, int level, int optname, char __user *optval, unsigned int optlen) { return -EINVAL; }
 int compat_sock_common_getsockopt(struct socket *sock, int level, int optname, char __user *optval, int __user *optlen) { return -EINVAL; }
 int inet_send_prepare(struct sock *sk) { return 0; }
@@ -52,3 +43,9 @@ int dev_tx_weight = 64;
 u32 inet_current_timestamp(void) { return 0; }
 void inet_sk_set_state(struct sock *sk, int state) { sk->sk_state = state; }
 void inet_sk_state_store(struct sock *sk, int newstate) { sk->sk_state = newstate; }
+
+/* v5.4 cgroup.c has no bpf_link support (introduced v5.7); honest unsupported. */
+int cgroup_bpf_link_attach(const union bpf_attr *attr, struct bpf_prog *prog)
+{
+	return -EOPNOTSUPP;
+}

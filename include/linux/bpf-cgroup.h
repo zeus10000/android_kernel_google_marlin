@@ -2,18 +2,24 @@
 #ifndef _BPF_CGROUP_H
 #define _BPF_CGROUP_H
 
-/* marlin: defensive */
-#ifndef MAX_BPF_CGROUP_STORAGE_TYPE
-#define MAX_BPF_CGROUP_STORAGE_TYPE 2
-#endif
-
-#include <linux/bpf.h>
+#include <linux/list.h>
+#include <linux/workqueue.h>
 #include <linux/errno.h>
 #include <linux/jump_label.h>
 #include <linux/percpu.h>
 #include <linux/percpu-refcount.h>
 #include <linux/rbtree.h>
 #include <uapi/linux/bpf.h>
+
+#ifndef _MARLIN_BPF_CGROUP_STORAGE_ENUM
+#define _MARLIN_BPF_CGROUP_STORAGE_ENUM
+enum bpf_cgroup_storage_type {
+	BPF_CGROUP_STORAGE_SHARED,
+	BPF_CGROUP_STORAGE_PERCPU,
+	__BPF_CGROUP_STORAGE_MAX
+};
+#define MAX_BPF_CGROUP_STORAGE_TYPE __BPF_CGROUP_STORAGE_MAX
+#endif
 
 struct sock;
 struct sockaddr;
@@ -33,9 +39,6 @@ extern struct static_key_false cgroup_bpf_enabled_key;
 
 DECLARE_PER_CPU(struct bpf_cgroup_storage*,
 		bpf_cgroup_storage[MAX_BPF_CGROUP_STORAGE_TYPE]);
-
-
-static inline int cgroup_storage_type(struct bpf_map *map) { return 0; /* BPF_CGROUP_STORAGE_SHARED */ }
 
 #define for_each_cgroup_storage_type(stype) \
 	for (stype = 0; stype < MAX_BPF_CGROUP_STORAGE_TYPE; stype++)
@@ -88,6 +91,8 @@ struct cgroup_bpf {
 	/* cgroup_bpf is released using a work queue */
 	struct work_struct release_work;
 };
+
+#include <linux/bpf.h>
 
 int cgroup_bpf_inherit(struct cgroup *cgrp);
 void cgroup_bpf_offline(struct cgroup *cgrp);
@@ -264,10 +269,6 @@ void bpf_cgroup_storage_release(struct bpf_prog *prog, struct bpf_map *map);
 })
 
 
-
-/* marlin: stub */
-static inline int __cgroup_bpf_run_filter_sysctl(struct ctl_table_header *head, struct ctl_table *table, int write, char **buf, size_t *count, loff_t *ppos, void **new_buf, int type) { return 0; }
-
 #define BPF_CGROUP_RUN_PROG_SYSCTL(head, table, write, buf, count, pos, nbuf)  \
 ({									       \
 	int __ret = 0;							       \
@@ -278,17 +279,11 @@ static inline int __cgroup_bpf_run_filter_sysctl(struct ctl_table_header *head, 
 	__ret;								       \
 })
 
+/* marlin: cgroup setsockopt hook disabled — running Android cgroupsockopt
+ * programs in this backport corrupts optlen and breaks ALL setsockopt
+ * system-wide (traced/logd/netd). Non-boot-essential socket-option filter. */
 #define BPF_CGROUP_RUN_PROG_SETSOCKOPT(sock, level, optname, optval, optlen,   \
-				       kernel_optval)			       \
-({									       \
-	int __ret = 0;							       \
-	if (cgroup_bpf_enabled)						       \
-		__ret = __cgroup_bpf_run_filter_setsockopt(sock, level,	       \
-							   optname, optval,    \
-							   optlen,	       \
-							   kernel_optval);     \
-	__ret;								       \
-})
+				       kernel_optval) ({ 0; })
 
 #define BPF_CGROUP_GETSOCKOPT_MAX_OPTLEN(optlen)			       \
 ({									       \
@@ -298,17 +293,9 @@ static inline int __cgroup_bpf_run_filter_sysctl(struct ctl_table_header *head, 
 	__ret;								       \
 })
 
+/* marlin: cgroup getsockopt hook disabled (same reason as SETSOCKOPT). */
 #define BPF_CGROUP_RUN_PROG_GETSOCKOPT(sock, level, optname, optval, optlen,   \
-				       max_optlen, retval)		       \
-({									       \
-	int __ret = retval;						       \
-	if (cgroup_bpf_enabled)						       \
-		__ret = __cgroup_bpf_run_filter_getsockopt(sock, level,	       \
-							   optname, optval,    \
-							   optlen, max_optlen, \
-							   retval);	       \
-	__ret;								       \
-})
+				       max_optlen, retval) ({ retval; })
 
 int cgroup_bpf_prog_attach(const union bpf_attr *attr,
 			   enum bpf_prog_type ptype, struct bpf_prog *prog);
@@ -391,7 +378,4 @@ static inline int bpf_percpu_cgroup_storage_update(struct bpf_map *map,
 
 #endif /* CONFIG_CGROUP_BPF */
 
-
-/* marlin: v5.x stub */
-static inline int cgroup_bpf_link_attach(union bpf_attr *attr, struct bpf_prog *prog) { return -EINVAL; }
 #endif /* _BPF_CGROUP_H */

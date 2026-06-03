@@ -497,6 +497,14 @@ enum bpf_cgroup_storage_type {
 #define MAX_BPF_CGROUP_STORAGE_TYPE __BPF_CGROUP_STORAGE_MAX
 #endif
 
+static inline enum bpf_cgroup_storage_type
+cgroup_storage_type(struct bpf_map *map)
+{
+	if (map->map_type == BPF_MAP_TYPE_PERCPU_CGROUP_STORAGE)
+		return BPF_CGROUP_STORAGE_PERCPU;
+	return BPF_CGROUP_STORAGE_SHARED;
+}
+
 /* The longest tracepoint has 12 args.
  * See include/trace/bpf_probe.h
  */
