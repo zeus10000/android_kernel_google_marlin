@@ -24,6 +24,9 @@ else
 DTB_OBJS := $(shell find -L $(obj)/dts/ -name \*.dtb)
 endif
 
+quiet_cmd_cat = CAT     $@
+      cmd_cat = cat $(real-prereqs) > $@
+
 $(obj)/Image: vmlinux FORCE
 	$(call if_changed,objcopy)
 
