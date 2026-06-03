@@ -2052,6 +2052,37 @@ SYSCALL_DEFINE6(epoll_pwait, int, epfd, struct epoll_event __user *, events,
 	return error;
 }
 
+/*
+ * marlin/BACKPORT (v5.11 epoll_pwait2): timespec-timeout variant. Converts the
+ * timespec to a millisecond timeout (round up) and reuses sys_epoll_pwait, so
+ * userspace (e.g. SurfaceFlinger BLASTBufferQueue) no longer gets ENOSYS.
+ */
+SYSCALL_DEFINE6(epoll_pwait2, int, epfd, struct epoll_event __user *, events,
+		int, maxevents, const struct timespec __user *, timeout,
+		const sigset_t __user *, sigmask, size_t, sigsetsize)
+{
+	int to = -1;
+
+	if (timeout) {
+		struct timespec ts;
+
+		if (copy_from_user(&ts, timeout, sizeof(ts)))
+			return -EFAULT;
+		if (ts.tv_sec < 0 || ts.tv_nsec < 0 ||
+		    ts.tv_nsec >= NSEC_PER_SEC)
+			return -EINVAL;
+		if (ts.tv_sec == 0 && ts.tv_nsec == 0) {
+			to = 0;
+		} else if (ts.tv_sec > (INT_MAX - 1) / MSEC_PER_SEC) {
+			to = INT_MAX;
+		} else {
+			to = ts.tv_sec * MSEC_PER_SEC +
+			     (ts.tv_nsec + NSEC_PER_MSEC - 1) / NSEC_PER_MSEC;
+		}
+	}
+	return sys_epoll_pwait(epfd, events, maxevents, to, sigmask, sigsetsize);
+}
+
 #ifdef CONFIG_COMPAT
 COMPAT_SYSCALL_DEFINE6(epoll_pwait, int, epfd,
 			struct epoll_event __user *, events,

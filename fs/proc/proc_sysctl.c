@@ -529,14 +529,14 @@ out:
 	return err;
 }
 
-static ssize_t proc_sys_call_handler(struct file *filp, void __user *ubuf,
+static ssize_t proc_sys_call_handler(struct file *filp, void __user *buf,
 		size_t count, loff_t *ppos, int write)
 {
 	struct inode *inode = file_inode(filp);
 	struct ctl_table_header *head = grab_header(inode);
 	struct ctl_table *table = PROC_I(inode)->sysctl_entry;
-	void *kbuf;
 	ssize_t error;
+	size_t res;
 
 	if (IS_ERR(head))
 		return PTR_ERR(head);
@@ -554,38 +554,11 @@ static ssize_t proc_sys_call_handler(struct file *filp, void __user *ubuf,
 	if (!table->proc_handler)
 		goto out;
 
-	if (write) {
-		kbuf = memdup_user_nul(ubuf, count);
-		if (IS_ERR(kbuf)) {
-			error = PTR_ERR(kbuf);
-			goto out;
-		}
-	} else {
-		error = -ENOMEM;
-		kbuf = kzalloc(count, GFP_KERNEL);
-		if (!kbuf)
-			goto out;
-	}
-
-	error = BPF_CGROUP_RUN_PROG_SYSCTL(head, table, write, &kbuf, &count,
-					   ppos, NULL);
-	if (error)
-		goto out_free_buf;
-
 	/* careful: calling conventions are nasty here */
-	error = table->proc_handler(table, write, kbuf, &count, ppos);
-	if (error)
-		goto out_free_buf;
-
-	if (!write) {
-		error = -EFAULT;
-		if (copy_to_user(ubuf, kbuf, count))
-			goto out_free_buf;
-	}
-
-	error = count;
-out_free_buf:
-	kfree(kbuf);
+	res = count;
+	error = table->proc_handler(table, write, buf, &res, ppos);
+	if (!error)
+		error = res;
 out:
 	sysctl_head_finish(head);
 
