@@ -249,4 +249,3 @@ cond_syscall(sys_bpf);
 cond_syscall(sys_execveat);
 
 /* membarrier */
-cond_syscall(sys_membarrier);
