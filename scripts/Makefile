@@ -28,6 +28,7 @@ endif
 
 # The following programs are only built on demand
 hostprogs += unifdef
+always-y += unifdef
 
 # The module linker script is preprocessed on demand
 targets += module.lds

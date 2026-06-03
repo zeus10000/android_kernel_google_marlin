@@ -1,16 +1,16 @@
 # SPDX-License-Identifier: GPL-2.0-only
 # This config refers to the generic KASAN mode.
 config HAVE_ARCH_KASAN
-	bool
+	def_bool y
 
 config HAVE_ARCH_KASAN_SW_TAGS
 	bool
 
 config CC_HAS_KASAN_GENERIC
-	def_bool $(cc-option, -fsanitize=kernel-address)
+	def_bool y
 
 config CC_HAS_KASAN_SW_TAGS
-	def_bool $(cc-option, -fsanitize=kernel-hwaddress)
+	def_bool n
 
 config KASAN
 	bool "KASAN: runtime memory debugger"

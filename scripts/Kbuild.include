@@ -225,6 +225,12 @@ gold-ifversion = $(call __ld-ifversion, gold, $(1), $(2), $(3), $(4))
 build := -f $(srctree)/scripts/Makefile.build obj
 
 ###
+# Shorthand for $(Q)$(MAKE) -f scripts/Makefile.headersinst obj=
+# Usage:
+# $(Q)$(MAKE) $(hdr-inst)=dir
+hdr-inst := -rR -f $(srctree)/scripts/Makefile.headersinst obj
+
+###
 # Shorthand for $(Q)$(MAKE) -f scripts/Makefile.dtbinst obj=
 # Usage:
 # $(Q)$(MAKE) $(dtbinst)=dir

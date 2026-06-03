@@ -180,7 +180,7 @@ zinstall install: vmlinux
 
 PHONY += dtbs dtbs_install
 
-dtbs: prepare scripts
+dtbs: prepare scripts scripts_dtc
 	$(Q)$(MAKE) $(build)=$(boot)/dts
 
 dtbs_install:
